@@ -1,38 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:app="http://schemas.android.com/apk/res-auto"
         xmlns:tools="http://schemas.android.com/tools"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        tools:context=".MainActivity"
-        android:orientation="vertical">
+        tools:context=".MainActivity">
 
-    <androidx.appcompat.widget.Toolbar
-            android:id="@+id/toolbar"
+    <com.google.android.material.appbar.AppBarLayout
             android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize"
-            android:background="?attr/colorPrimary"
-            />
+            android:layout_height="wrap_content"
+            android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar">
 
-    <ScrollView
+        <androidx.appcompat.widget.Toolbar
+                android:id="@+id/toolbar"
+                android:layout_width="match_parent"
+                android:layout_height="?attr/actionBarSize"
+                android:background="?attr/colorPrimary"
+                app:layout_scrollFlags="scroll|enterAlways" />
+
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <androidx.core.widget.NestedScrollView
+            android:id="@+id/chat_scrollview"
+            android:layout_width="match_parent"
+            android:layout_height="200dp"
             android:padding="16dp"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:fillViewport="true"
+            app:layout_behavior="@string/appbar_scrolling_view_behavior"
             >
         <TextView
                 android:id="@+id/textview_chat"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="text1\ntext2\ntext3\ntext4\ntext5\ntext6\ntext7\ntext8\ntext9\ntext10\ntext1\ntext2\ntext3\ntext4\ntext5\ntext6\ntext7\ntext8\ntext9\ntext10\ntext1\ntext2\ntext3\ntext4\ntext5\ntext6\ntext7\ntext8\ntext9\ntext10\ntext1\ntext2\ntext3\ntext4\ntext5\ntext6\ntext7\ntext8\ntext9\ntext10\ntext1\ntext2\ntext3\ntext4\ntext5\ntext6\ntext7\ntext8\ntext9\ntext10\ntext1\ntext2\ntext3\ntext4\ntext5\ntext6\ntext7\ntext8\ntext9\ntext10\ntext1\ntext2\ntext3\ntext4\ntext5\ntext6\ntext7\ntext8\ntext9\ntext10\ntext1\ntext2\ntext3\ntext4\ntext5\ntext6\ntext7\ntext8\ntext9\ntext10\n"
-                />
-    </ScrollView>
+                android:text="a\nb\nc\nd\ne\nf\ng\nh\ni\njjjjjjjjjjjjj\n\na\nb\nc\nd\ne\nf\ng\nh\ni\njjjjjjjjjjjjj\n\na\nb\nc\nd\ne\nf\ng\nh\ni\njjjjjjjjjjjjj\n\na\nb\nc\nd\ne\nf\ng\nh\ni\njjjjjjjjjjjjj\n\na\nb\nc\nd\ne\nf\ng\nh\ni\njjjjjjjjjjjjj\n" />
+    </androidx.core.widget.NestedScrollView>
 
     <LinearLayout
+            android:id="@+id/prompt_section"
             android:orientation="horizontal"
-            android:layout_height="wrap_content"
             android:layout_width="match_parent"
-            >
+            android:layout_height="wrap_content"
+            app:layout_anchor="@id/chat_scrollview"
+            app:layout_anchorGravity="bottom">
+
         <EditText
                 android:id="@+id/edittext_prompt"
                 android:layout_width="0dp"
@@ -40,16 +50,14 @@
                 android:layout_margin="16dp"
                 android:layout_weight="1"
                 android:hint="Type your text here"
-                android:inputType="text"
-                />
+                android:inputType="text" />
 
         <ImageButton
                 android:id="@+id/button_send"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:background="@android:drawable/ic_menu_send"
-                android:contentDescription="@string/send"
-                />
+                android:contentDescription="@string/send" />
     </LinearLayout>
 
-</LinearLayout>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
