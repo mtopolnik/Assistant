@@ -1,7 +1,6 @@
 <resources>
     <string name="app_name">Assistant</string>
     <string name="action_settings">Settings</string>
-    <!-- Strings used for fragments for navigation -->
     <string name="first_fragment_label">Chat</string>
     <string name="send">Send</string>
 </resources>
