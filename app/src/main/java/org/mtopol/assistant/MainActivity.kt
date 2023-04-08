@@ -1,6 +1,7 @@
 package org.mtopol.assistant
 
 import android.os.Bundle
+import android.text.TextUtils.replace
 import android.view.Menu
 import android.view.MenuItem
 import androidx.appcompat.app.AppCompatActivity
@@ -18,10 +19,9 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        setSupportActionBar(binding.toolbar)
-//        supportFragmentManager.commit {
-//            replace<ChatFragment>(R.id.fragment_container)
-//        }
+        supportFragmentManager.commit {
+            replace<ChatFragment>(R.id.fragment_container)
+        }
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
