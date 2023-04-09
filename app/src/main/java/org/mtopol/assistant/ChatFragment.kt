@@ -19,6 +19,8 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.aallam.openai.api.BetaOpenAI
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import org.mtopol.assistant.databinding.FragmentMainBinding
@@ -38,11 +40,13 @@ class ChatFragment : Fragment() {
             _binding = it
         }
         (requireActivity() as AppCompatActivity).setSupportActionBar(binding.toolbar)
+        val chatAdapter = ChatAdapter(requireContext())
         binding.recyclerviewChat.apply {
-            adapter = ChatAdapter(requireContext())
-            layoutManager = LinearLayoutManager(requireContext())
+            adapter = chatAdapter
+            layoutManager = LinearLayoutManager(requireContext()).apply { stackFromEnd = true }
         }
-
+        binding.edittextPrompt.text.append("I'm testing vertical scrolling of your response in my Android app." +
+                " Please generate 120 numbers in order, one per line.")
         return binding.root
     }
 
@@ -70,23 +74,28 @@ class ChatFragment : Fragment() {
                 return@setOnClickListener
             }
             promptView.editableText.clear()
+            binding.buttonSend.isEnabled = false
             val adapter = chatView.adapter as ChatAdapter
-            adapter.messages.add(ChatMessage(UserOrGpt.USER, StringBuilder(prompt)))
+            adapter.messages.add(MessageModel(Role.USER, StringBuilder(prompt)))
             adapter.notifyItemInserted(adapter.messages.size - 1)
             val gptReply = StringBuilder()
             viewLifecycleOwner.lifecycleScope.launch {
-                openAi.getResponseFlow(prompt)
+                openAi.getResponseFlow(adapter.messages, false)
                     .onStart {
-                        adapter.messages.add(ChatMessage(UserOrGpt.GPT, gptReply))
+                        adapter.messages.add(MessageModel(Role.GPT, gptReply))
                         adapter.notifyItemInserted(adapter.messages.size - 1)
-                        binding.recyclerviewChat.smoothScrollToPosition(adapter.itemCount - 1)
+                    }
+                    .onCompletion {
+                        binding.buttonSend.isEnabled = true
                     }
                     .collect { completion ->
                         completion.choices[0].delta?.content?.also {
                             gptReply.append(it)
-                            adapter.notifyItemChanged(adapter.messages.size - 1)
                         }
+                        adapter.notifyItemChanged(adapter.messages.size - 1)
+                        scrollToBottom()
                     }
+
             }
         }
     }
@@ -94,6 +103,16 @@ class ChatFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
+    }
+
+    private fun scrollToBottom() {
+        binding.scrollviewChat.post {
+            if (!binding.scrollviewChat.canScrollVertically(1)) {
+                return@post
+            }
+            binding.appbarLayout.setExpanded(false, true)
+            binding.scrollviewChat.smoothScrollTo(0, binding.scrollviewChat.getChildAt(0).bottom)
+        }
     }
 
     private fun vibrate() {
@@ -113,19 +132,21 @@ class ChatFragment : Fragment() {
     }
 }
 
-data class ChatMessage(
-    val author: UserOrGpt,
+data class MessageModel(
+    val author: Role,
     val text: StringBuilder
 )
 
-enum class UserOrGpt {
+enum class Role {
     USER, GPT
 }
 
 class ChatAdapter(private val context: Context) :
     RecyclerView.Adapter<ChatAdapter.ChatViewHolder>() {
 
-    val messages = mutableListOf<ChatMessage>()
+    val messages = mutableListOf<MessageModel>()
+
+    override fun getItemCount() = messages.size
 
     class ChatViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val messageTextView: TextView = itemView.findViewById(R.id.view_message_text)
@@ -142,11 +163,9 @@ class ChatAdapter(private val context: Context) :
         holder.messageTextView.text = message.text
         holder.messageTextView.setBackgroundColor(
             when(message.author) {
-                UserOrGpt.USER -> context.getColorCompat(R.color.primary)
-                UserOrGpt.GPT -> context.getColorCompat(R.color.black)
+                Role.USER -> context.getColorCompat(R.color.primary)
+                Role.GPT -> context.getColorCompat(R.color.black)
             }
         )
     }
-
-    override fun getItemCount() = messages.size
 }

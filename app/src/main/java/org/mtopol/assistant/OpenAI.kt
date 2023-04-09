@@ -6,8 +6,6 @@ import com.aallam.openai.api.chat.ChatCompletionChunk
 import com.aallam.openai.api.chat.ChatCompletionRequest
 import com.aallam.openai.api.chat.ChatMessage
 import com.aallam.openai.api.chat.ChatRole
-import com.aallam.openai.api.completion.CompletionRequest
-import com.aallam.openai.api.completion.TextCompletion
 import com.aallam.openai.api.http.Timeout
 import com.aallam.openai.api.model.ModelId
 import com.aallam.openai.client.OpenAIConfig
@@ -30,16 +28,18 @@ class OpenAI(context: Context) {
     }
 
     @Throws(IOException::class)
-    fun getResponseFlow(prompt: String): Flow<ChatCompletionChunk> {
+    fun getResponseFlow(history: List<MessageModel>, useGpt4: Boolean): Flow<ChatCompletionChunk> {
         val chatCompletionRequest = ChatCompletionRequest(
-            model = ModelId("gpt-3.5-turbo"),
-            messages = listOf(
-                ChatMessage(
-                    role = ChatRole.User,
-                    content = prompt
-                )
-            )
+            model = ModelId(if(useGpt4) "gpt-4" else "gpt-3.5-turbo"),
+            messages = history.toDto()
         )
         return client.chatCompletions(chatCompletionRequest)
+    }
+
+    private fun List<MessageModel>.toDto() = map { ChatMessage(role = it.author.toDto(), content = it.text.toString()) }
+
+    private fun Role.toDto() = when(this) {
+        Role.USER -> ChatRole.User
+        Role.GPT -> ChatRole.Assistant
     }
 }

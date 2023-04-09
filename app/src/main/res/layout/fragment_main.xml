@@ -10,25 +10,13 @@
         tools:context=".MainActivity">
 
     <androidx.coordinatorlayout.widget.CoordinatorLayout
+            android:id="@+id/coordinator_layout"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1">
 
-        <androidx.core.widget.NestedScrollView
-                android:id="@+id/chat_scrollview"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                app:layout_behavior="@string/appbar_scrolling_view_behavior">
-
-            <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/recyclerview_chat"
-                    android:padding="16dp"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    />
-        </androidx.core.widget.NestedScrollView>
-
         <com.google.android.material.appbar.AppBarLayout
+                android:id="@+id/appbar_layout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar">
@@ -42,6 +30,19 @@
 
         </com.google.android.material.appbar.AppBarLayout>
 
+        <androidx.core.widget.NestedScrollView
+                android:id="@+id/scrollview_chat"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+            <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/recyclerview_chat"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    />
+        </androidx.core.widget.NestedScrollView>
+
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
 
     <LinearLayout
@@ -49,7 +50,7 @@
             android:orientation="horizontal"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:layout_anchor="@id/chat_scrollview"
+            app:layout_anchor="@id/scrollview_chat"
             app:layout_anchorGravity="bottom"
             android:layout_gravity="bottom"
             android:padding="16dp"
@@ -62,8 +63,10 @@
                 android:layout_weight="1"
                 android:hint="@string/prompt_hint"
                 android:autofillHints=""
-                android:inputType="textCapSentences"
-                android:imeOptions="flagNavigateNext"
+                android:inputType="textCapSentences|textMultiLine"
+                android:privateImeOptions="inputType=textImeMultiLine"
+                android:imeOptions="actionDone|flagNavigateNext"
+                android:maxLines="4"
                 />
 
         <ImageButton
