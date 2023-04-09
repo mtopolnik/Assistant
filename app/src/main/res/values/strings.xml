@@ -4,4 +4,6 @@
     <string name="first_fragment_label">Chat</string>
     <string name="send">Send</string>
     <string name="prompt_hint">Message for GPT</string>
+    <string name="gpt_4">GPT-4</string>
+    <string name="clear_chat_history">Clear Chat History</string>
 </resources>

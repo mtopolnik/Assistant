@@ -26,7 +26,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="?attr/actionBarSize"
                     android:background="?attr/colorPrimary"
-                    app:layout_scrollFlags="scroll" />
+                    app:layout_scrollFlags="scroll|enterAlways" />
 
         </com.google.android.material.appbar.AppBarLayout>
 
@@ -71,11 +71,22 @@
 
         <ImageButton
                 android:id="@+id/button_send"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:src="@android:drawable/ic_menu_send"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginEnd="8dp"
+                android:src="@drawable/baseline_send_24"
+                app:tint="@color/white"
                 android:background="@drawable/round_button"
-                android:padding="4dp"
+                android:contentDescription="@string/send"
+                />
+
+        <ImageButton
+                android:id="@+id/button_record"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@drawable/baseline_mic_24"
+                app:tint="@color/white"
+                android:background="@drawable/round_button"
                 android:contentDescription="@string/send"
                 />
     </LinearLayout>

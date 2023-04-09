@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.appcompat.widget.SwitchCompat xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:app="http://schemas.android.com/apk/res-auto"
+        android:id="@+id/view_gpt_switch"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:text="@string/gpt_4"
+        app:switchPadding="8dp"
+        app:showText="false"
+        app:thumbTint="@color/switch_thumb_color_selector"
+        app:trackTint="@color/switch_track_color_selector"
+        android:layout_gravity="center_vertical"
+        android:gravity="center_vertical" />

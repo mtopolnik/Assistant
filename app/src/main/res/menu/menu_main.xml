@@ -3,6 +3,18 @@
         xmlns:tools="http://schemas.android.com/tools"
         tools:context="org.mtopol.assistant.MainActivity">
     <item
+            android:id="@+id/action_clear_chat_history"
+            android:title="@string/clear_chat_history"
+            android:icon="@drawable/baseline_delete_sweep_24"
+            app:iconTint="@color/white"
+            app:showAsAction="ifRoom" />
+    <item
+            android:id="@+id/menuitem_gpt_switch"
+            android:title="@string/gpt_4"
+            android:visible="false"
+            app:actionLayout="@layout/menu_item_switch"
+            app:showAsAction="ifRoom" />
+    <item
             android:id="@+id/action_settings"
             android:title="@string/action_settings"
             android:orderInCategory="100"
