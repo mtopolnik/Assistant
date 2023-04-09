@@ -3,14 +3,22 @@ package org.mtopol.assistant
 import android.content.Context
 import android.util.Log
 import com.aallam.openai.api.BetaOpenAI
+import com.aallam.openai.api.audio.TranscriptionRequest
 import com.aallam.openai.api.chat.ChatCompletionChunk
 import com.aallam.openai.api.chat.ChatCompletionRequest
 import com.aallam.openai.api.chat.ChatMessage
 import com.aallam.openai.api.chat.ChatRole
+import com.aallam.openai.api.file.FileSource
 import com.aallam.openai.api.http.Timeout
 import com.aallam.openai.api.model.ModelId
 import com.aallam.openai.client.OpenAIConfig
 import kotlinx.coroutines.flow.Flow
+import okio.FileSystem
+import okio.Path
+import okio.Source
+import okio.source
+import java.io.File
+import java.io.FileInputStream
 import java.io.IOException
 import kotlin.time.Duration.Companion.seconds
 import com.aallam.openai.client.OpenAI as OpenAIClient
@@ -37,6 +45,17 @@ class OpenAI(context: Context) {
             messages = history.toDto()
         )
         return client.chatCompletions(chatCompletionRequest)
+    }
+
+    suspend fun getTranscription(audioPathname: String): String {
+        return client.transcription(
+            TranscriptionRequest(
+                audio = FileSource(audioPathname, File(audioPathname).source()),
+                language = "hr",
+                model = ModelId("whisper-1"),
+                temperature = 0.2,
+                responseFormat = "text"
+        )).text.replace("\n", "")
     }
 
     private fun List<MessageModel>.toDto() = map { ChatMessage(role = it.author.toDto(), content = it.text.toString()) }

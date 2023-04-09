@@ -5,16 +5,13 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Context.VIBRATOR_SERVICE
 import android.content.pm.PackageManager.PERMISSION_GRANTED
-import android.media.AudioFormat.CHANNEL_IN_MONO
-import android.media.AudioFormat.ENCODING_PCM_16BIT
-import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.os.Build
 import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
-import android.text.format.DateUtils
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuInflater
@@ -23,10 +20,9 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
-import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
-import androidx.core.app.ActivityCompat.requestPermissions
 import androidx.core.content.ContextCompat.checkSelfPermission
 import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
@@ -34,25 +30,27 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.aallam.openai.api.BetaOpenAI
-import kotlinx.coroutines.Dispatchers.IO
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onStart
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.mtopol.assistant.databinding.FragmentMainBinding
-import java.io.ByteArrayOutputStream
-import java.nio.ByteBuffer
-import java.util.concurrent.atomic.AtomicBoolean
+import java.io.File
 
 @OptIn(BetaOpenAI::class)
 class ChatFragment : Fragment(), MenuProvider {
 
     private var _binding: FragmentMainBinding? = null
+    private var _mediaRecorder: MediaRecorder? = null
+
+    private val permissionRequest = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        if (it.isNotEmpty()) Log.i("", "User granted us the requested permissions")
+        else Log.w("", "User did not grant us the requested permissions")
+    }
 
     private val binding get() = _binding!!
+
+    private lateinit var audioPathname: String
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -70,6 +68,7 @@ class ChatFragment : Fragment(), MenuProvider {
             layoutManager = LinearLayoutManager(requireContext()).apply { stackFromEnd = true }
         }
 //        binding.edittextPrompt.text.append("Are you GPT-3?")
+        audioPathname = File(requireContext().cacheDir, "prompt.mp4").absolutePath
         return binding.root
     }
 
@@ -78,17 +77,18 @@ class ChatFragment : Fragment(), MenuProvider {
         super.onViewCreated(view, savedInstanceState)
         val chatView = binding.recyclerviewChat
         val promptView = binding.edittextPrompt
-        val recordingFlag = AtomicBoolean()
         binding.buttonRecord.setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     vibrate()
-                    startRecordingPrompt(recordingFlag)
+                    startRecordingPrompt()
                     true
                 }
                 MotionEvent.ACTION_UP -> {
-                    vibrate()
-                    recordingFlag.set(false)
+                    if (_mediaRecorder != null) {
+                        vibrate()
+                        sendRecordedPrompt()
+                    }
                     true
                 }
                 else -> false
@@ -127,12 +127,12 @@ class ChatFragment : Fragment(), MenuProvider {
                     .onCompletion {
                         binding.buttonSend.isEnabled = true
                     }
-                    .catch { cause ->
-                        if ((cause.message ?: "").endsWith("The model: `gpt-4` does not exist")) {
+                    .catch { exception ->
+                        if ((exception.message ?: "").endsWith("The model: `gpt-4` does not exist")) {
                             gptReply.append("GPT-4 is not yet avaiable. Sorry.")
+                            adapter.notifyItemChanged(adapter.messages.size - 1)
+                            scrollToBottom()
                         }
-                        adapter.notifyItemChanged(adapter.messages.size - 1)
-                        scrollToBottom()
                     }
                     .collect { completion ->
                         completion.choices[0].delta?.content?.also {
@@ -164,48 +164,49 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun startRecordingPrompt(recordingFlag: AtomicBoolean) {
-        requestPermissions()
-        if (checkSelfPermission(requireContext(), permission.RECORD_AUDIO) == PERMISSION_GRANTED) {
-            Toast.makeText(requireContext(), "Missing permission to record audio", Toast.LENGTH_SHORT).show()
+    private fun startRecordingPrompt() {
+        val context = requireActivity()
+        // don't extract to fun, IDE inspection of permission checks will complain
+        if (checkSelfPermission(context, permission.RECORD_AUDIO) != PERMISSION_GRANTED) {
+            permissionRequest.launch(arrayOf(permission.RECORD_AUDIO, permission.WRITE_EXTERNAL_STORAGE))
             return
         }
-        viewLifecycleOwner.lifecycleScope.launch {
-            recordingFlag.set(true)
-            launch {
-                delay(DateUtils.MINUTE_IN_MILLIS)
-                recordingFlag.set(false)
+        val mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            MediaRecorder(requireContext())
+        } else {
+            @Suppress("DEPRECATION")
+            MediaRecorder()
+        }.also {
+            _mediaRecorder = it
+        }
+        try {
+            mediaRecorder.apply {
+                setAudioSource(MediaRecorder.AudioSource.MIC)
+                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                setOutputFile(audioPathname)
+                prepare()
+                start()
             }
-            val recording = withContext(IO) {
-                try {
-                    val bufferSize = AudioRecord.getMinBufferSize(44100, CHANNEL_IN_MONO, ENCODING_PCM_16BIT)
-                    val output = ByteArrayOutputStream()
-                    val buffer = ByteBuffer.allocate(2 * bufferSize)
-                    val audioRecord = AudioRecord(
-                        MediaRecorder.AudioSource.MIC,
-                        44100, CHANNEL_IN_MONO, ENCODING_PCM_16BIT,
-                        bufferSize
-                    )
-                    audioRecord.startRecording()
-                    while (isActive && recordingFlag.get()) {
-                        audioRecord.read(buffer, 2 * bufferSize)
-                        buffer.flip()
-                        output.write(buffer.array(), buffer.position(), buffer.limit())
-                        buffer.clear()
-                    }
-                    output.toByteArray()
-                } finally {
-                    recordingFlag.set(false)
-                }
-            }
+        } catch (e: Exception) {
+            Log.e("", "MediaRecorder.start() failed", e)
+            mediaRecorder.release()
+            _mediaRecorder = null
         }
     }
 
-    private fun requestPermissions() {
-        val context = requireActivity()
-        if (checkSelfPermission(context, permission.RECORD_AUDIO) != PERMISSION_GRANTED) {
-            requestPermissions(context, arrayOf(permission.RECORD_AUDIO), 1)
+    private fun sendRecordedPrompt() {
+        _mediaRecorder?.apply {
+            stop()
+            release()
         }
+        _mediaRecorder = null
+        viewLifecycleOwner.lifecycleScope.launch {
+            openAi.getTranscription(audioPathname).also {
+                binding.edittextPrompt.editableText.append(it)
+            }
+        }
+
     }
 
     private fun clearChatHistory() {
