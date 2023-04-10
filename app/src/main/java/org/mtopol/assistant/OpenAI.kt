@@ -39,7 +39,6 @@ class OpenAI(context: Context) {
     @Throws(IOException::class)
     fun getResponseFlow(history: List<MessageModel>, useGpt4: Boolean): Flow<ChatCompletionChunk> {
         val gptModel = if (useGpt4) "gpt-4" else "gpt-3.5-turbo"
-        Log.i("", "Using $gptModel")
         val chatCompletionRequest = ChatCompletionRequest(
             model = ModelId(gptModel),
             messages = history.toDto()
