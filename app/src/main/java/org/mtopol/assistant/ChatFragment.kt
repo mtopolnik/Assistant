@@ -272,10 +272,13 @@ class ChatFragment : Fragment(), MenuProvider {
                 visibility = View.VISIBLE
             }
             try {
+                var visualVolume = 0f
                 while (true) {
-                    binding.recordingGlow.volume =
-                        (log2(mediaRecorder.maxAmplitude.toDouble()) / 15)
-                            .coerceAtLeast(0.0).coerceAtMost(1.0).toFloat()
+                    val soundVolume = (log2(mediaRecorder.maxAmplitude.toDouble()) / 15)
+                        .coerceAtLeast(0.0).coerceAtMost(1.0).toFloat()
+                    visualVolume = (visualVolume - 0.03f).coerceAtLeast(0f)
+                    visualVolume = if (soundVolume > visualVolume) soundVolume else visualVolume
+                    binding.recordingGlow.volume = visualVolume
                     delay(20)
                 }
             } finally {
