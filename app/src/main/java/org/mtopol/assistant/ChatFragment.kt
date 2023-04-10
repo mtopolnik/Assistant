@@ -19,6 +19,7 @@ import android.view.MenuItem
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -80,8 +81,6 @@ class ChatFragment : Fragment(), MenuProvider {
     @SuppressLint("ClickableViewAccessibility")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        val chatView = binding.recyclerviewChat
-        val promptView = binding.edittextPrompt
         binding.buttonRecord.setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
@@ -113,44 +112,7 @@ class ChatFragment : Fragment(), MenuProvider {
             }
         }
         binding.buttonSend.setOnClickListener {
-            val prompt = promptView.text.toString()
-            if (prompt.isEmpty()) {
-                return@setOnClickListener
-            }
-            promptView.editableText.clear()
-            binding.buttonSend.isEnabled = false
-            val adapter = chatView.adapter as ChatAdapter
-            adapter.messages.add(MessageModel(Role.USER, StringBuilder(prompt)))
-            adapter.notifyItemInserted(adapter.messages.size - 1)
-            val gptReply = StringBuilder()
-            viewLifecycleOwner.lifecycleScope.launch {
-                openAi.value.getResponseFlow(adapter.messages, isGpt4Selected())
-                    .onStart {
-                        adapter.messages.add(MessageModel(Role.GPT, gptReply))
-                        adapter.notifyItemInserted(adapter.messages.size - 1)
-                    }
-                    .onCompletion { exception ->
-                        exception?.also {
-                            if ((it.message ?: "").endsWith("does not exist")) {
-                                gptReply.append("GPT-4 is not yet avaiable. Sorry.")
-                                adapter.notifyItemChanged(adapter.messages.size - 1)
-                                scrollToBottom()
-                            } else {
-                                Toast.makeText(requireContext(),
-                                    "Something went wrong while GPT was talking",
-                                    Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                        binding.buttonSend.isEnabled = true
-                    }
-                    .collect { chunk ->
-                        chunk.choices[0].delta?.content?.also {
-                            gptReply.append(it)
-                        }
-                        adapter.notifyItemChanged(adapter.messages.size - 1)
-                        scrollToBottom()
-                    }
-            }
+            sendPrompt()
         }
     }
 
@@ -176,6 +138,52 @@ class ChatFragment : Fragment(), MenuProvider {
     override fun onPause() {
         super.onPause()
         stopRecording()
+    }
+
+    private fun sendPrompt() {
+        val chatView = binding.recyclerviewChat
+        val promptView = binding.edittextPrompt
+        val prompt = promptView.text.toString()
+        if (prompt.isEmpty()) {
+            return
+        }
+        promptView.editableText.clear()
+        binding.buttonSend.setActive(false)
+        val adapter = chatView.adapter as ChatAdapter
+        adapter.messages.add(MessageModel(Role.USER, StringBuilder(prompt)))
+        adapter.notifyItemInserted(adapter.messages.size - 1)
+        scrollToBottom()
+        val gptReply = StringBuilder()
+        viewLifecycleOwner.lifecycleScope.launch {
+            openAi.value.getResponseFlow(adapter.messages, isGpt4Selected())
+                .onStart {
+                    adapter.messages.add(MessageModel(Role.GPT, gptReply))
+                    adapter.notifyItemInserted(adapter.messages.size - 1)
+                }
+                .onCompletion { exception ->
+                    exception?.also {
+                        if ((it.message ?: "").endsWith("does not exist")) {
+                            gptReply.append("GPT-4 is not yet avaiable. Sorry.")
+                            adapter.notifyItemChanged(adapter.messages.size - 1)
+                            scrollToBottom()
+                        } else {
+                            Toast.makeText(
+                                requireContext(),
+                                "Something went wrong while GPT was talking",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                    binding.buttonSend.setActive(true)
+                }
+                .collect { chunk ->
+                    chunk.choices[0].delta?.content?.also {
+                        gptReply.append(it)
+                    }
+                    adapter.notifyItemChanged(adapter.messages.size - 1)
+                    scrollToBottom()
+                }
+        }
     }
 
     private fun startRecordingPrompt() {
@@ -207,13 +215,13 @@ class ChatFragment : Fragment(), MenuProvider {
             Log.e("", "MediaRecorder.start() failed", e)
             removeRecordingGlow()
             stopRecording()
-            setRecordingEnabled(true)
+            binding.buttonRecord.setActive(true)
         }
     }
 
     private fun showRecordedPrompt() {
         removeRecordingGlow()
-        setRecordingEnabled(false)
+        binding.buttonRecord.setActive(false)
         viewLifecycleOwner.lifecycleScope.launch {
             try {
                 val recordingSuccess = withContext(IO) {
@@ -233,7 +241,7 @@ class ChatFragment : Fragment(), MenuProvider {
                     "Something went wrong while OpenAI was listening to you",
                     Toast.LENGTH_SHORT).show()
             } finally {
-                setRecordingEnabled(true)
+                binding.buttonRecord.setActive(true)
             }
         }
     }
@@ -252,11 +260,9 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun setRecordingEnabled(enabled: Boolean) {
-        binding.buttonRecord.apply {
-            alpha = if (enabled) 1.0f else 0.5f
-            isEnabled = enabled
-        }
+    private fun ImageButton.setActive(newActive: Boolean) {
+        alpha = if (newActive) 1.0f else 0.5f
+        isEnabled = newActive
     }
 
     private fun animateRecordingGlow(mediaRecorder: MediaRecorder) {
