@@ -34,9 +34,7 @@ import com.aallam.openai.api.BetaOpenAI
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.onCompletion
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -94,7 +92,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 MotionEvent.ACTION_UP -> {
                     if (_mediaRecorder != null) {
                         vibrate()
-                        sendRecordedPrompt()
+                        showRecordedPrompt()
                     }
                     true
                 }
@@ -132,14 +130,16 @@ class ChatFragment : Fragment(), MenuProvider {
                         adapter.notifyItemInserted(adapter.messages.size - 1)
                     }
                     .onCompletion { exception ->
-                        if ((exception?.message ?: "").endsWith("does not exist")) {
-                            gptReply.append("GPT-4 is not yet avaiable. Sorry.")
-                            adapter.notifyItemChanged(adapter.messages.size - 1)
-                            scrollToBottom()
-                        } else {
-                            Toast.makeText(requireContext(),
-                                "Something went wrong while GPT was talking",
-                                Toast.LENGTH_SHORT).show()
+                        exception?.also {
+                            if ((it.message ?: "").endsWith("does not exist")) {
+                                gptReply.append("GPT-4 is not yet avaiable. Sorry.")
+                                adapter.notifyItemChanged(adapter.messages.size - 1)
+                                scrollToBottom()
+                            } else {
+                                Toast.makeText(requireContext(),
+                                    "Something went wrong while GPT was talking",
+                                    Toast.LENGTH_SHORT).show()
+                            }
                         }
                         binding.buttonSend.isEnabled = true
                     }
@@ -211,7 +211,7 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun sendRecordedPrompt() {
+    private fun showRecordedPrompt() {
         removeRecordingGlow()
         setRecordingEnabled(false)
         viewLifecycleOwner.lifecycleScope.launch {
@@ -222,8 +222,11 @@ class ChatFragment : Fragment(), MenuProvider {
                 if (!recordingSuccess) {
                     return@launch
                 }
-                openAi.value.getTranscription(audioPathname).also {
-                    binding.edittextPrompt.editableText.append(it)
+                openAi.value.getTranscription(audioPathname).also { transcription ->
+                    binding.edittextPrompt.editableText.apply {
+                        clear()
+                        append(transcription)
+                    }
                 }
             } catch (e: Exception) {
                 Toast.makeText(requireContext(),
