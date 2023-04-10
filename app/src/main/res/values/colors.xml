@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <color name="primary">#01514A</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
     <color name="grey">#FF888888</color>
-    <color name="primary">#01514A</color>
+    <color name="recorder_glow">#66aa44aa</color>
 </resources>

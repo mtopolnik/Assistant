@@ -6,22 +6,21 @@ import android.graphics.PorterDuff
 import android.graphics.drawable.Drawable
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.DrawableCompat
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 
-lateinit var openAi: OpenAI
+lateinit var openAi: Lazy<OpenAI>
 
 class AssistantApplication : Application() {
 
+    @OptIn(DelicateCoroutinesApi::class)
     override fun onCreate() {
         super.onCreate()
-        openAi = OpenAI(applicationContext)
+        openAi = lazy { OpenAI(applicationContext) }
+        GlobalScope.launch(Dispatchers.IO) { openAi.value }
     }
 }
 
 fun Context.getColorCompat(id: Int) = ContextCompat.getColor(this, id)
-
-fun tintDrawable(drawable: Drawable, color: Int): Drawable {
-    val wrappedDrawable = DrawableCompat.wrap(drawable).mutate()
-    DrawableCompat.setTint(wrappedDrawable, color)
-    DrawableCompat.setTintMode(wrappedDrawable, PorterDuff.Mode.SRC_IN)
-    return wrappedDrawable
-}

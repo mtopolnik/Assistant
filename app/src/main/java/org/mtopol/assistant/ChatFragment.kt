@@ -30,18 +30,24 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.aallam.openai.api.BetaOpenAI
+import kotlinx.coroutines.Dispatchers.IO
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.mtopol.assistant.databinding.FragmentMainBinding
 import java.io.File
+import kotlin.math.log2
 
 @OptIn(BetaOpenAI::class)
 class ChatFragment : Fragment(), MenuProvider {
 
     private var _binding: FragmentMainBinding? = null
     private var _mediaRecorder: MediaRecorder? = null
+    private var _recordingGlowJob: Job? = null
 
     private val permissionRequest = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         if (it.isNotEmpty()) Log.i("", "User granted us the requested permissions")
@@ -67,7 +73,6 @@ class ChatFragment : Fragment(), MenuProvider {
             adapter = chatAdapter
             layoutManager = LinearLayoutManager(requireContext()).apply { stackFromEnd = true }
         }
-//        binding.edittextPrompt.text.append("Are you GPT-3?")
         audioPathname = File(requireContext().cacheDir, "prompt.mp4").absolutePath
         return binding.root
     }
@@ -119,7 +124,7 @@ class ChatFragment : Fragment(), MenuProvider {
             adapter.notifyItemInserted(adapter.messages.size - 1)
             val gptReply = StringBuilder()
             viewLifecycleOwner.lifecycleScope.launch {
-                openAi.getResponseFlow(adapter.messages, isGpt4Selected())
+                openAi.value.getResponseFlow(adapter.messages, isGpt4Selected())
                     .onStart {
                         adapter.messages.add(MessageModel(Role.GPT, gptReply))
                         adapter.notifyItemInserted(adapter.messages.size - 1)
@@ -128,7 +133,7 @@ class ChatFragment : Fragment(), MenuProvider {
                         binding.buttonSend.isEnabled = true
                     }
                     .catch { exception ->
-                        if ((exception.message ?: "").endsWith("The model: `gpt-4` does not exist")) {
+                        if ((exception.message ?: "").endsWith("does not exist")) {
                             gptReply.append("GPT-4 is not yet avaiable. Sorry.")
                             adapter.notifyItemChanged(adapter.messages.size - 1)
                             scrollToBottom()
@@ -157,11 +162,17 @@ class ChatFragment : Fragment(), MenuProvider {
     override fun onMenuItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             R.id.action_clear_chat_history -> {
-                clearChatHistory()
+                vibrate()
+                clearChat()
                 true
             }
             else -> false
         }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        stopRecording()
     }
 
     private fun startRecordingPrompt() {
@@ -171,15 +182,15 @@ class ChatFragment : Fragment(), MenuProvider {
             permissionRequest.launch(arrayOf(permission.RECORD_AUDIO, permission.WRITE_EXTERNAL_STORAGE))
             return
         }
-        val mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            MediaRecorder(requireContext())
-        } else {
-            @Suppress("DEPRECATION")
-            MediaRecorder()
-        }.also {
-            _mediaRecorder = it
-        }
         try {
+            val mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                MediaRecorder(requireContext())
+            } else {
+                @Suppress("DEPRECATION")
+                MediaRecorder()
+            }.also {
+                _mediaRecorder = it
+            }
             mediaRecorder.apply {
                 setAudioSource(MediaRecorder.AudioSource.MIC)
                 setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
@@ -188,34 +199,80 @@ class ChatFragment : Fragment(), MenuProvider {
                 prepare()
                 start()
             }
+            animateRecordingGlow(mediaRecorder)
         } catch (e: Exception) {
             Log.e("", "MediaRecorder.start() failed", e)
-            mediaRecorder.release()
-            _mediaRecorder = null
+            removeRecordingGlow()
+            stopRecording()
+            binding.buttonRecord.isEnabled = true
         }
     }
 
     private fun sendRecordedPrompt() {
-        _mediaRecorder?.apply {
-            stop()
-            release()
-        }
-        _mediaRecorder = null
+        removeRecordingGlow()
+        binding.buttonRecord.isEnabled = false
         viewLifecycleOwner.lifecycleScope.launch {
-            openAi.getTranscription(audioPathname).also {
-                binding.edittextPrompt.editableText.append(it)
+            try {
+                val recordingSuccess = withContext(IO) {
+                    stopRecording()
+                }
+                if (!recordingSuccess) {
+                    return@launch
+                }
+                openAi.value.getTranscription(audioPathname).also {
+                    binding.edittextPrompt.editableText.append(it)
+                }
+            } finally {
+                binding.buttonRecord.isEnabled = true
             }
         }
-
     }
 
-    private fun clearChatHistory() {
-        vibrate()
+    private fun stopRecording(): Boolean {
+        val mediaRecorder = _mediaRecorder ?: return false
+        _mediaRecorder = null
+        return try {
+            mediaRecorder.stop()
+            true
+        } catch (e: Exception) {
+            File(audioPathname).delete()
+            false
+        } finally {
+            mediaRecorder.release()
+        }
+    }
+
+    private fun animateRecordingGlow(mediaRecorder: MediaRecorder) {
+        _recordingGlowJob = viewLifecycleOwner.lifecycleScope.launch {
+            binding.recordingGlow.apply {
+                alignWithView(binding.buttonRecord)
+                visibility = View.VISIBLE
+            }
+            try {
+                while (true) {
+                    binding.recordingGlow.volume =
+                        (log2(mediaRecorder.maxAmplitude.toDouble()) / 15)
+                            .coerceAtLeast(0.0).coerceAtMost(1.0).toFloat()
+                    delay(20)
+                }
+            } finally {
+                binding.recordingGlow.visibility = View.INVISIBLE
+            }
+        }
+    }
+
+    private fun removeRecordingGlow() {
+        _recordingGlowJob?.cancel()
+        _recordingGlowJob = null
+    }
+
+    private fun clearChat() {
         val chatView = binding.recyclerviewChat
         val adapter = chatView.adapter as ChatAdapter
         val itemCount = adapter.itemCount
         adapter.messages.clear()
         adapter.notifyItemRangeRemoved(0, itemCount)
+        binding.edittextPrompt.editableText.clear()
     }
 
     private fun scrollToBottom() {
