@@ -126,33 +126,30 @@ class ChatFragment : Fragment(), MenuProvider {
             adapter.notifyItemInserted(adapter.messages.size - 1)
             val gptReply = StringBuilder()
             viewLifecycleOwner.lifecycleScope.launch {
-                try {
-                    openAi.value.getResponseFlow(adapter.messages, isGpt4Selected())
-                        .onStart {
-                            adapter.messages.add(MessageModel(Role.GPT, gptReply))
-                            adapter.notifyItemInserted(adapter.messages.size - 1)
-                        }
-                        .onCompletion { exception ->
-                            binding.buttonSend.isEnabled = true
-                        }
-                        .collect { chunk ->
-                            chunk.choices[0].delta?.content?.also {
-                                gptReply.append(it)
-                            }
+                openAi.value.getResponseFlow(adapter.messages, isGpt4Selected())
+                    .onStart {
+                        adapter.messages.add(MessageModel(Role.GPT, gptReply))
+                        adapter.notifyItemInserted(adapter.messages.size - 1)
+                    }
+                    .onCompletion { exception ->
+                        if ((exception?.message ?: "").endsWith("does not exist")) {
+                            gptReply.append("GPT-4 is not yet avaiable. Sorry.")
                             adapter.notifyItemChanged(adapter.messages.size - 1)
                             scrollToBottom()
+                        } else {
+                            Toast.makeText(requireContext(),
+                                "Something went wrong while GPT was talking",
+                                Toast.LENGTH_SHORT).show()
                         }
-                } catch (e: Exception) {
-                    if ((e.message ?: "").endsWith("does not exist")) {
-                        gptReply.append("GPT-4 is not yet avaiable. Sorry.")
+                        binding.buttonSend.isEnabled = true
+                    }
+                    .collect { chunk ->
+                        chunk.choices[0].delta?.content?.also {
+                            gptReply.append(it)
+                        }
                         adapter.notifyItemChanged(adapter.messages.size - 1)
                         scrollToBottom()
-                    } else {
-                        Toast.makeText(requireContext(),
-                            "Something went wrong while talking to OpenAI",
-                            Toast.LENGTH_SHORT).show()
                     }
-                }
             }
         }
     }
@@ -228,6 +225,10 @@ class ChatFragment : Fragment(), MenuProvider {
                 openAi.value.getTranscription(audioPathname).also {
                     binding.edittextPrompt.editableText.append(it)
                 }
+            } catch (e: Exception) {
+                Toast.makeText(requireContext(),
+                    "Something went wrong while OpenAI was listening to you",
+                    Toast.LENGTH_SHORT).show()
             } finally {
                 setRecordingEnabled(true)
             }
