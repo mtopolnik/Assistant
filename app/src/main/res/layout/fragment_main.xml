@@ -81,6 +81,7 @@
                     android:src="@drawable/baseline_mic_24"
                     app:tint="@color/white"
                     android:background="@drawable/round_button"
+                    android:backgroundTint="@color/recorder_glow"
                     android:contentDescription="@string/send"
                     />
             <ImageButton
