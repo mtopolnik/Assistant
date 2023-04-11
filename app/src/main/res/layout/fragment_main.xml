@@ -81,7 +81,7 @@
                     android:src="@drawable/baseline_mic_28"
                     app:tint="@color/white"
                     android:background="@drawable/round_button"
-                    android:backgroundTint="@color/record_audio"
+                    android:backgroundTint="@color/send_message"
                     android:contentDescription="@string/record"
                     />
             <ImageButton
@@ -89,11 +89,24 @@
                     android:layout_width="50dp"
                     android:layout_height="50dp"
                     android:layout_marginStart="8dp"
+                    android:visibility="gone"
                     android:src="@drawable/baseline_send_28"
                     app:tint="@color/white"
                     android:paddingLeft="4dp"
                     android:background="@drawable/round_button"
                     android:backgroundTint="@color/send_message"
+                    android:contentDescription="@string/send"
+                    />
+            <ImageButton
+                    android:id="@+id/button_stopResponding"
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
+                    android:layout_marginStart="8dp"
+                    android:visibility="gone"
+                    android:src="@drawable/baseline_cancel_28"
+                    app:tint="@color/white"
+                    android:background="@drawable/round_button"
+                    android:backgroundTint="@color/stop_responding"
                     android:contentDescription="@string/send"
                     />
         </LinearLayout>

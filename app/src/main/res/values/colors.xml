@@ -5,5 +5,5 @@
     <color name="white">#FFFFFF</color>
     <color name="grey">#888888</color>
     <color name="send_message">#189E93</color>
-    <color name="record_audio">#CF4B2A</color>
+    <color name="stop_responding">#CF4B2A</color>
 </resources>

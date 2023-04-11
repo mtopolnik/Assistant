@@ -32,7 +32,7 @@ class AnimatedCircleView(context: Context, attrs: AttributeSet) : View(context, 
         }
 
     private val paint = Paint().apply {
-        color = context.getColorCompat(R.color.record_audio)
+        color = context.getColorCompat(R.color.send_message)
         alpha = 0x66
         isAntiAlias = true
     }

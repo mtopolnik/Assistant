@@ -11,6 +11,8 @@ import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.text.Editable
+import android.text.TextWatcher
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.Menu
@@ -18,6 +20,8 @@ import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.MotionEvent
 import android.view.View
+import android.view.View.GONE
+import android.view.View.VISIBLE
 import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.TextView
@@ -52,6 +56,7 @@ class ChatFragment : Fragment(), MenuProvider {
     private var _binding: FragmentMainBinding? = null
     private var _mediaRecorder: MediaRecorder? = null
     private var _recordingGlowJob: Job? = null
+    private var _receiveResponseJob: Job? = null
     private var _autoscrollEnabled: Boolean = true
 
     private val permissionRequest = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -105,14 +110,34 @@ class ChatFragment : Fragment(), MenuProvider {
                     true
                 }
                 MotionEvent.ACTION_UP -> {
-                    binding.buttonSend.performClick()
+                    sendPrompt()
                     true
                 }
                 else -> false
             }
         }
-        binding.buttonSend.setOnClickListener {
-            sendPrompt()
+        binding.buttonStopResponding.setOnTouchListener { _, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    vibrate()
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    _receiveResponseJob?.cancel()
+                    true
+                }
+                else -> false
+            }
+        }
+        binding.edittextPrompt.also {editText ->
+            editText.addTextChangedListener(object : TextWatcher {
+                override fun afterTextChanged(editable: Editable) {
+                    syncButtonsWithEditText()
+                }
+
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            })
         }
         binding.scrollviewChat.setOnScrollChangeListener { scrollView, _, _, _, _ ->
             _autoscrollEnabled = binding.recyclerviewChat.bottom <= scrollView.height + scrollView.scrollY
@@ -127,7 +152,6 @@ class ChatFragment : Fragment(), MenuProvider {
                 scrollView.post { scrollToBottom() }
             }
         }
-
         return binding.root
     }
 
@@ -161,20 +185,22 @@ class ChatFragment : Fragment(), MenuProvider {
         if (prompt.isEmpty()) {
             return
         }
-        binding.edittextPrompt.editableText.clear()
         binding.buttonSend.setActive(false)
+        binding.edittextPrompt.editableText.clear()
         val adapter = binding.recyclerviewChat.adapter as ChatAdapter
         adapter.messages.add(MessageModel(Role.USER, StringBuilder(prompt)))
         adapter.notifyItemInserted(adapter.messages.size - 1)
         scrollToBottom()
         val gptReply = StringBuilder()
-        viewLifecycleOwner.lifecycleScope.launch {
+        _receiveResponseJob = viewLifecycleOwner.lifecycleScope.launch {
             openAi.value.getResponseFlow(adapter.messages, isGpt4Selected())
                 .onStart {
                     adapter.messages.add(MessageModel(Role.GPT, gptReply))
                     adapter.notifyItemInserted(adapter.messages.size - 1)
+                    binding.buttonStopResponding.visibility = VISIBLE
                 }
                 .onCompletion { exception ->
+                    _receiveResponseJob = null
                     exception?.also {
                         if ((it.message ?: "").endsWith("does not exist")) {
                             gptReply.append("GPT-4 is not yet avaiable. Sorry.")
@@ -188,7 +214,9 @@ class ChatFragment : Fragment(), MenuProvider {
                             ).show()
                         }
                     }
+                    binding.buttonStopResponding.visibility = GONE
                     binding.buttonSend.setActive(true)
+                    syncButtonsWithEditText()
                 }
                 .collect { chunk ->
                     chunk.choices[0].delta?.content?.also {
@@ -283,6 +311,15 @@ class ChatFragment : Fragment(), MenuProvider {
     private fun ImageButton.setActive(newActive: Boolean) {
         imageAlpha = if (newActive) 255 else 128
         isEnabled = newActive
+    }
+
+    private fun syncButtonsWithEditText() {
+        binding.buttonSend.apply {
+            visibility = if (isEnabled && binding.edittextPrompt.text.isNotEmpty()) VISIBLE else GONE
+        }
+        binding.buttonRecord.apply {
+            visibility = if (isEnabled && binding.edittextPrompt.text.isEmpty()) VISIBLE else GONE
+        }
     }
 
     private fun animateRecordingGlow() {
