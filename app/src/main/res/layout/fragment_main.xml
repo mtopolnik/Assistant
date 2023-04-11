@@ -76,21 +76,22 @@
 
             <ImageButton
                     android:id="@+id/button_record"
-                    android:layout_width="52dp"
-                    android:layout_height="52dp"
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
                     android:src="@drawable/baseline_mic_28"
                     app:tint="@color/white"
                     android:background="@drawable/round_button"
                     android:backgroundTint="@color/record_audio"
-                    android:contentDescription="@string/send"
+                    android:contentDescription="@string/record"
                     />
             <ImageButton
                     android:id="@+id/button_send"
-                    android:layout_width="52dp"
-                    android:layout_height="52dp"
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
                     android:layout_marginStart="8dp"
                     android:src="@drawable/baseline_send_28"
                     app:tint="@color/white"
+                    android:paddingLeft="4dp"
                     android:background="@drawable/round_button"
                     android:backgroundTint="@color/send_message"
                     android:contentDescription="@string/send"

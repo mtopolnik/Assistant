@@ -27,6 +27,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.content.ContextCompat.checkSelfPermission
 import androidx.core.view.MenuProvider
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -42,6 +44,7 @@ import kotlinx.coroutines.withContext
 import org.mtopol.assistant.databinding.FragmentMainBinding
 import java.io.File
 import kotlin.math.log2
+import kotlin.math.sin
 
 @OptIn(BetaOpenAI::class)
 class ChatFragment : Fragment(), MenuProvider {
@@ -60,6 +63,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private lateinit var audioPathname: String
 
+    @SuppressLint("ClickableViewAccessibility")
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -67,6 +71,7 @@ class ChatFragment : Fragment(), MenuProvider {
         val binding = FragmentMainBinding.inflate(inflater, container, false).also {
             _binding = it
         }
+//        binding.edittextPrompt.text.append("Testiram te. Ispiši brojeve od 1 do 100, jedan ispod drugog.")
         val activity = requireActivity() as AppCompatActivity
         activity.setSupportActionBar(binding.toolbar)
         activity.addMenuProvider(this, viewLifecycleOwner)
@@ -75,20 +80,7 @@ class ChatFragment : Fragment(), MenuProvider {
             adapter = chatAdapter
             layoutManager = LinearLayoutManager(requireContext()).apply { stackFromEnd = true }
         }
-        binding.scrollviewChat.setOnScrollChangeListener { v, _, _, _, _ ->
-            val recyclerView = v.findViewById<RecyclerView>(R.id.recyclerview_chat)
-            val recyclerViewBottom = recyclerView.bottom
-            val nestedScrollViewBottom = v.height + v.scrollY
-            Log.i("", "recyclerViewBottom $recyclerViewBottom nestedScrollViewBottom $nestedScrollViewBottom")
-            _autoscrollEnabled = recyclerViewBottom <= nestedScrollViewBottom
-        }
         audioPathname = File(requireContext().cacheDir, "prompt.mp4").absolutePath
-        return binding.root
-    }
-
-    @SuppressLint("ClickableViewAccessibility")
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
         binding.buttonRecord.setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
@@ -122,6 +114,21 @@ class ChatFragment : Fragment(), MenuProvider {
         binding.buttonSend.setOnClickListener {
             sendPrompt()
         }
+        binding.scrollviewChat.setOnScrollChangeListener { scrollView, _, _, _, _ ->
+            _autoscrollEnabled = binding.recyclerviewChat.bottom <= scrollView.height + scrollView.scrollY
+        }
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, windowInsets ->
+            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.ime())
+            v.setPadding(v.paddingLeft, v.paddingTop, v.paddingRight, insets.bottom)
+            windowInsets
+        }
+        binding.scrollviewChat.also { scrollView ->
+            scrollView.viewTreeObserver.addOnGlobalLayoutListener {
+                scrollView.post { scrollToBottom() }
+            }
+        }
+
+        return binding.root
     }
 
     override fun onDestroyView() {
@@ -195,7 +202,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun startRecordingPrompt() {
         val context = requireActivity()
-        // don't extract to fun, IDE inspection of permission checks will complain
+        // don't extract to fun, IDE inspection for permission checks will complain
         if (checkSelfPermission(context, permission.RECORD_AUDIO) != PERMISSION_GRANTED) {
             permissionRequest.launch(arrayOf(permission.RECORD_AUDIO, permission.WRITE_EXTERNAL_STORAGE))
             return
@@ -217,17 +224,22 @@ class ChatFragment : Fragment(), MenuProvider {
                 prepare()
                 start()
             }
-            animateRecordingGlow(mediaRecorder)
+            animateRecordingGlow()
         } catch (e: Exception) {
-            Log.e("", "MediaRecorder.start() failed", e)
+            Toast.makeText(requireContext(),
+                "Something went wrong while we were recording your voice",
+                Toast.LENGTH_SHORT).show()
             removeRecordingGlow()
-            stopRecording()
-            binding.buttonRecord.setActive(true)
+            lifecycleScope.launch {
+                withContext(IO) {
+                    stopRecording()
+                }
+                binding.buttonRecord.setActive(true)
+            }
         }
     }
 
     private fun showRecordedPrompt() {
-        removeRecordingGlow()
         binding.buttonRecord.setActive(false)
         viewLifecycleOwner.lifecycleScope.launch {
             try {
@@ -249,6 +261,7 @@ class ChatFragment : Fragment(), MenuProvider {
                     Toast.LENGTH_SHORT).show()
             } finally {
                 binding.buttonRecord.setActive(true)
+                removeRecordingGlow()
             }
         }
     }
@@ -268,11 +281,11 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun ImageButton.setActive(newActive: Boolean) {
-        alpha = if (newActive) 1.0f else 0.5f
+        imageAlpha = if (newActive) 255 else 128
         isEnabled = newActive
     }
 
-    private fun animateRecordingGlow(mediaRecorder: MediaRecorder) {
+    private fun animateRecordingGlow() {
         _recordingGlowJob = viewLifecycleOwner.lifecycleScope.launch {
             binding.recordingGlow.apply {
                 alignWithView(binding.buttonRecord)
@@ -281,11 +294,19 @@ class ChatFragment : Fragment(), MenuProvider {
             try {
                 var visualVolume = 0f
                 while (true) {
+                    val mediaRecorder = _mediaRecorder ?: break
                     val soundVolume = (log2(mediaRecorder.maxAmplitude.toDouble()) / 15)
                         .coerceAtLeast(0.0).coerceAtMost(1.0).toFloat()
-                    visualVolume = (visualVolume - 0.03f).coerceAtLeast(0f)
+                    // Limit the rate of shrinking the glow, but allow sudden growth
+                    visualVolume = (visualVolume - 0.025f).coerceAtLeast(0f)
                     visualVolume = if (soundVolume > visualVolume) soundVolume else visualVolume
                     binding.recordingGlow.volume = visualVolume
+                    delay(20)
+                }
+                var timeStep = 0f
+                while (true) {
+                    binding.recordingGlow.volume = (2.5f + sin(timeStep)) / 20
+                    timeStep += 0.1f
                     delay(20)
                 }
             } finally {

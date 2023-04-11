@@ -50,7 +50,7 @@ class OpenAI(context: Context) {
         return client.transcription(
             TranscriptionRequest(
                 audio = FileSource(audioPathname, File(audioPathname).source()),
-                language = "hr",
+                language = "",
                 model = ModelId("whisper-1"),
                 temperature = 0.2,
                 responseFormat = "text"
