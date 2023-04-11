@@ -49,6 +49,7 @@ class ChatFragment : Fragment(), MenuProvider {
     private var _binding: FragmentMainBinding? = null
     private var _mediaRecorder: MediaRecorder? = null
     private var _recordingGlowJob: Job? = null
+    private var _autoscrollEnabled: Boolean = true
 
     private val permissionRequest = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         if (it.isNotEmpty()) Log.i("", "User granted us the requested permissions")
@@ -73,6 +74,13 @@ class ChatFragment : Fragment(), MenuProvider {
         binding.recyclerviewChat.apply {
             adapter = chatAdapter
             layoutManager = LinearLayoutManager(requireContext()).apply { stackFromEnd = true }
+        }
+        binding.scrollviewChat.setOnScrollChangeListener { v, _, _, _, _ ->
+            val recyclerView = v.findViewById<RecyclerView>(R.id.recyclerview_chat)
+            val recyclerViewBottom = recyclerView.bottom
+            val nestedScrollViewBottom = v.height + v.scrollY
+            Log.i("", "recyclerViewBottom $recyclerViewBottom nestedScrollViewBottom $nestedScrollViewBottom")
+            _autoscrollEnabled = recyclerViewBottom <= nestedScrollViewBottom
         }
         audioPathname = File(requireContext().cacheDir, "prompt.mp4").absolutePath
         return binding.root
@@ -138,18 +146,17 @@ class ChatFragment : Fragment(), MenuProvider {
     override fun onPause() {
         super.onPause()
         stopRecording()
+        binding.edittextPrompt.clearFocus()
     }
 
     private fun sendPrompt() {
-        val chatView = binding.recyclerviewChat
-        val promptView = binding.edittextPrompt
-        val prompt = promptView.text.toString()
+        val prompt = binding.edittextPrompt.text.toString()
         if (prompt.isEmpty()) {
             return
         }
-        promptView.editableText.clear()
+        binding.edittextPrompt.editableText.clear()
         binding.buttonSend.setActive(false)
-        val adapter = chatView.adapter as ChatAdapter
+        val adapter = binding.recyclerviewChat.adapter as ChatAdapter
         adapter.messages.add(MessageModel(Role.USER, StringBuilder(prompt)))
         adapter.notifyItemInserted(adapter.messages.size - 1)
         scrollToBottom()
@@ -303,7 +310,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun scrollToBottom() {
         binding.scrollviewChat.post {
-            if (!binding.scrollviewChat.canScrollVertically(1)) {
+            if (!_autoscrollEnabled || !binding.scrollviewChat.canScrollVertically(1)) {
                 return@post
             }
             binding.appbarLayout.setExpanded(false, true)
