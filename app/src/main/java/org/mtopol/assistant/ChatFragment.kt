@@ -20,8 +20,7 @@ import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.MotionEvent
 import android.view.View
-import android.view.View.GONE
-import android.view.View.VISIBLE
+import android.view.View.*
 import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.TextView
@@ -38,6 +37,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.aallam.openai.api.BetaOpenAI
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -202,16 +202,16 @@ class ChatFragment : Fragment(), MenuProvider {
                 .onCompletion { exception ->
                     _receiveResponseJob = null
                     exception?.also {
-                        if ((it.message ?: "").endsWith("does not exist")) {
-                            gptReply.append("GPT-4 is not yet avaiable. Sorry.")
-                            adapter.notifyItemChanged(adapter.messages.size - 1)
-                            scrollToBottom()
-                        } else {
-                            Toast.makeText(
-                                requireContext(),
-                                "Something went wrong while GPT was talking",
-                                Toast.LENGTH_SHORT
-                            ).show()
+                        when {
+                            it is CancellationException -> Unit
+                            (it.message ?: "").endsWith("does not exist") -> {
+                                gptReply.append("GPT-4 is not yet avaiable. Sorry.")
+                                adapter.notifyItemChanged(adapter.messages.size - 1)
+                                scrollToBottom()
+                            }
+                            else -> Toast.makeText(requireContext(),
+                                "Something went wrong while GPT was talking", Toast.LENGTH_SHORT)
+                                .show()
                         }
                     }
                     binding.buttonStopResponding.visibility = GONE
@@ -326,7 +326,7 @@ class ChatFragment : Fragment(), MenuProvider {
         _recordingGlowJob = viewLifecycleOwner.lifecycleScope.launch {
             binding.recordingGlow.apply {
                 alignWithView(binding.buttonRecord)
-                visibility = View.VISIBLE
+                visibility = VISIBLE
             }
             try {
                 var visualVolume = 0f
@@ -337,17 +337,17 @@ class ChatFragment : Fragment(), MenuProvider {
                     // Limit the rate of shrinking the glow, but allow sudden growth
                     visualVolume = (visualVolume - 0.025f).coerceAtLeast(0f)
                     visualVolume = if (soundVolume > visualVolume) soundVolume else visualVolume
-                    binding.recordingGlow.volume = visualVolume
+                    binding.recordingGlow.setVolume(visualVolume)
                     delay(20)
                 }
                 var timeStep = 0f
                 while (true) {
-                    binding.recordingGlow.volume = (2.5f + sin(timeStep)) / 20
+                    binding.recordingGlow.setVolume((2.5f + sin(timeStep)) / 20)
                     timeStep += 0.1f
                     delay(20)
                 }
             } finally {
-                binding.recordingGlow.visibility = View.INVISIBLE
+                binding.recordingGlow.visibility = INVISIBLE
             }
         }
     }

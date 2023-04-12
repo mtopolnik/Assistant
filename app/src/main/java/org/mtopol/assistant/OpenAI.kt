@@ -12,6 +12,7 @@ import com.aallam.openai.api.file.FileSource
 import com.aallam.openai.api.http.Timeout
 import com.aallam.openai.api.model.ModelId
 import com.aallam.openai.client.OpenAIConfig
+import com.aallam.openai.client.RetryStrategy
 import kotlinx.coroutines.flow.Flow
 import okio.FileSystem
 import okio.Path
@@ -31,7 +32,8 @@ class OpenAI(context: Context) {
         client = OpenAIClient(
             OpenAIConfig(
                 token = context.getString(R.string.openai_api_key),
-                timeout = Timeout(socket = 10.seconds, connect = 10.seconds, request = 90.seconds)
+                timeout = Timeout(connect = 5.seconds, socket = 5.seconds, request = 90.seconds),
+                retry = RetryStrategy(1, 2.0, 2.seconds)
             )
         )
     }

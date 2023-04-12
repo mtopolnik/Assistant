@@ -112,7 +112,7 @@
         </LinearLayout>
     </LinearLayout>
 
-    <org.mtopol.assistant.AnimatedCircleView
+    <org.mtopol.assistant.RecordingGlowView
             android:id="@+id/recording_glow"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
