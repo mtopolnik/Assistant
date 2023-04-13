@@ -24,7 +24,8 @@
                     android:id="@+id/appbar_layout"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar">
+                    android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
+                    >
 
                 <androidx.appcompat.widget.Toolbar
                         android:id="@+id/toolbar"
@@ -75,6 +76,18 @@
                     />
 
             <ImageButton
+                    android:id="@+id/button_stopResponding"
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
+                    android:layout_marginEnd="8dp"
+                    android:visibility="gone"
+                    android:src="@drawable/baseline_cancel_28"
+                    app:tint="@color/white"
+                    android:background="@drawable/round_button"
+                    android:backgroundTint="@color/stop_responding"
+                    android:contentDescription="@string/send"
+                    />
+            <ImageButton
                     android:id="@+id/button_record"
                     android:layout_width="50dp"
                     android:layout_height="50dp"
@@ -95,18 +108,6 @@
                     android:paddingLeft="4dp"
                     android:background="@drawable/round_button"
                     android:backgroundTint="@color/send_message"
-                    android:contentDescription="@string/send"
-                    />
-            <ImageButton
-                    android:id="@+id/button_stopResponding"
-                    android:layout_width="50dp"
-                    android:layout_height="50dp"
-                    android:layout_marginStart="8dp"
-                    android:visibility="gone"
-                    android:src="@drawable/baseline_cancel_28"
-                    app:tint="@color/white"
-                    android:background="@drawable/round_button"
-                    android:backgroundTint="@color/stop_responding"
                     android:contentDescription="@string/send"
                     />
         </LinearLayout>

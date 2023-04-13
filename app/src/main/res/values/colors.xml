@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="primary">#01514A</color>
+    <color name="primary">#4C528E</color>
     <color name="black">#000000</color>
     <color name="white">#FFFFFF</color>
     <color name="grey">#888888</color>
-    <color name="send_message">#189E93</color>
+    <color name="send_message">#15A12D</color>
     <color name="stop_responding">#CF4B2A</color>
 </resources>
