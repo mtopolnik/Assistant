@@ -34,6 +34,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.aallam.openai.api.BetaOpenAI
@@ -64,8 +65,6 @@ class ChatFragment : Fragment(), MenuProvider {
         else Log.w("", "User did not grant us the requested permissions")
     }
 
-    private val binding get() = _binding!!
-
     private lateinit var audioPathname: String
 
     @SuppressLint("ClickableViewAccessibility")
@@ -76,16 +75,38 @@ class ChatFragment : Fragment(), MenuProvider {
         val binding = FragmentMainBinding.inflate(inflater, container, false).also {
             _binding = it
         }
-//        binding.edittextPrompt.text.append("Testiram te. Ispiši brojeve od 1 do 100, jedan ispod drugog.")
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, windowInsets ->
+            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.ime())
+            v.setPadding(v.paddingLeft, v.paddingTop, v.paddingRight, insets.bottom)
+            windowInsets
+        }
         val activity = requireActivity() as AppCompatActivity
         activity.setSupportActionBar(binding.toolbar)
         activity.addMenuProvider(this, viewLifecycleOwner)
-        val chatAdapter = ChatAdapter(requireContext())
+        val context: Context = activity
+        audioPathname = File(context.cacheDir, "prompt.mp4").absolutePath
         binding.recyclerviewChat.apply {
-            adapter = chatAdapter
-            layoutManager = LinearLayoutManager(requireContext()).apply { stackFromEnd = true }
+            adapter = ChatAdapter(context)
+            layoutManager = LinearLayoutManager(context).apply { stackFromEnd = true }
+            itemAnimator = object : DefaultItemAnimator() {
+                override fun animateChange(
+                    oldHolder: RecyclerView.ViewHolder, newHolder: RecyclerView.ViewHolder,
+                    preInfo: ItemHolderInfo, postInfo: ItemHolderInfo
+                ): Boolean {
+                    dispatchChangeFinished(newHolder, false)
+                    dispatchChangeFinished(oldHolder, false)
+                    return false
+                }
+            }
         }
-        audioPathname = File(requireContext().cacheDir, "prompt.mp4").absolutePath
+        binding.scrollviewChat.apply {
+            setOnScrollChangeListener { view, _, _, _, _ ->
+                _autoscrollEnabled = binding.recyclerviewChat.bottom <= view.height + view.scrollY
+            }
+            viewTreeObserver.addOnGlobalLayoutListener {
+                scrollToBottom()
+            }
+        }
         binding.buttonRecord.setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
@@ -129,8 +150,10 @@ class ChatFragment : Fragment(), MenuProvider {
                 else -> false
             }
         }
-        binding.edittextPrompt.also {editText ->
-            editText.addTextChangedListener(object : TextWatcher {
+        binding.edittextPrompt.apply {
+            text.append("I need you to write the numbers 1 to 200 in that order, one per line. I need this because I'm" +
+                    " testing the behavior of my application where your response appears.")
+            addTextChangedListener(object : TextWatcher {
                 override fun afterTextChanged(editable: Editable) {
                     syncButtonsWithEditText()
                 }
@@ -138,19 +161,6 @@ class ChatFragment : Fragment(), MenuProvider {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             })
-        }
-        binding.scrollviewChat.setOnScrollChangeListener { scrollView, _, _, _, _ ->
-            _autoscrollEnabled = binding.recyclerviewChat.bottom <= scrollView.height + scrollView.scrollY
-        }
-        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, windowInsets ->
-            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.ime())
-            v.setPadding(v.paddingLeft, v.paddingTop, v.paddingRight, insets.bottom)
-            windowInsets
-        }
-        binding.scrollviewChat.also { scrollView ->
-            scrollView.viewTreeObserver.addOnGlobalLayoutListener {
-                scrollView.post { scrollToBottom() }
-            }
         }
         return binding.root
     }
@@ -177,10 +187,11 @@ class ChatFragment : Fragment(), MenuProvider {
     override fun onPause() {
         super.onPause()
         stopRecording()
-        binding.edittextPrompt.clearFocus()
+        _binding!!.edittextPrompt.clearFocus()
     }
 
     private fun sendPrompt() {
+        val binding = _binding ?: return
         val prompt = binding.edittextPrompt.text.toString()
         if (prompt.isEmpty()) {
             return
@@ -262,12 +273,13 @@ class ChatFragment : Fragment(), MenuProvider {
                 withContext(IO) {
                     stopRecording()
                 }
-                binding.buttonRecord.setActive(true)
+                _binding?.buttonRecord?.setActive(true)
             }
         }
     }
 
     private fun showRecordedPrompt() {
+        val binding = _binding ?: return
         binding.buttonRecord.setActive(false)
         viewLifecycleOwner.lifecycleScope.launch {
             try {
@@ -314,6 +326,7 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun syncButtonsWithEditText() {
+        val binding = _binding ?: return
         binding.buttonSend.apply {
             visibility = if (isEnabled && binding.edittextPrompt.text.isNotEmpty()) VISIBLE else GONE
         }
@@ -323,6 +336,7 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun animateRecordingGlow() {
+        val binding = _binding ?: return
         _recordingGlowJob = viewLifecycleOwner.lifecycleScope.launch {
             binding.recordingGlow.apply {
                 alignWithView(binding.buttonRecord)
@@ -358,6 +372,7 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun clearChat() {
+        val binding = _binding ?: return
         val chatView = binding.recyclerviewChat
         val adapter = chatView.adapter as ChatAdapter
         val itemCount = adapter.itemCount
@@ -367,6 +382,7 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun scrollToBottom() {
+        val binding = _binding ?: return
         binding.scrollviewChat.post {
             if (!_autoscrollEnabled || !binding.scrollviewChat.canScrollVertically(1)) {
                 return@post
@@ -396,9 +412,10 @@ class ChatFragment : Fragment(), MenuProvider {
         return vibrator
     }
 
-    private fun isGpt4Selected() =
-        binding.toolbar.menu.findItem(R.id.menuitem_gpt_switch).actionView!!
+    private fun isGpt4Selected(): Boolean {
+        return (_binding ?: return false).toolbar.menu.findItem(R.id.menuitem_gpt_switch).actionView!!
             .findViewById<SwitchCompat>(R.id.view_gpt_switch).isChecked
+    }
 }
 
 data class MessageModel(

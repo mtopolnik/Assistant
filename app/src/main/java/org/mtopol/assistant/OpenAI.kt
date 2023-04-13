@@ -1,7 +1,6 @@
 package org.mtopol.assistant
 
 import android.content.Context
-import android.util.Log
 import com.aallam.openai.api.BetaOpenAI
 import com.aallam.openai.api.audio.TranscriptionRequest
 import com.aallam.openai.api.chat.ChatCompletionChunk
@@ -14,12 +13,8 @@ import com.aallam.openai.api.model.ModelId
 import com.aallam.openai.client.OpenAIConfig
 import com.aallam.openai.client.RetryStrategy
 import kotlinx.coroutines.flow.Flow
-import okio.FileSystem
-import okio.Path
-import okio.Source
 import okio.source
 import java.io.File
-import java.io.FileInputStream
 import java.io.IOException
 import kotlin.time.Duration.Companion.seconds
 import com.aallam.openai.client.OpenAI as OpenAIClient
@@ -33,7 +28,7 @@ class OpenAI(context: Context) {
             OpenAIConfig(
                 token = context.getString(R.string.openai_api_key),
                 timeout = Timeout(connect = 5.seconds, socket = 5.seconds, request = 180.seconds),
-                retry = RetryStrategy(1, 2.0, 2.seconds)
+                retry = RetryStrategy(1, 2.0, 2.seconds),
             )
         )
     }
