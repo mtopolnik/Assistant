@@ -1,7 +1,6 @@
 package org.mtopol.assistant
 
 import android.os.Bundle
-import android.text.TextUtils.replace
 import android.view.Menu
 import android.view.MenuItem
 import androidx.appcompat.app.AppCompatActivity
