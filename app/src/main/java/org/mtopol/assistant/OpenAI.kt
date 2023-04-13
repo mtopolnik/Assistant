@@ -32,7 +32,7 @@ class OpenAI(context: Context) {
         client = OpenAIClient(
             OpenAIConfig(
                 token = context.getString(R.string.openai_api_key),
-                timeout = Timeout(connect = 5.seconds, socket = 5.seconds, request = 90.seconds),
+                timeout = Timeout(connect = 5.seconds, socket = 5.seconds, request = 180.seconds),
                 retry = RetryStrategy(1, 2.0, 2.seconds)
             )
         )

@@ -430,10 +430,16 @@ class ChatAdapter(private val context: Context) :
     override fun onBindViewHolder(holder: ChatViewHolder, position: Int) {
         val message = messages[position]
         holder.messageTextView.text = message.text
+        holder.messageTextView.setTextColor(
+            when(message.author) {
+                Role.USER -> context.getColorCompat(R.color.user_text_foreground)
+                Role.GPT -> context.getColorCompat(R.color.gpt_text_foreground)
+            }
+        )
         holder.messageTextView.setBackgroundColor(
             when(message.author) {
-                Role.USER -> context.getColorCompat(R.color.black)
-                Role.GPT -> context.getColorCompat(R.color.primary)
+                Role.USER -> context.getColorCompat(R.color.user_text_background)
+                Role.GPT -> context.getColorCompat(R.color.gpt_text_background)
             }
         )
     }

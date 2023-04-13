@@ -1,9 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <color name="primary">#4C528E</color>
+<resources xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Solarized Scheme -->
+    <color name="solarized_base03">#002b36</color>
+    <color name="solarized_base02">#073642</color>
+    <color name="solarized_base01">#586e75</color>
+    <color name="solarized_base00">#657b83</color>
+    <color name="solarized_base0">#839496</color>
+    <color name="solarized_base1">#93a1a1</color>
+    <color name="solarized_base2">#eee8d5</color>
+    <color name="solarized_base3">#fdf6e3</color>
+
+    <!-- Solarized accent colors -->
+    <color name="solarized_yellow">#b58900</color>
+    <color name="solarized_orange">#cb4b16</color>
+    <color name="solarized_red">#dc322f</color>
+    <color name="solarized_magenta">#d33682</color>
+    <color name="solarized_violet">#6c71c4</color>
+    <color name="solarized_blue">#268bd2</color>
+    <color name="solarized_cyan">#2aa198</color>
+    <color name="solarized_green">#859900</color>
+
+    <!-- Greyscale -->
     <color name="black">#000000</color>
     <color name="white">#FFFFFF</color>
     <color name="grey">#888888</color>
-    <color name="send_message">#15A12D</color>
-    <color name="stop_responding">#CF4B2A</color>
+
+    <color name="primary">@color/solarized_violet</color>
+    <color name="user_text_foreground">@color/solarized_base1</color>
+    <color name="user_text_background">@color/solarized_base03</color>
+    <color name="gpt_text_foreground">@color/solarized_base01</color>
+    <color name="gpt_text_background">@color/solarized_base3</color>
+    <color name="send_message">@color/solarized_green</color>
+    <color name="stop_responding">@color/solarized_red</color>
+<!--    <color name="primary">#4C528E</color>-->
+<!--    <color name="send_message">#15A12D</color>-->
+<!--    <color name="stop_responding">#CF4B2A</color>-->
 </resources>
