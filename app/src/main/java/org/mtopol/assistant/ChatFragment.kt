@@ -86,7 +86,7 @@ class ChatFragment : Fragment(), MenuProvider {
         audioPathname = File(context.cacheDir, "prompt.mp4").absolutePath
         binding.scrollviewChat.apply {
             setOnScrollChangeListener { view, _, _, _, _ ->
-                _autoscrollEnabled = binding.recyclerviewChat.bottom <= view.height + view.scrollY
+                _autoscrollEnabled = binding.viewChat.bottom <= view.height + view.scrollY
             }
             viewTreeObserver.addOnGlobalLayoutListener {
                 scrollToBottom()
@@ -356,7 +356,7 @@ class ChatFragment : Fragment(), MenuProvider {
     private fun addMessage(message: MessageModel): TextView {
         messages.add(message)
         val context = requireContext()
-        val chatView = _binding!!.recyclerviewChat
+        val chatView = _binding!!.viewChat
         val messageView = LayoutInflater.from(requireContext())
             .inflate(R.layout.chat_message_item, chatView, false) as TextView
         messageView.text = message.text
@@ -378,7 +378,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun clearChat() {
         val binding = _binding ?: return
-        binding.recyclerviewChat.removeAllViews()
+        binding.viewChat.removeAllViews()
         messages.clear()
         binding.edittextPrompt.editableText.clear()
     }

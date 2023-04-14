@@ -9,7 +9,7 @@ class ChatScrollListener() : NestedScrollView.OnScrollChangeListener {
         private set
 
     override fun onScrollChange(v: NestedScrollView, scrollX: Int, scrollY: Int, oldScrollX: Int, oldScrollY: Int) {
-        val recyclerView = v.findViewById<RecyclerView>(R.id.recyclerview_chat)
+        val recyclerView = v.findViewById<RecyclerView>(R.id.view_chat)
         val recyclerViewBottom = recyclerView.bottom
         val nestedScrollViewBottom = v.height + v.scrollY
         Log.i("", "recyclerViewBottom $recyclerViewBottom nestedScrollViewBottom $nestedScrollViewBottom")
