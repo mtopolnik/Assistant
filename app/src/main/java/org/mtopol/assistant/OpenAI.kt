@@ -21,20 +21,16 @@ import com.aallam.openai.client.OpenAI as OpenAIClient
 
 @OptIn(BetaOpenAI::class)
 class OpenAI(context: Context) {
-    private val client: OpenAIClient
-
-    init {
-        client = OpenAIClient(
-            OpenAIConfig(
-                token = context.getString(R.string.openai_api_key),
-                timeout = Timeout(connect = 5.seconds, socket = 5.seconds, request = 180.seconds),
-                retry = RetryStrategy(1, 2.0, 2.seconds),
-            )
+    private val client = OpenAIClient(
+        OpenAIConfig(
+            token = context.getString(R.string.openai_api_key),
+            timeout = Timeout(connect = 5.seconds, socket = 5.seconds, request = 180.seconds),
+            retry = RetryStrategy(1, 2.0, 2.seconds),
         )
-    }
+    )
 
     @Throws(IOException::class)
-    fun getResponseFlow(history: List<MessageModel>, useGpt4: Boolean): Flow<ChatCompletionChunk> {
+    fun chatCompletions(history: List<MessageModel>, useGpt4: Boolean): Flow<ChatCompletionChunk> {
         val gptModel = if (useGpt4) "gpt-4" else "gpt-3.5-turbo"
         val chatCompletionRequest = ChatCompletionRequest(
             model = ModelId(gptModel),

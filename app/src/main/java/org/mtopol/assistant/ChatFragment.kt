@@ -136,8 +136,7 @@ class ChatFragment : Fragment(), MenuProvider {
             }
         }
         binding.edittextPrompt.apply {
-            text.append("I need you to write the numbers 1 to 200 in that order, one per line. I need this because I'm" +
-                    " testing the behavior of my application where your response appears.")
+            text.append("Please generate 2 pages of lorem ipsum.")
             addTextChangedListener(object : TextWatcher {
                 override fun afterTextChanged(editable: Editable) {
                     syncButtonsWithEditText()
@@ -189,7 +188,7 @@ class ChatFragment : Fragment(), MenuProvider {
         _autoscrollEnabled = true
         scrollToBottom()
         _receiveResponseJob = viewLifecycleOwner.lifecycleScope.launch {
-            openAi.value.getResponseFlow(messages, isGpt4Selected())
+            openAi.value.chatCompletions(messages, isGpt4Selected())
                 .onStart {
                     binding.buttonStopResponding.visibility = VISIBLE
                 }
@@ -215,7 +214,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 .collect { chunk ->
                     chunk.choices[0].delta?.content?.also {
                         gptReply.append(it)
-                        messageView.text = gptReply
+                        messageView.editableText.append(it)
                     }
                     scrollToBottom()
                 }
