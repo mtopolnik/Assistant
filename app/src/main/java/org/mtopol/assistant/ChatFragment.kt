@@ -11,6 +11,7 @@ import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.speech.tts.TextToSpeech
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
@@ -35,6 +36,9 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.aallam.openai.api.BetaOpenAI
+import com.github.pemistahl.lingua.api.Language
+import com.github.pemistahl.lingua.api.LanguageDetector
+import com.github.pemistahl.lingua.api.LanguageDetectorBuilder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Job
@@ -45,13 +49,18 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.mtopol.assistant.databinding.FragmentMainBinding
 import java.io.File
+import java.util.*
 import kotlin.math.log2
 import kotlin.math.sin
 
 @OptIn(BetaOpenAI::class)
-class ChatFragment : Fragment(), MenuProvider {
+class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
 
     private val messages = mutableListOf<MessageModel>()
+    private val punctuationRegex = "[,.;!?\\n]".toRegex()
+    private lateinit var langDetector: LanguageDetector
+    private lateinit var tts: TextToSpeech
+    private lateinit var audioPathname: String
 
     private var _binding: FragmentMainBinding? = null
     private var _mediaRecorder: MediaRecorder? = null
@@ -64,13 +73,12 @@ class ChatFragment : Fragment(), MenuProvider {
         else Log.w("", "User did not grant us the requested permissions")
     }
 
-    private lateinit var audioPathname: String
-
     @SuppressLint("ClickableViewAccessibility")
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
+        langDetector = LanguageDetectorBuilder.fromLanguages(Language.ENGLISH, Language.CROATIAN).withPreloadedLanguageModels().build()
         val binding = FragmentMainBinding.inflate(inflater, container, false).also {
             _binding = it
         }
@@ -83,6 +91,7 @@ class ChatFragment : Fragment(), MenuProvider {
         activity.setSupportActionBar(binding.toolbar)
         activity.addMenuProvider(this, viewLifecycleOwner)
         val context: Context = activity
+        tts = TextToSpeech(context, this)
         audioPathname = File(context.cacheDir, "prompt.mp4").absolutePath
         binding.scrollviewChat.apply {
             setOnScrollChangeListener { view, _, _, _, _ ->
@@ -174,6 +183,21 @@ class ChatFragment : Fragment(), MenuProvider {
         _binding!!.edittextPrompt.clearFocus()
     }
 
+    override fun onStop() {
+        super.onStop()
+        if (::tts.isInitialized) {
+            tts.stop()
+            tts.shutdown()
+        }
+    }
+
+    override fun onInit(status: Int) {
+        if (status != TextToSpeech.SUCCESS) {
+            return
+        }
+        setSpokenLanguage("hr")
+    }
+
     private fun sendPrompt() {
         val binding = _binding ?: return
         val prompt = binding.edittextPrompt.text.toString()
@@ -187,6 +211,7 @@ class ChatFragment : Fragment(), MenuProvider {
         val messageView = addMessage(MessageModel(Role.GPT, gptReply))
         _autoscrollEnabled = true
         scrollToBottom()
+        var lastSpokenPos = 0
         _receiveResponseJob = viewLifecycleOwner.lifecycleScope.launch {
             openAi.value.chatCompletions(messages, isGpt4Selected())
                 .onStart {
@@ -212,9 +237,20 @@ class ChatFragment : Fragment(), MenuProvider {
                     syncButtonsWithEditText()
                 }
                 .collect { chunk ->
-                    chunk.choices[0].delta?.content?.also {
-                        gptReply.append(it)
-                        messageView.editableText.append(it)
+                    chunk.choices[0].delta?.content?.also { token ->
+                        gptReply.append(token)
+                        messageView.editableText.append(token)
+                        if (token.contains(punctuationRegex)) {
+                            val text = gptReply.substring(lastSpokenPos, gptReply.length)
+                            if (lastSpokenPos == 0) {
+                                Log.i("", "Start language detection")
+                                val language = langDetector.detectLanguageOf(text)
+                                Log.i("", "Detected language: $language")
+                                setSpokenLanguage(language.isoCode639_1.name)
+                            }
+                            speak(text)
+                            lastSpokenPos = gptReply.length + 1
+                        }
                     }
                     scrollToBottom()
                 }
@@ -411,6 +447,17 @@ class ChatFragment : Fragment(), MenuProvider {
             requireContext().getSystemService(VIBRATOR_SERVICE) as Vibrator
         }
         return vibrator
+    }
+
+    private fun speak(text: String) {
+        tts.speak(text, TextToSpeech.QUEUE_ADD, null, null)
+    }
+
+    private fun setSpokenLanguage(tag: String) {
+        val result = tts.setLanguage(Locale.forLanguageTag(tag))
+        if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+            Log.i("", "Language not supported for text-to-speech: $tag")
+        }
     }
 
     private fun isGpt4Selected(): Boolean {
