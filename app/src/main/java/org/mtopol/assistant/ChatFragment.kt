@@ -34,9 +34,6 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.DefaultItemAnimator
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 import com.aallam.openai.api.BetaOpenAI
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers.IO
@@ -53,6 +50,8 @@ import kotlin.math.sin
 
 @OptIn(BetaOpenAI::class)
 class ChatFragment : Fragment(), MenuProvider {
+
+    private val messages = mutableListOf<MessageModel>()
 
     private var _binding: FragmentMainBinding? = null
     private var _mediaRecorder: MediaRecorder? = null
@@ -85,20 +84,6 @@ class ChatFragment : Fragment(), MenuProvider {
         activity.addMenuProvider(this, viewLifecycleOwner)
         val context: Context = activity
         audioPathname = File(context.cacheDir, "prompt.mp4").absolutePath
-        binding.recyclerviewChat.apply {
-            adapter = ChatAdapter(context)
-            layoutManager = LinearLayoutManager(context).apply { stackFromEnd = true }
-            itemAnimator = object : DefaultItemAnimator() {
-                override fun animateChange(
-                    oldHolder: RecyclerView.ViewHolder, newHolder: RecyclerView.ViewHolder,
-                    preInfo: ItemHolderInfo, postInfo: ItemHolderInfo
-                ): Boolean {
-                    dispatchChangeFinished(newHolder, false)
-                    dispatchChangeFinished(oldHolder, false)
-                    return false
-                }
-            }
-        }
         binding.scrollviewChat.apply {
             setOnScrollChangeListener { view, _, _, _, _ ->
                 _autoscrollEnabled = binding.recyclerviewChat.bottom <= view.height + view.scrollY
@@ -198,16 +183,14 @@ class ChatFragment : Fragment(), MenuProvider {
         }
         binding.buttonSend.setActive(false)
         binding.edittextPrompt.editableText.clear()
-        val adapter = binding.recyclerviewChat.adapter as ChatAdapter
-        adapter.messages.add(MessageModel(Role.USER, StringBuilder(prompt)))
-        adapter.notifyItemInserted(adapter.messages.size - 1)
-        scrollToBottom()
+        addMessage(MessageModel(Role.USER, prompt))
         val gptReply = StringBuilder()
+        val messageView = addMessage(MessageModel(Role.GPT, gptReply))
+        _autoscrollEnabled = true
+        scrollToBottom()
         _receiveResponseJob = viewLifecycleOwner.lifecycleScope.launch {
-            openAi.value.getResponseFlow(adapter.messages, isGpt4Selected())
+            openAi.value.getResponseFlow(messages, isGpt4Selected())
                 .onStart {
-                    adapter.messages.add(MessageModel(Role.GPT, gptReply))
-                    adapter.notifyItemInserted(adapter.messages.size - 1)
                     binding.buttonStopResponding.visibility = VISIBLE
                 }
                 .onCompletion { exception ->
@@ -217,7 +200,6 @@ class ChatFragment : Fragment(), MenuProvider {
                             it is CancellationException -> Unit
                             (it.message ?: "").endsWith("does not exist") -> {
                                 gptReply.append("GPT-4 is not yet avaiable. Sorry.")
-                                adapter.notifyItemChanged(adapter.messages.size - 1)
                                 scrollToBottom()
                             }
                             else -> Toast.makeText(requireContext(),
@@ -225,6 +207,7 @@ class ChatFragment : Fragment(), MenuProvider {
                                 .show()
                         }
                     }
+                    gptReply.trimToSize()
                     binding.buttonStopResponding.visibility = GONE
                     binding.buttonSend.setActive(true)
                     syncButtonsWithEditText()
@@ -232,8 +215,8 @@ class ChatFragment : Fragment(), MenuProvider {
                 .collect { chunk ->
                     chunk.choices[0].delta?.content?.also {
                         gptReply.append(it)
+                        messageView.text = gptReply
                     }
-                    adapter.notifyItemChanged(adapter.messages.size - 1)
                     scrollToBottom()
                 }
         }
@@ -371,13 +354,33 @@ class ChatFragment : Fragment(), MenuProvider {
         _recordingGlowJob = null
     }
 
+    private fun addMessage(message: MessageModel): TextView {
+        messages.add(message)
+        val context = requireContext()
+        val chatView = _binding!!.recyclerviewChat
+        val messageView = LayoutInflater.from(requireContext())
+            .inflate(R.layout.chat_message_item, chatView, false) as TextView
+        messageView.text = message.text
+        messageView.setTextColor(
+            when(message.author) {
+                Role.USER -> context.getColorCompat(R.color.user_text_foreground)
+                Role.GPT -> context.getColorCompat(R.color.gpt_text_foreground)
+            }
+        )
+        messageView.setBackgroundColor(
+            when(message.author) {
+                Role.USER -> context.getColorCompat(R.color.user_text_background)
+                Role.GPT -> context.getColorCompat(R.color.gpt_text_background)
+            }
+        )
+        chatView.addView(messageView)
+        return messageView
+    }
+
     private fun clearChat() {
         val binding = _binding ?: return
-        val chatView = binding.recyclerviewChat
-        val adapter = chatView.adapter as ChatAdapter
-        val itemCount = adapter.itemCount
-        adapter.messages.clear()
-        adapter.notifyItemRangeRemoved(0, itemCount)
+        binding.recyclerviewChat.removeAllViews()
+        messages.clear()
         binding.edittextPrompt.editableText.clear()
     }
 
@@ -399,7 +402,6 @@ class ChatFragment : Fragment(), MenuProvider {
             @Suppress("DEPRECATION")
             vibrator().vibrate(20)
         }
-
     }
 
     private fun vibrator(): Vibrator {
@@ -420,44 +422,9 @@ class ChatFragment : Fragment(), MenuProvider {
 
 data class MessageModel(
     val author: Role,
-    val text: StringBuilder
+    val text: CharSequence
 )
 
 enum class Role {
     USER, GPT
-}
-
-class ChatAdapter(private val context: Context) :
-    RecyclerView.Adapter<ChatAdapter.ChatViewHolder>() {
-
-    val messages = mutableListOf<MessageModel>()
-
-    override fun getItemCount() = messages.size
-
-    class ChatViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        val messageTextView: TextView = itemView.findViewById(R.id.view_message_text)
-    }
-
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ChatViewHolder {
-        return ChatViewHolder(
-            LayoutInflater.from(parent.context).inflate(R.layout.chat_message_item, parent, false)
-        )
-    }
-
-    override fun onBindViewHolder(holder: ChatViewHolder, position: Int) {
-        val message = messages[position]
-        holder.messageTextView.text = message.text
-        holder.messageTextView.setTextColor(
-            when(message.author) {
-                Role.USER -> context.getColorCompat(R.color.user_text_foreground)
-                Role.GPT -> context.getColorCompat(R.color.gpt_text_foreground)
-            }
-        )
-        holder.messageTextView.setBackgroundColor(
-            when(message.author) {
-                Role.USER -> context.getColorCompat(R.color.user_text_background)
-                Role.GPT -> context.getColorCompat(R.color.gpt_text_background)
-            }
-        )
-    }
 }

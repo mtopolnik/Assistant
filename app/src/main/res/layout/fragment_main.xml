@@ -42,11 +42,12 @@
                     android:layout_height="match_parent"
                     app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
-                <androidx.recyclerview.widget.RecyclerView
+                <LinearLayout
                         android:id="@+id/recyclerview_chat"
+                        android:orientation="vertical"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:nestedScrollingEnabled="false"
+                        app:stackFromEnd="true"
                         />
             </androidx.core.widget.NestedScrollView>
 
