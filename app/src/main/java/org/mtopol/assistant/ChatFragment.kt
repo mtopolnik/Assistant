@@ -40,6 +40,7 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.aallam.openai.api.BetaOpenAI
 import com.google.mlkit.nl.languageid.LanguageIdentification
+import com.google.mlkit.nl.languageid.LanguageIdentificationOptions
 import com.google.mlkit.nl.languageid.LanguageIdentifier
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers.IO
@@ -96,8 +97,13 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
         activity.addMenuProvider(this, viewLifecycleOwner)
         val context: Context = activity
 
-        systemLanguages = systemLanguages(context)
-        languageIdentifier = LanguageIdentification.getClient()
+        systemLanguages = run {
+            val localeList: LocaleListCompat = ConfigurationCompat.getLocales(context.resources.configuration)
+            (0 until localeList.size()).map { localeList.get(it)!!.language }
+        }
+        languageIdentifier = LanguageIdentification.getClient(
+            LanguageIdentificationOptions.Builder().setConfidenceThreshold(0.2f).build()
+        )
         audioPathname = File(context.cacheDir, "prompt.mp4").absolutePath
 
         binding.scrollviewChat.apply {
@@ -248,11 +254,8 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
                         if (token.contains(punctuationRegex)) {
                             val text = gptReply.substring(lastSpokenPos, gptReply.length)
                             if (lastSpokenPos == 0) {
-                                var language: String = identifyLanguage(text)
+                                val language = identifyLanguage(text)
                                 Log.i("", "Identified language: $language")
-                                if (language == "und") {
-                                    language = "hr"
-                                }
                                 _tts?.setSpokenLanguage(language)
                             }
                             speak(text)
@@ -443,14 +446,15 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
         val binding = _binding ?: return
         val receivingResponse = _receiveResponseJob != null
         val speaking = _isSpeaking
-        Log.i("speech", "Update stop button visibility: $receivingResponse $speaking")
+//        Log.i("speech", "Update stop button visibility: $receivingResponse $speaking")
         binding.buttonStopResponding.visibility = if (receivingResponse || speaking) VISIBLE else GONE
     }
 
     private suspend fun identifyLanguage(text: String): String {
-        return languageIdentifier.identifyPossibleLanguages(text).await()
-            .map { it.languageTag }
-            .first { systemLanguages.contains(it) }
+        val languages = languageIdentifier.identifyPossibleLanguages(text).await().map { it.languageTag }
+        return languages
+            .firstOrNull { systemLanguages.contains(it) }
+            ?: languages.first()
     }
 
     private fun vibrate() {
@@ -472,16 +476,12 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
         return vibrator
     }
 
-    private fun systemLanguages(context: Context): List<String> {
-        val localeList: LocaleListCompat = ConfigurationCompat.getLocales(context.resources.configuration)
-        return (0 until localeList.size()).map { localeList.get(it)!!.language }
-    }
-
     private fun TextToSpeech.setSpokenLanguage(tag: String) {
-        val result = setLanguage(Locale.forLanguageTag(tag))
-        if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-            Log.i("", "Language not supported for text-to-speech: $tag")
-            language = Locale.forLanguageTag("hr")
+        when (setLanguage(Locale.forLanguageTag(tag))) {
+            TextToSpeech.LANG_MISSING_DATA, TextToSpeech.LANG_NOT_SUPPORTED -> {
+                Log.i("", "Language not supported for text-to-speech: $tag")
+                language = Locale.forLanguageTag("hr")
+            }
         }
     }
 
