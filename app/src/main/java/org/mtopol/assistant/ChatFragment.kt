@@ -46,6 +46,7 @@ import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
@@ -59,7 +60,7 @@ import kotlin.math.sin
 class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
 
     private val messages = mutableListOf<MessageModel>()
-    private val punctuationRegex = "[,.;!?\\n]".toRegex()
+    private val punctuationRegex = "[.;!?\\n]".toRegex()
     private lateinit var audioPathname: String
     private lateinit var systemLanguages: List<String>
     private lateinit var languageIdentifier: LanguageIdentifier
@@ -195,10 +196,10 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
         destroyTts()
     }
 
+    // TextToSpeech.OnInitListener
     override fun onInit(status: Int) {
         if (status != TextToSpeech.SUCCESS) {
-            Log.e("speech", "Speech init status: $status")
-            return
+            Log.e("speech", "Speech init failed with status code $status")
         }
     }
 
@@ -215,10 +216,12 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
         val messageView = addMessage(MessageModel(Role.GPT, gptReply))
         _autoscrollEnabled = true
         scrollToBottom()
-        recreateTts()
         var lastSpokenPos = 0
         _receiveResponseJob = viewLifecycleOwner.lifecycleScope.launch {
             openAi.value.chatCompletions(messages, isGpt4Selected())
+                .onStart {
+                    recreateTts()
+                }
                 .onCompletion { exception ->
                     _receiveResponseJob = null
                     updateStopButtonVisibility()
@@ -491,6 +494,9 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
             stop()
             shutdown()
         }
+        _tts = null
+        _isSpeaking = false
+        updateStopButtonVisibility()
     }
 
     private fun recreateTts() {
@@ -499,12 +505,14 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
         _tts = TextToSpeech(context, this).apply {
             setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String) {
+                    Log.i("speech", "onStart")
                     scope.launch {
                         _isSpeaking = true
                         updateStopButtonVisibility()
                     }
                 }
                 override fun onDone(utteranceId: String) {
+                    Log.i("speech", "onDone")
                     scope.launch {
                         _isSpeaking = false
                         delay(10)
@@ -513,6 +521,7 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
                 }
 
                 override fun onStop(utteranceId: String?, interrupted: Boolean) {
+                    Log.i("speech", "onStop")
                     scope.launch {
                         _isSpeaking = false
                         updateStopButtonVisibility()
