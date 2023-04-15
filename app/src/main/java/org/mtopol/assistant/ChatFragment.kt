@@ -60,13 +60,13 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
 
     private val messages = mutableListOf<MessageModel>()
     private val punctuationRegex = "[,.;!?\\n]".toRegex()
-    private lateinit var tts: TextToSpeech
     private lateinit var audioPathname: String
     private lateinit var systemLanguages: List<String>
     private lateinit var languageIdentifier: LanguageIdentifier
 
     private var _binding: FragmentMainBinding? = null
     private var _mediaRecorder: MediaRecorder? = null
+    private var _tts: TextToSpeech? = null
     private var _recordingGlowJob: Job? = null
     private var _receiveResponseJob: Job? = null
     private var _isSpeaking = false
@@ -98,7 +98,6 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
         systemLanguages = systemLanguages(context)
         languageIdentifier = LanguageIdentification.getClient()
         audioPathname = File(context.cacheDir, "prompt.mp4").absolutePath
-        tts = TextToSpeech(context, this)
 
         binding.scrollviewChat.apply {
             setOnScrollChangeListener { view, _, _, _, _ ->
@@ -146,7 +145,7 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
                 }
                 MotionEvent.ACTION_UP -> {
                     _receiveResponseJob?.cancel()
-                    tts.stop()
+                    destroyTts()
                     true
                 }
                 else -> false
@@ -193,10 +192,7 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
 
     override fun onStop() {
         super.onStop()
-        if (::tts.isInitialized) {
-            tts.stop()
-            tts.shutdown()
-        }
+        destroyTts()
     }
 
     override fun onInit(status: Int) {
@@ -204,38 +200,6 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
             Log.e("speech", "Speech init status: $status")
             return
         }
-        val scope = viewLifecycleOwner.lifecycleScope
-        tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-            override fun onStart(utteranceId: String) {
-                scope.launch {
-                    _isSpeaking = true
-                    updateStopButtonVisibility()
-                }
-            }
-            override fun onDone(utteranceId: String) {
-                scope.launch {
-                    _isSpeaking = false
-                    delay(10)
-                    updateStopButtonVisibility()
-                }
-            }
-
-            override fun onStop(utteranceId: String?, interrupted: Boolean) {
-                scope.launch {
-                    _isSpeaking = false
-                    updateStopButtonVisibility()
-                }
-            }
-
-            @Deprecated("", ReplaceWith("Can't replace, it's an abstract method!"))
-            override fun onError(utteranceId: String) {
-                onError(utteranceId, TextToSpeech.ERROR)
-            }
-
-            override fun onError(utteranceId: String?, errorCode: Int) {
-                Log.e("speech", "Error while speaking, error code: $errorCode")
-            }
-        })
     }
 
     private fun sendPrompt() {
@@ -251,6 +215,7 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
         val messageView = addMessage(MessageModel(Role.GPT, gptReply))
         _autoscrollEnabled = true
         scrollToBottom()
+        recreateTts()
         var lastSpokenPos = 0
         _receiveResponseJob = viewLifecycleOwner.lifecycleScope.launch {
             openAi.value.chatCompletions(messages, isGpt4Selected())
@@ -285,7 +250,7 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
                                 if (language == "und") {
                                     language = "hr"
                                 }
-                                setSpokenLanguage(language)
+                                _tts?.setSpokenLanguage(language)
                             }
                             speak(text)
                             lastSpokenPos = gptReply.length + 1
@@ -453,7 +418,7 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
     }
 
     private fun clearChat() {
-        tts.stop()
+        _tts?.stop()
         val binding = _binding ?: return
         binding.viewChat.removeAllViews()
         messages.clear()
@@ -509,16 +474,61 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
         return (0 until localeList.size()).map { localeList.get(it)!!.language }
     }
 
-    private fun setSpokenLanguage(tag: String) {
-        val result = tts.setLanguage(Locale.forLanguageTag(tag))
+    private fun TextToSpeech.setSpokenLanguage(tag: String) {
+        val result = setLanguage(Locale.forLanguageTag(tag))
         if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
             Log.i("", "Language not supported for text-to-speech: $tag")
-            tts.language = Locale.forLanguageTag("hr")
+            language = Locale.forLanguageTag("hr")
         }
     }
 
     private fun speak(text: String) {
-        tts.speak(text, TextToSpeech.QUEUE_ADD, null, "response")
+        _tts?.speak(text, TextToSpeech.QUEUE_ADD, null, "response")
+    }
+
+    private fun destroyTts() {
+        _tts?.apply {
+            stop()
+            shutdown()
+        }
+    }
+
+    private fun recreateTts() {
+        destroyTts()
+        val scope = viewLifecycleOwner.lifecycleScope
+        _tts = TextToSpeech(context, this).apply {
+            setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                override fun onStart(utteranceId: String) {
+                    scope.launch {
+                        _isSpeaking = true
+                        updateStopButtonVisibility()
+                    }
+                }
+                override fun onDone(utteranceId: String) {
+                    scope.launch {
+                        _isSpeaking = false
+                        delay(10)
+                        updateStopButtonVisibility()
+                    }
+                }
+
+                override fun onStop(utteranceId: String?, interrupted: Boolean) {
+                    scope.launch {
+                        _isSpeaking = false
+                        updateStopButtonVisibility()
+                    }
+                }
+
+                @Deprecated("", ReplaceWith("Can't replace, it's an abstract method!"))
+                override fun onError(utteranceId: String) {
+                    onError(utteranceId, TextToSpeech.ERROR)
+                }
+
+                override fun onError(utteranceId: String?, errorCode: Int) {
+                    Log.e("speech", "Error while speaking, error code: $errorCode")
+                }
+            })
+        }
     }
 
     private fun isGpt4Selected(): Boolean {
