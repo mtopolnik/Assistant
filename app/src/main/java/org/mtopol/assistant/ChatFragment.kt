@@ -30,15 +30,16 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.content.ContextCompat.checkSelfPermission
+import androidx.core.os.ConfigurationCompat
+import androidx.core.os.LocaleListCompat
 import androidx.core.view.MenuProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.aallam.openai.api.BetaOpenAI
-import com.github.pemistahl.lingua.api.Language
-import com.github.pemistahl.lingua.api.LanguageDetector
-import com.github.pemistahl.lingua.api.LanguageDetectorBuilder
+import com.google.mlkit.nl.languageid.LanguageIdentification
+import com.google.mlkit.nl.languageid.LanguageIdentifier
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Job
@@ -46,6 +47,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import org.mtopol.assistant.databinding.FragmentMainBinding
 import java.io.File
@@ -58,9 +60,10 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
 
     private val messages = mutableListOf<MessageModel>()
     private val punctuationRegex = "[,.;!?\\n]".toRegex()
-    private lateinit var langDetector: LanguageDetector
     private lateinit var tts: TextToSpeech
     private lateinit var audioPathname: String
+    private lateinit var systemLanguages: List<String>
+    private lateinit var languageIdentifier: LanguageIdentifier
 
     private var _binding: FragmentMainBinding? = null
     private var _mediaRecorder: MediaRecorder? = null
@@ -78,7 +81,6 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        langDetector = LanguageDetectorBuilder.fromLanguages(Language.ENGLISH, Language.CROATIAN).withPreloadedLanguageModels().build()
         val binding = FragmentMainBinding.inflate(inflater, container, false).also {
             _binding = it
         }
@@ -91,8 +93,12 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
         activity.setSupportActionBar(binding.toolbar)
         activity.addMenuProvider(this, viewLifecycleOwner)
         val context: Context = activity
-        tts = TextToSpeech(context, this)
+
+        systemLanguages = systemLanguages(context)
+        languageIdentifier = LanguageIdentification.getClient()
         audioPathname = File(context.cacheDir, "prompt.mp4").absolutePath
+        tts = TextToSpeech(context, this)
+
         binding.scrollviewChat.apply {
             setOnScrollChangeListener { view, _, _, _, _ ->
                 _autoscrollEnabled = binding.viewChat.bottom <= view.height + view.scrollY
@@ -243,10 +249,12 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
                         if (token.contains(punctuationRegex)) {
                             val text = gptReply.substring(lastSpokenPos, gptReply.length)
                             if (lastSpokenPos == 0) {
-                                Log.i("", "Start language detection")
-                                val language = langDetector.detectLanguageOf(text)
-                                Log.i("", "Detected language: $language")
-                                setSpokenLanguage(language.isoCode639_1.name)
+                                var language: String = identifyLanguage(text)
+                                Log.i("", "Identified language: $language")
+                                if (language == "und") {
+                                    language = "hr"
+                                }
+                                setSpokenLanguage(language)
                             }
                             speak(text)
                             lastSpokenPos = gptReply.length + 1
@@ -255,6 +263,12 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
                     scrollToBottom()
                 }
         }
+    }
+
+    private suspend fun identifyLanguage(text: String): String {
+        return languageIdentifier.identifyPossibleLanguages(text).await()
+            .map { it.languageTag }
+            .first { systemLanguages.contains(it) }
     }
 
     private fun startRecordingPrompt() {
@@ -449,8 +463,9 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
         return vibrator
     }
 
-    private fun speak(text: String) {
-        tts.speak(text, TextToSpeech.QUEUE_ADD, null, null)
+    private fun systemLanguages(context: Context): List<String> {
+        val localeList: LocaleListCompat = ConfigurationCompat.getLocales(context.resources.configuration)
+        return (0 until localeList.size()).map { localeList.get(it)!!.language }
     }
 
     private fun setSpokenLanguage(tag: String) {
@@ -458,6 +473,10 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
         if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
             Log.i("", "Language not supported for text-to-speech: $tag")
         }
+    }
+
+    private fun speak(text: String) {
+        tts.speak(text, TextToSpeech.QUEUE_ADD, null, null)
     }
 
     private fun isGpt4Selected(): Boolean {
