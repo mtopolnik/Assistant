@@ -4,7 +4,8 @@
         android:layout_height="wrap_content"
         android:padding="16dp"
         android:textSize="16sp"
+        android:hint="@string/chat_message_hint"
         android:textIsSelectable="true"
+        android:editable="false"
         android:inputType="none"
-        android:autofillHints=""
         />

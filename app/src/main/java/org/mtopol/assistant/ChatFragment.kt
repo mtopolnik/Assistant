@@ -12,6 +12,7 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
@@ -45,7 +46,6 @@ import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.onCompletion
-import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
@@ -69,6 +69,7 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
     private var _mediaRecorder: MediaRecorder? = null
     private var _recordingGlowJob: Job? = null
     private var _receiveResponseJob: Job? = null
+    private var _isSpeaking = false
     private var _autoscrollEnabled: Boolean = true
 
     private val permissionRequest = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -145,13 +146,14 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
                 }
                 MotionEvent.ACTION_UP -> {
                     _receiveResponseJob?.cancel()
+                    tts.stop()
                     true
                 }
                 else -> false
             }
         }
         binding.edittextPrompt.apply {
-            text.append("Please generate 2 pages of lorem ipsum.")
+//            text.append("Please generate 2 sentences of lorem ipsum.")
             addTextChangedListener(object : TextWatcher {
                 override fun afterTextChanged(editable: Editable) {
                     syncButtonsWithEditText()
@@ -199,9 +201,41 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
 
     override fun onInit(status: Int) {
         if (status != TextToSpeech.SUCCESS) {
+            Log.e("speech", "Speech init status: $status")
             return
         }
-        setSpokenLanguage("hr")
+        val scope = viewLifecycleOwner.lifecycleScope
+        tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+            override fun onStart(utteranceId: String) {
+                scope.launch {
+                    _isSpeaking = true
+                    updateStopButtonVisibility()
+                }
+            }
+            override fun onDone(utteranceId: String) {
+                scope.launch {
+                    _isSpeaking = false
+                    delay(10)
+                    updateStopButtonVisibility()
+                }
+            }
+
+            override fun onStop(utteranceId: String?, interrupted: Boolean) {
+                scope.launch {
+                    _isSpeaking = false
+                    updateStopButtonVisibility()
+                }
+            }
+
+            @Deprecated("", ReplaceWith("Can't replace, it's an abstract method!"))
+            override fun onError(utteranceId: String) {
+                onError(utteranceId, TextToSpeech.ERROR)
+            }
+
+            override fun onError(utteranceId: String?, errorCode: Int) {
+                Log.e("speech", "Error while speaking, error code: $errorCode")
+            }
+        })
     }
 
     private fun sendPrompt() {
@@ -220,11 +254,9 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
         var lastSpokenPos = 0
         _receiveResponseJob = viewLifecycleOwner.lifecycleScope.launch {
             openAi.value.chatCompletions(messages, isGpt4Selected())
-                .onStart {
-                    binding.buttonStopResponding.visibility = VISIBLE
-                }
                 .onCompletion { exception ->
                     _receiveResponseJob = null
+                    updateStopButtonVisibility()
                     exception?.also {
                         when {
                             it is CancellationException -> Unit
@@ -238,7 +270,6 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
                         }
                     }
                     gptReply.trimToSize()
-                    binding.buttonStopResponding.visibility = GONE
                     binding.buttonSend.setActive(true)
                     syncButtonsWithEditText()
                 }
@@ -263,12 +294,7 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
                     scrollToBottom()
                 }
         }
-    }
-
-    private suspend fun identifyLanguage(text: String): String {
-        return languageIdentifier.identifyPossibleLanguages(text).await()
-            .map { it.languageTag }
-            .first { systemLanguages.contains(it) }
+        updateStopButtonVisibility()
     }
 
     private fun startRecordingPrompt() {
@@ -427,6 +453,7 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
     }
 
     private fun clearChat() {
+        tts.stop()
         val binding = _binding ?: return
         binding.viewChat.removeAllViews()
         messages.clear()
@@ -442,6 +469,20 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
             binding.appbarLayout.setExpanded(false, true)
             binding.scrollviewChat.smoothScrollTo(0, binding.scrollviewChat.getChildAt(0).bottom)
         }
+    }
+
+    private fun updateStopButtonVisibility() {
+        val binding = _binding ?: return
+        val receivingResponse = _receiveResponseJob != null
+        val speaking = _isSpeaking
+        Log.i("speech", "Update stop button visibility: $receivingResponse $speaking")
+        binding.buttonStopResponding.visibility = if (receivingResponse || speaking) VISIBLE else GONE
+    }
+
+    private suspend fun identifyLanguage(text: String): String {
+        return languageIdentifier.identifyPossibleLanguages(text).await()
+            .map { it.languageTag }
+            .first { systemLanguages.contains(it) }
     }
 
     private fun vibrate() {
@@ -472,11 +513,12 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
         val result = tts.setLanguage(Locale.forLanguageTag(tag))
         if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
             Log.i("", "Language not supported for text-to-speech: $tag")
+            tts.language = Locale.forLanguageTag("hr")
         }
     }
 
     private fun speak(text: String) {
-        tts.speak(text, TextToSpeech.QUEUE_ADD, null, null)
+        tts.speak(text, TextToSpeech.QUEUE_ADD, null, "response")
     }
 
     private fun isGpt4Selected(): Boolean {
