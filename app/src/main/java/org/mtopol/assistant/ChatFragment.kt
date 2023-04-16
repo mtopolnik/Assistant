@@ -24,7 +24,9 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.View.*
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
 import android.widget.ImageButton
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -59,6 +61,7 @@ import kotlin.math.log2
 import kotlin.math.sin
 
 @OptIn(BetaOpenAI::class)
+@SuppressLint("ClickableViewAccessibility")
 class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
 
     private val messages = mutableListOf<MessageModel>()
@@ -66,6 +69,7 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
     private lateinit var audioPathname: String
     private lateinit var systemLanguages: List<String>
     private lateinit var languageIdentifier: LanguageIdentifier
+    private var pixelDensity = 0f
 
     private var _binding: FragmentMainBinding? = null
     private var _mediaRecorder: MediaRecorder? = null
@@ -80,7 +84,6 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
         else Log.w("", "User did not grant us the requested permissions")
     }
 
-    @SuppressLint("ClickableViewAccessibility")
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -98,6 +101,7 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
         activity.addMenuProvider(this, viewLifecycleOwner)
         val context: Context = activity
 
+        pixelDensity = context.resources.displayMetrics.density
         systemLanguages = run {
             val localeList: LocaleListCompat = ConfigurationCompat.getLocales(context.resources.configuration)
             (0 until localeList.size()).map { localeList.get(it)!!.language }
@@ -107,12 +111,18 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
         )
         audioPathname = File(context.cacheDir, "prompt.mp4").absolutePath
 
+        if (binding.edittextPrompt.text.isEmpty()) {
+            switchToVoice()
+        }
         binding.scrollviewChat.apply {
             setOnScrollChangeListener { view, _, _, _, _ ->
                 _autoscrollEnabled = binding.viewChat.bottom <= view.height + view.scrollY
             }
             viewTreeObserver.addOnGlobalLayoutListener {
                 scrollToBottom()
+            }
+            setOnClickListener {
+                switchToVoice()
             }
         }
         binding.buttonRecord.setOnTouchListener { _, event ->
@@ -132,33 +142,9 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
                 else -> false
             }
         }
-        binding.buttonSend.setOnTouchListener { _, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    vibrate()
-                    true
-                }
-                MotionEvent.ACTION_UP -> {
-                    sendPrompt()
-                    true
-                }
-                else -> false
-            }
-        }
-        binding.buttonStopResponding.setOnTouchListener { _, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    vibrate()
-                    true
-                }
-                MotionEvent.ACTION_UP -> {
-                    _receiveResponseJob?.cancel()
-                    destroyTts()
-                    true
-                }
-                else -> false
-            }
-        }
+        binding.buttonKeyboard.onClickWithVibrate { switchToTyping(true) }
+        binding.buttonSend.onClickWithVibrate { sendPrompt() }
+        binding.buttonStopResponding.onClickWithVibrate { _receiveResponseJob?.cancel(); destroyTts() }
         binding.edittextPrompt.apply {
 //            text.append("Please generate 2 sentences of lorem ipsum.")
             addTextChangedListener(object : TextWatcher {
@@ -216,8 +202,7 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
         if (prompt.isEmpty()) {
             return
         }
-        binding.buttonSend.setActive(false)
-        binding.edittextPrompt.editableText.clear()
+        switchToVoice()
         addMessage(MessageModel(Role.USER, prompt))
         val gptReply = StringBuilder()
         val messageView = addMessage(MessageModel(Role.GPT, gptReply))
@@ -246,8 +231,6 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
                         }
                     }
                     gptReply.trimToSize()
-                    binding.buttonSend.setActive(true)
-                    syncButtonsWithEditText()
                 }
                 .collect { chunk ->
                     chunk.choices[0].delta?.content?.also { token ->
@@ -327,6 +310,7 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
                         clear()
                         append(transcription)
                     }
+                    switchToTyping(false)
                 }
             } catch (e: Exception) {
                 Toast.makeText(requireContext(),
@@ -353,9 +337,53 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
         }
     }
 
+    private fun ImageButton.onClickWithVibrate(pointerUpAction: () -> Unit) {
+        setOnTouchListener { _, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> { vibrate(); true }
+                MotionEvent.ACTION_UP -> {
+                    pointerUpAction()
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
     private fun ImageButton.setActive(newActive: Boolean) {
         imageAlpha = if (newActive) 255 else 128
         isEnabled = newActive
+    }
+
+    private fun switchToTyping(bringUpKeyboard: Boolean) {
+        val binding = _binding ?: return
+        (binding.buttonRecord.layoutParams as LinearLayout.LayoutParams).apply {
+            width = (50 * pixelDensity).toInt()
+            weight = 0f
+        }
+        binding.buttonKeyboard.visibility = GONE
+        binding.edittextPrompt.apply {
+            visibility = VISIBLE
+            requestFocus()
+        }
+        if (bringUpKeyboard) {
+            (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+                .showSoftInput(binding.edittextPrompt, InputMethodManager.SHOW_IMPLICIT)
+        }
+    }
+
+    private fun switchToVoice() {
+        val binding = _binding ?: return
+        binding.edittextPrompt.editableText.clear()
+        (binding.buttonRecord.layoutParams as LinearLayout.LayoutParams).apply {
+            width = 0
+            weight = 1f
+        }
+        binding.buttonKeyboard.visibility = VISIBLE
+        binding.edittextPrompt.apply {
+            visibility = GONE
+            clearFocus()
+        }
     }
 
     private fun syncButtonsWithEditText() {

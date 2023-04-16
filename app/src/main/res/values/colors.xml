@@ -30,9 +30,6 @@
     <color name="user_text_background">@color/solarized_base03</color>
     <color name="gpt_text_foreground">@color/solarized_base01</color>
     <color name="gpt_text_background">@color/solarized_base3</color>
-    <color name="send_message">@color/solarized_green</color>
-    <color name="stop_responding">@color/solarized_red</color>
-<!--    <color name="primary">#4C528E</color>-->
-<!--    <color name="send_message">#15A12D</color>-->
-<!--    <color name="stop_responding">#CF4B2A</color>-->
+    <color name="button_normal">@color/solarized_green</color>
+    <color name="button_danger">@color/solarized_red</color>
 </resources>

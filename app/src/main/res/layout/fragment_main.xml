@@ -47,7 +47,6 @@
                         android:orientation="vertical"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        app:stackFromEnd="true"
                         />
             </androidx.core.widget.NestedScrollView>
 
@@ -70,34 +69,50 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:layout_gravity="bottom"
+                    android:visibility="gone"
                     android:hint="@string/prompt_hint"
                     android:autofillHints=""
                     android:inputType="textCapSentences|textMultiLine"
                     android:privateImeOptions="inputType=textImeMultiLine"
                     android:imeOptions="actionDone|flagNavigateNext"
-                    android:maxLines="4"
+                    android:maxLines="7"
                     />
 
+            <ImageButton
+                    android:id="@+id/button_keyboard"
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
+                    android:layout_gravity="bottom"
+                    android:src="@drawable/baseline_keyboard_28"
+                    app:tint="@color/white"
+                    android:background="@drawable/rounded_button"
+                    android:backgroundTint="@color/solarized_base00"
+                    android:contentDescription="@string/send"
+                    />
             <ImageButton
                     android:id="@+id/button_stopResponding"
                     android:layout_width="50dp"
                     android:layout_height="50dp"
+                    android:layout_marginStart="8dp"
+                    android:layout_gravity="bottom"
                     android:visibility="gone"
                     android:src="@drawable/baseline_cancel_28"
                     app:tint="@color/white"
-                    android:background="@drawable/round_button"
-                    android:backgroundTint="@color/stop_responding"
+                    android:background="@drawable/rounded_button"
+                    android:backgroundTint="@color/button_danger"
                     android:contentDescription="@string/send"
                     />
             <ImageButton
                     android:id="@+id/button_record"
-                    android:layout_width="250dp"
+                    android:layout_width="0dp"
                     android:layout_height="50dp"
+                    android:layout_weight="1"
                     android:layout_marginStart="8dp"
+                    android:layout_gravity="bottom"
                     android:src="@drawable/baseline_mic_28"
                     app:tint="@color/white"
-                    android:background="@drawable/round_button"
-                    android:backgroundTint="@color/send_message"
+                    android:background="@drawable/rounded_button"
+                    android:backgroundTint="@color/button_normal"
                     android:contentDescription="@string/record"
                     />
             <ImageButton
@@ -105,12 +120,13 @@
                     android:layout_width="50dp"
                     android:layout_height="50dp"
                     android:layout_marginStart="8dp"
+                    android:layout_gravity="bottom"
                     android:visibility="gone"
                     android:src="@drawable/baseline_send_28"
                     app:tint="@color/white"
                     android:paddingLeft="4dp"
-                    android:background="@drawable/round_button"
-                    android:backgroundTint="@color/send_message"
+                    android:background="@drawable/rounded_button"
+                    android:backgroundTint="@color/button_normal"
                     android:contentDescription="@string/send"
                     />
         </LinearLayout>
