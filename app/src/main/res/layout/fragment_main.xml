@@ -69,6 +69,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
+                    android:layout_gravity="bottom"
                     android:hint="@string/prompt_hint"
                     android:autofillHints=""
                     android:inputType="textCapSentences|textMultiLine"
@@ -90,7 +91,7 @@
                     />
             <ImageButton
                     android:id="@+id/button_record"
-                    android:layout_width="50dp"
+                    android:layout_width="250dp"
                     android:layout_height="50dp"
                     android:layout_marginStart="8dp"
                     android:src="@drawable/baseline_mic_28"
