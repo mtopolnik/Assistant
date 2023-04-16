@@ -42,6 +42,7 @@ import com.aallam.openai.api.BetaOpenAI
 import com.google.mlkit.nl.languageid.LanguageIdentification
 import com.google.mlkit.nl.languageid.LanguageIdentificationOptions
 import com.google.mlkit.nl.languageid.LanguageIdentifier
+import com.google.mlkit.nl.languageid.LanguageIdentifier.UNDETERMINED_LANGUAGE_TAG
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Job
@@ -223,6 +224,7 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
         _autoscrollEnabled = true
         scrollToBottom()
         var lastSpokenPos = 0
+        var lastIdentifiedLanguage = UNDETERMINED_LANGUAGE_TAG
         _receiveResponseJob = viewLifecycleOwner.lifecycleScope.launch {
             openAi.value.chatCompletions(messages, isGpt4Selected())
                 .onStart {
@@ -253,10 +255,12 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
                         messageView.editableText.append(token)
                         if (token.contains(punctuationRegex)) {
                             val text = gptReply.substring(lastSpokenPos, gptReply.length)
-                            if (lastSpokenPos == 0) {
-                                val language = identifyLanguage(text)
-                                Log.i("", "Identified language: $language")
-                                _tts?.setSpokenLanguage(language)
+                            if (!systemLanguages.contains(lastIdentifiedLanguage)) {
+                                identifyLanguage(text).also {
+                                    Log.i("speech", "Identified language: $it")
+                                    lastIdentifiedLanguage = it
+                                    _tts?.setSpokenLanguage(it)
+                                }
                             }
                             speak(text)
                             lastSpokenPos = gptReply.length + 1
@@ -486,7 +490,7 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
     }
 
     private fun speak(text: String) {
-        _tts?.speak(text, TextToSpeech.QUEUE_ADD, null, "response")
+        _tts?.speak(text.trim(), TextToSpeech.QUEUE_ADD, null, "response")
     }
 
     private fun destroyTts() {
