@@ -565,6 +565,7 @@ class ChatFragment : Fragment(), MenuProvider {
         binding.viewChat.removeAllViews()
         messages.clear()
         binding.edittextPrompt.editableText.clear()
+        switchToVoice()
     }
 
     private fun scrollToBottom() {
