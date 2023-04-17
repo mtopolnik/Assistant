@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Context.VIBRATOR_SERVICE
 import android.content.pm.PackageManager.PERMISSION_GRANTED
+import android.content.res.ColorStateList
 import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.os.Build
@@ -549,7 +550,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 Role.GPT -> context.getColorCompat(R.color.gpt_text_foreground)
             }
         )
-        messageView.setBackgroundColor(
+        messageView.backgroundTintList = ColorStateList.valueOf(
             when(message.author) {
                 Role.USER -> context.getColorCompat(R.color.user_text_background)
                 Role.GPT -> context.getColorCompat(R.color.gpt_text_background)
