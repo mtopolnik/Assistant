@@ -119,18 +119,12 @@ class ChatFragment : Fragment(), MenuProvider {
         )
         audioPathname = File(context.cacheDir, "prompt.mp4").absolutePath
 
-        if (binding.edittextPrompt.text.isEmpty()) {
-            switchToVoice()
-        }
         binding.scrollviewChat.apply {
             setOnScrollChangeListener { view, _, _, _, _ ->
                 _autoscrollEnabled = binding.viewChat.bottom <= view.height + view.scrollY
             }
             viewTreeObserver.addOnGlobalLayoutListener {
                 scrollToBottom()
-            }
-            setOnClickListener {
-                switchToVoice()
             }
         }
         binding.buttonRecord.setOnTouchListener { _, event ->
@@ -159,11 +153,13 @@ class ChatFragment : Fragment(), MenuProvider {
                 private var hadTextLastTime = false
 
                 override fun afterTextChanged(editable: Editable) {
+                    syncButtonsWithEditText()
                     if (editable.isEmpty() && hadTextLastTime) {
-                        switchToVoice()
+                        viewLifecycleOwner.lifecycleScope.launch {
+                            switchToVoice()
+                        }
                     }
                     hadTextLastTime = editable.isNotEmpty()
-                    syncButtonsWithEditText()
                 }
 
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -484,17 +480,20 @@ class ChatFragment : Fragment(), MenuProvider {
     private fun switchToVoice() {
         val binding = _binding ?: return
         binding.edittextPrompt.editableText.clear()
-        (binding.buttonRecord.layoutParams as LinearLayout.LayoutParams).apply {
-            width = 0
-            weight = 1f
-        }
-        binding.buttonKeyboard.visibility = VISIBLE
-        binding.edittextPrompt.apply {
-            visibility = GONE
-            clearFocus()
-        }
         (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
             .hideSoftInputFromWindow(binding.root.windowToken, 0)
+        viewLifecycleOwner.lifecycleScope.launch {
+            delay(100)
+            (binding.buttonRecord.layoutParams as LinearLayout.LayoutParams).apply {
+                width = 0
+                weight = 1f
+            }
+            binding.buttonKeyboard.visibility = VISIBLE
+            binding.edittextPrompt.apply {
+                visibility = GONE
+                clearFocus()
+            }
+        }
     }
 
     private fun syncButtonsWithEditText() {
@@ -572,7 +571,6 @@ class ChatFragment : Fragment(), MenuProvider {
         binding.viewChat.removeAllViews()
         messages.clear()
         binding.edittextPrompt.editableText.clear()
-        switchToVoice()
     }
 
     private fun scrollToBottom() {
