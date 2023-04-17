@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Context.VIBRATOR_SERVICE
 import android.content.pm.PackageManager.PERMISSION_GRANTED
+import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.os.Build
 import android.os.Bundle
@@ -49,23 +50,31 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onCompletion
-import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import org.mtopol.assistant.databinding.FragmentMainBinding
 import java.io.File
 import java.util.*
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.Result.Companion.failure
+import kotlin.Result.Companion.success
+import kotlin.coroutines.Continuation
 import kotlin.math.log2
 import kotlin.math.sin
 
 @OptIn(BetaOpenAI::class)
 @SuppressLint("ClickableViewAccessibility")
-class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
+class ChatFragment : Fragment(), MenuProvider {
 
     private val messages = mutableListOf<MessageModel>()
-    private val punctuationRegex = "[.;!?\\n]".toRegex()
+    private val punctuationRegex = """\D\.|[;!?\n]""".toRegex()
     private lateinit var audioPathname: String
     private lateinit var systemLanguages: List<String>
     private lateinit var languageIdentifier: LanguageIdentifier
@@ -73,10 +82,8 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
 
     private var _binding: FragmentMainBinding? = null
     private var _mediaRecorder: MediaRecorder? = null
-    private var _tts: TextToSpeech? = null
     private var _recordingGlowJob: Job? = null
     private var _receiveResponseJob: Job? = null
-    private var _isSpeaking = false
     private var _autoscrollEnabled: Boolean = true
 
     private val permissionRequest = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -143,8 +150,8 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
             }
         }
         binding.buttonKeyboard.onClickWithVibrate { switchToTyping(true) }
-        binding.buttonSend.onClickWithVibrate { sendPrompt() }
-        binding.buttonStopResponding.onClickWithVibrate { _receiveResponseJob?.cancel(); destroyTts() }
+        binding.buttonSend.onClickWithVibrate { sendPromptAndReceiveResponse() }
+        binding.buttonStopResponding.onClickWithVibrate { _receiveResponseJob?.cancel() }
         binding.edittextPrompt.apply {
 //            text.append("Please generate 2 sentences of lorem ipsum.")
             addTextChangedListener(object : TextWatcher {
@@ -186,17 +193,10 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
 
     override fun onStop() {
         super.onStop()
-        destroyTts()
+        _receiveResponseJob?.cancel()
     }
 
-    // TextToSpeech.OnInitListener
-    override fun onInit(status: Int) {
-        if (status != TextToSpeech.SUCCESS) {
-            Log.e("speech", "Speech init failed with status code $status")
-        }
-    }
-
-    private fun sendPrompt() {
+    private fun sendPromptAndReceiveResponse() {
         val binding = _binding ?: return
         val prompt = binding.edittextPrompt.text.toString()
         if (prompt.isEmpty()) {
@@ -208,51 +208,143 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
         val messageView = addMessage(MessageModel(Role.GPT, gptReply))
         _autoscrollEnabled = true
         scrollToBottom()
+        binding.buttonStopResponding.visibility = VISIBLE
         var lastSpokenPos = 0
-        var lastIdentifiedLanguage = UNDETERMINED_LANGUAGE_TAG
         _receiveResponseJob = viewLifecycleOwner.lifecycleScope.launch {
-            openAi.value.chatCompletions(messages, isGpt4Selected())
-                .onStart {
-                    recreateTts()
-                }
-                .onCompletion { exception ->
-                    _receiveResponseJob = null
-                    updateStopButtonVisibility()
-                    exception?.also {
-                        when {
-                            it is CancellationException -> Unit
-                            (it.message ?: "").endsWith("does not exist") -> {
-                                gptReply.append("GPT-4 is not yet avaiable. Sorry.")
-                                scrollToBottom()
-                            }
-                            else -> Toast.makeText(requireContext(),
-                                "Something went wrong while GPT was talking", Toast.LENGTH_SHORT)
-                                .show()
-                        }
-                    }
-                    gptReply.trimToSize()
-                }
-                .collect { chunk ->
-                    chunk.choices[0].delta?.content?.also { token ->
-                        gptReply.append(token)
-                        messageView.editableText.append(token)
-                        if (token.contains(punctuationRegex)) {
-                            val text = gptReply.substring(lastSpokenPos, gptReply.length)
-                            if (!systemLanguages.contains(lastIdentifiedLanguage)) {
-                                identifyLanguage(text).also {
-                                    Log.i("speech", "Identified language: $it")
-                                    lastIdentifiedLanguage = it
-                                    _tts?.setSpokenLanguage(it)
+            try {
+                val sentenceFlow: Flow<String> = channelFlow {
+                    openAi.value.chatCompletions(messages, isGpt4Selected())
+                        .onEach { chunk ->
+                            chunk.choices[0].delta?.content?.also { token ->
+                                gptReply.append(token)
+                                messageView.editableText.append(token)
+                                if (token.contains(punctuationRegex)) {
+                                    val text = gptReply.substring(lastSpokenPos, gptReply.length)
+                                    channel.send(text)
+                                    lastSpokenPos = gptReply.length + 1
                                 }
                             }
-                            speak(text)
-                            lastSpokenPos = gptReply.length + 1
+                            scrollToBottom()
+                        }
+                        .onCompletion { exception ->
+                            _receiveResponseJob = null
+                            exception?.also {
+                                when {
+                                    it is CancellationException -> Unit
+                                    (it.message ?: "").endsWith("does not exist") -> {
+                                        gptReply.append("GPT-4 is not yet avaiable. Sorry.")
+                                        scrollToBottom()
+                                    }
+                                    else -> Toast.makeText(
+                                        requireContext(),
+                                        "Something went wrong while GPT was talking", Toast.LENGTH_SHORT
+                                    )
+                                        .show()
+                                }
+                            }
+                            gptReply.trimToSize()
+                        }
+                        .launchIn(this)
+                }
+                sentenceFlow.onCompletion { exception ->
+                    exception?.also {
+                        Log.e("speech", it.message ?: it.toString())
+                    }
+                }
+
+                val voiceFileFlow: Flow<File> = channelFlow {
+                    val tts = newTextToSpeech()
+                    var nextUtteranceId = 0L
+                    var lastIdentifiedLanguage = UNDETERMINED_LANGUAGE_TAG
+                    sentenceFlow
+                        .onEach { sentence ->
+                            if (!systemLanguages.contains(lastIdentifiedLanguage)) {
+                                identifyLanguage(sentence).also {
+                                    Log.i("speech", "Identified language: $it")
+                                    lastIdentifiedLanguage = it
+                                }
+                            }
+                            tts.setSpokenLanguage(lastIdentifiedLanguage)
+                            channel.send(tts.speakToFile(sentence, nextUtteranceId++))
+                        }
+                        .onCompletion {
+                            tts.stop()
+                            tts.shutdown()
+                        }
+                        .launchIn(this)
+                }
+                val mediaPlayer = MediaPlayer()
+                voiceFileFlow
+                    .onEach {
+                        try {
+                            mediaPlayer.play(it)
+                        } finally {
+                            it.delete()
                         }
                     }
-                    scrollToBottom()
-                }
+                    .onCompletion { exception ->
+                        exception?.also {
+                            Log.e("speech", it.message ?: it.toString())
+                        }
+                        mediaPlayer.release()
+                    }
+                    .launchIn(this)
+            } finally {
+                binding.buttonStopResponding.visibility = GONE
+            }
         }
-        updateStopButtonVisibility()
+    }
+
+    private suspend fun MediaPlayer.play(file: File) = suspendCancellableCoroutine<Unit> { continuation ->
+        reset()
+        setOnCompletionListener {
+            continuation.resumeWith(success(Unit))
+        }
+        setDataSource(file.absolutePath)
+        prepare()
+        start()
+    }
+
+    private suspend fun newTextToSpeech(): TextToSpeech = suspendCancellableCoroutine { continuation ->
+        val tts = AtomicReference<TextToSpeech?>()
+        tts.set(TextToSpeech(requireContext()) { status ->
+            continuation.resumeWith(
+                if (status == TextToSpeech.SUCCESS) {
+                    success(tts.get()!!)
+                } else {
+                    failure(Exception("Speech init failed with status code $status"))
+                }
+            )
+        })
+    }
+
+    private suspend fun TextToSpeech.speakToFile(sentence: String, utteranceIdNumeric: Long): File {
+        val utteranceId = utteranceIdNumeric.toString()
+        return suspendCancellableCoroutine { continuation: Continuation<File> ->
+            val utteranceFile = File(requireContext().cacheDir, "utterance-$utteranceId.wav")
+            @Suppress("ThrowableNotThrown")
+            setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                override fun onStart(utteranceId: String) {}
+                override fun onDone(doneUutteranceId: String) {
+                    if (doneUutteranceId != utteranceId) {
+                        Log.e("speech", "unexpected utteranceId in onDone: $doneUutteranceId != $utteranceId")
+                    }
+                    continuation.resumeWith(success(utteranceFile))
+                }
+                override fun onStop(utteranceId: String?, interrupted: Boolean) {
+                    continuation.resumeWith(failure(CancellationException()))
+                }
+                override fun onError(utteranceId: String?, errorCode: Int) {
+                    Log.e("speech", "Error while speaking, error code: $errorCode")
+                    continuation.resumeWith(failure(Exception("TextToSpeech error code $errorCode")))
+                }
+                @Deprecated("", ReplaceWith("Can't replace, it's an abstract method!"))
+                override fun onError(utteranceId: String) {
+                    onError(utteranceId, TextToSpeech.ERROR)
+                }
+            })
+            synthesizeToFile(sentence, Bundle(), utteranceFile, utteranceId)
+        }
     }
 
     private fun startRecordingPrompt() {
@@ -456,8 +548,8 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
     }
 
     private fun clearChat() {
-        _tts?.stop()
         val binding = _binding ?: return
+        _receiveResponseJob?.cancel()
         binding.viewChat.removeAllViews()
         messages.clear()
         binding.edittextPrompt.editableText.clear()
@@ -472,14 +564,6 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
             binding.appbarLayout.setExpanded(false, true)
             binding.scrollviewChat.smoothScrollTo(0, binding.scrollviewChat.getChildAt(0).bottom)
         }
-    }
-
-    private fun updateStopButtonVisibility() {
-        val binding = _binding ?: return
-        val receivingResponse = _receiveResponseJob != null
-        val speaking = _isSpeaking
-//        Log.i("speech", "Update stop button visibility: $receivingResponse $speaking")
-        binding.buttonStopResponding.visibility = if (receivingResponse || speaking) VISIBLE else GONE
     }
 
     private suspend fun identifyLanguage(text: String): String {
@@ -514,61 +598,6 @@ class ChatFragment : Fragment(), MenuProvider, TextToSpeech.OnInitListener {
                 Log.i("", "Language not supported for text-to-speech: $tag")
                 language = Locale.forLanguageTag("hr")
             }
-        }
-    }
-
-    private fun speak(text: String) {
-        _tts?.speak(text.trim(), TextToSpeech.QUEUE_ADD, null, "response")
-    }
-
-    private fun destroyTts() {
-        _tts?.apply {
-            stop()
-            shutdown()
-        }
-        _tts = null
-        _isSpeaking = false
-        updateStopButtonVisibility()
-    }
-
-    private fun recreateTts() {
-        destroyTts()
-        val scope = viewLifecycleOwner.lifecycleScope
-        _tts = TextToSpeech(context, this).apply {
-            setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(utteranceId: String) {
-                    Log.i("speech", "onStart")
-                    scope.launch {
-                        _isSpeaking = true
-                        updateStopButtonVisibility()
-                    }
-                }
-                override fun onDone(utteranceId: String) {
-                    Log.i("speech", "onDone")
-                    scope.launch {
-                        _isSpeaking = false
-                        delay(10)
-                        updateStopButtonVisibility()
-                    }
-                }
-
-                override fun onStop(utteranceId: String?, interrupted: Boolean) {
-                    Log.i("speech", "onStop")
-                    scope.launch {
-                        _isSpeaking = false
-                        updateStopButtonVisibility()
-                    }
-                }
-
-                @Deprecated("", ReplaceWith("Can't replace, it's an abstract method!"))
-                override fun onError(utteranceId: String) {
-                    onError(utteranceId, TextToSpeech.ERROR)
-                }
-
-                override fun onError(utteranceId: String?, errorCode: Int) {
-                    Log.e("speech", "Error while speaking, error code: $errorCode")
-                }
-            })
         }
     }
 
