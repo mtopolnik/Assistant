@@ -156,7 +156,13 @@ class ChatFragment : Fragment(), MenuProvider {
         binding.edittextPrompt.apply {
 //            text.append("Please generate 2 sentences of lorem ipsum.")
             addTextChangedListener(object : TextWatcher {
+                private var hadTextLastTime = false
+
                 override fun afterTextChanged(editable: Editable) {
+                    if (editable.isEmpty() && hadTextLastTime) {
+                        switchToVoice()
+                    }
+                    hadTextLastTime = editable.isNotEmpty()
                     syncButtonsWithEditText()
                 }
 
