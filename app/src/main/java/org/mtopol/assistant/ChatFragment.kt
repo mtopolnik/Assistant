@@ -148,7 +148,6 @@ class ChatFragment : Fragment(), MenuProvider {
         binding.buttonSend.onClickWithVibrate { sendPromptAndReceiveResponse() }
         binding.buttonStopResponding.onClickWithVibrate { _receiveResponseJob?.cancel() }
         binding.edittextPrompt.apply {
-//            text.append("Please generate 2 sentences of lorem ipsum.")
             addTextChangedListener(object : TextWatcher {
                 private var hadTextLastTime = false
 
@@ -165,6 +164,8 @@ class ChatFragment : Fragment(), MenuProvider {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             })
+//            text.append("""Please generate three sentences of lorem ipsum.""")
+//            switchToTyping(false)
         }
         return binding.root
     }
@@ -224,7 +225,7 @@ class ChatFragment : Fragment(), MenuProvider {
                                 val sentence = gptReply.substring(lastSpokenPos, gptReply.length)
                                 if (sentence.contains(punctuationRegex)) {
                                     channel.send(sentence.trim())
-                                    lastSpokenPos = gptReply.length + 1
+                                    lastSpokenPos = gptReply.length
                                 }
                             }
                             scrollToBottom()
@@ -260,6 +261,7 @@ class ChatFragment : Fragment(), MenuProvider {
                     var lastIdentifiedLanguage = UNDETERMINED_LANGUAGE_TAG
                     sentenceFlow
                         .onEach { sentence ->
+                            Log.i("speech", "Speak: $sentence")
                             if (!systemLanguages.contains(lastIdentifiedLanguage)) {
                                 identifyLanguage(sentence).also {
                                     Log.i("speech", "Identified language: $it")
@@ -279,11 +281,9 @@ class ChatFragment : Fragment(), MenuProvider {
                 }
 
                 val mediaPlayer = MediaPlayer()
+                var cancelled = false
                 voiceFileFlow
                     .onCompletion { exception ->
-                        exception?.also {
-                            Log.e("speech", it.message ?: it.toString())
-                        }
                         mediaPlayer.apply {
                             stop()
                             release()
@@ -291,7 +291,11 @@ class ChatFragment : Fragment(), MenuProvider {
                     }
                     .collect {
                         try {
-                            mediaPlayer.play(it)
+                            if (!cancelled) {
+                                mediaPlayer.play(it)
+                            }
+                        } catch (e: CancellationException) {
+                            cancelled = true
                         } finally {
                             it.delete()
                         }
@@ -305,16 +309,18 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private suspend fun MediaPlayer.play(file: File) = suspendCancellableCoroutine<Unit> { continuation ->
+    private suspend fun MediaPlayer.play(file: File) {
         reset()
-        setOnCompletionListener {
-            Log.i("speech", "complete playing ${file.name}")
-            continuation.resumeWith(success(Unit))
-        }
         setDataSource(file.absolutePath)
         prepare()
-        Log.i("speech", "start playing ${file.name}")
-        start()
+        suspendCancellableCoroutine { continuation ->
+            setOnCompletionListener {
+                Log.i("speech", "complete playing ${file.name}")
+                continuation.resumeWith(success(Unit))
+            }
+            Log.i("speech", "start playing ${file.name}")
+            start()
+        }
     }
 
     private suspend fun newTextToSpeech(): TextToSpeech = suspendCancellableCoroutine { continuation ->
