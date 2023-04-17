@@ -218,16 +218,15 @@ class ChatFragment : Fragment(), MenuProvider {
                             chunk.choices[0].delta?.content?.also { token ->
                                 gptReply.append(token)
                                 messageView.editableText.append(token)
-                                if (token.contains(punctuationRegex)) {
-                                    val text = gptReply.substring(lastSpokenPos, gptReply.length)
-                                    channel.send(text)
+                                val sentence = gptReply.substring(lastSpokenPos, gptReply.length)
+                                if (sentence.contains(punctuationRegex)) {
+                                    channel.send(sentence)
                                     lastSpokenPos = gptReply.length + 1
                                 }
                             }
                             scrollToBottom()
                         }
                         .onCompletion { exception ->
-                            _receiveResponseJob = null
                             exception?.also {
                                 when {
                                     it is CancellationException -> Unit
