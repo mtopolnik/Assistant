@@ -475,6 +475,8 @@ class ChatFragment : Fragment(), MenuProvider {
             visibility = GONE
             clearFocus()
         }
+        (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+            .hideSoftInputFromWindow(binding.root.windowToken, 0)
     }
 
     private fun syncButtonsWithEditText() {
