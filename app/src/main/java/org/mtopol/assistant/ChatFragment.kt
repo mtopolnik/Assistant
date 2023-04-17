@@ -267,29 +267,36 @@ class ChatFragment : Fragment(), MenuProvider {
                             channel.send(tts.speakToFile(sentence, nextUtteranceId++))
                         }
                         .onCompletion {
-                            tts.stop()
-                            tts.shutdown()
+                            tts.apply {
+                                stop()
+                                shutdown()
+                            }
                         }
                         .launchIn(this)
                 }
                 val mediaPlayer = MediaPlayer()
                 voiceFileFlow
-                    .onEach {
+                    .onCompletion { exception ->
+                        exception?.also {
+                            Log.e("speech", it.message ?: it.toString())
+                        }
+                        mediaPlayer.apply {
+                            stop()
+                            release()
+                        }
+                    }
+                    .collect {
                         try {
                             mediaPlayer.play(it)
                         } finally {
                             it.delete()
                         }
                     }
-                    .onCompletion { exception ->
-                        exception?.also {
-                            Log.e("speech", it.message ?: it.toString())
-                        }
-                        mediaPlayer.release()
-                    }
-                    .launchIn(this)
+            } catch (e: Exception) {
+                Log.e("speech", e.message ?: e.toString())
             } finally {
                 binding.buttonStopResponding.visibility = GONE
+                _receiveResponseJob = null
             }
         }
     }
@@ -297,16 +304,20 @@ class ChatFragment : Fragment(), MenuProvider {
     private suspend fun MediaPlayer.play(file: File) = suspendCancellableCoroutine<Unit> { continuation ->
         reset()
         setOnCompletionListener {
+            Log.i("speech", "complete playing ${file.name}")
             continuation.resumeWith(success(Unit))
         }
         setDataSource(file.absolutePath)
         prepare()
+        Log.i("speech", "start playing ${file.name}")
         start()
     }
 
     private suspend fun newTextToSpeech(): TextToSpeech = suspendCancellableCoroutine { continuation ->
+        Log.i("speech", "Create new TextToSpeech")
         val tts = AtomicReference<TextToSpeech?>()
         tts.set(TextToSpeech(requireContext()) { status ->
+            Log.i("speech", "TextToSpeech initialized")
             continuation.resumeWith(
                 if (status == TextToSpeech.SUCCESS) {
                     success(tts.get()!!)
