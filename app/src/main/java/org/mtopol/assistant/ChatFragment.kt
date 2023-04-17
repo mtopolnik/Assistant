@@ -223,7 +223,7 @@ class ChatFragment : Fragment(), MenuProvider {
                                 messageView.editableText.append(token)
                                 val sentence = gptReply.substring(lastSpokenPos, gptReply.length)
                                 if (sentence.contains(punctuationRegex)) {
-                                    channel.send(sentence)
+                                    channel.send(sentence.trim())
                                     lastSpokenPos = gptReply.length + 1
                                 }
                             }
@@ -277,6 +277,7 @@ class ChatFragment : Fragment(), MenuProvider {
                         }
                         .launchIn(this)
                 }
+
                 val mediaPlayer = MediaPlayer()
                 voiceFileFlow
                     .onCompletion { exception ->
@@ -410,13 +411,15 @@ class ChatFragment : Fragment(), MenuProvider {
                 if (!recordingSuccess) {
                     return@launch
                 }
-                openAi.value.getTranscription(audioPathname).also { transcription ->
-                    binding.edittextPrompt.editableText.apply {
-                        clear()
-                        append(transcription)
-                    }
-                    switchToTyping(false)
+                val transcription = openAi.value.getTranscription(audioPathname)
+                if (transcription.isEmpty()) {
+                    return@launch
                 }
+                binding.edittextPrompt.editableText.apply {
+                    clear()
+                    append(transcription)
+                }
+                switchToTyping(false)
             } catch (e: Exception) {
                 Toast.makeText(requireContext(),
                     "Something went wrong while OpenAI was listening to you",
