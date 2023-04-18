@@ -66,6 +66,7 @@ import io.ktor.utils.io.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
@@ -502,23 +503,31 @@ class ChatFragment : Fragment(), MenuProvider {
                 alignWithView(binding.buttonRecord)
                 visibility = VISIBLE
             }
+
+            fun nanosToSeconds(nanos: Long): Float = nanos.toFloat() / 1_000_000_000
+
             try {
-                var visualVolume = 0f
+                var lastPeak = 0f
+                var lastPeakTime = 0L
                 while (true) {
+                    val frameTime = awaitFrame()
                     val mediaRecorder = _mediaRecorder ?: break
                     val soundVolume = (log2(mediaRecorder.maxAmplitude.toDouble()) / 15)
                         .coerceAtLeast(0.0).coerceAtMost(1.0).toFloat()
-                    // Limit the rate of shrinking the glow, but allow sudden growth
-                    visualVolume = (visualVolume - 0.025f).coerceAtLeast(0f)
-                    visualVolume = if (soundVolume > visualVolume) soundVolume else visualVolume
-                    binding.recordingGlow.setVolume(visualVolume)
-                    delay(20)
+                    val decayingPeak = lastPeak * (1f - 2 * nanosToSeconds(frameTime - lastPeakTime))
+                    binding.recordingGlow.setVolume(
+                        if (decayingPeak > soundVolume) {
+                            decayingPeak
+                        } else {
+                            lastPeak = soundVolume
+                            lastPeakTime = frameTime
+                            soundVolume
+                    })
                 }
-                var timeStep = 0f
+                val start = System.nanoTime()
                 while (true) {
-                    binding.recordingGlow.setVolume((2.5f + sin(timeStep)) / 20)
-                    timeStep += 0.1f
-                    delay(20)
+                    val frameTime = awaitFrame()
+                    binding.recordingGlow.setVolume((3.5f + 1.5f * sin(4 * nanosToSeconds(frameTime - start))) / 20)
                 }
             } finally {
                 binding.recordingGlow.visibility = INVISIBLE
