@@ -152,7 +152,6 @@ class ChatFragment : Fragment(), MenuProvider {
                 private var hadTextLastTime = false
 
                 override fun afterTextChanged(editable: Editable) {
-                    syncButtonsWithEditText()
                     if (editable.isEmpty() && hadTextLastTime) {
                         viewLifecycleOwner.lifecycleScope.launch {
                             switchToVoice()
@@ -471,13 +470,12 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun switchToTyping(bringUpKeyboard: Boolean) {
         val binding = _binding ?: return
-        (binding.buttonRecord.layoutParams as LinearLayout.LayoutParams).apply {
-            width = (50 * pixelDensity).toInt()
-            weight = 0f
-        }
         binding.buttonKeyboard.visibility = GONE
+        binding.buttonRecord.visibility = GONE
+        binding.buttonSend.visibility = VISIBLE
         binding.edittextPrompt.apply {
             visibility = VISIBLE
+            text.clear()
             requestFocus()
         }
         if (bringUpKeyboard) {
@@ -493,25 +491,13 @@ class ChatFragment : Fragment(), MenuProvider {
             .hideSoftInputFromWindow(binding.root.windowToken, 0)
         viewLifecycleOwner.lifecycleScope.launch {
             delay(100)
-            (binding.buttonRecord.layoutParams as LinearLayout.LayoutParams).apply {
-                width = 0
-                weight = 1f
-            }
             binding.buttonKeyboard.visibility = VISIBLE
+            binding.buttonRecord.visibility = VISIBLE
+            binding.buttonSend.visibility = GONE
             binding.edittextPrompt.apply {
                 visibility = GONE
                 clearFocus()
             }
-        }
-    }
-
-    private fun syncButtonsWithEditText() {
-        val binding = _binding ?: return
-        binding.buttonSend.apply {
-            visibility = if (isEnabled && binding.edittextPrompt.text.isNotEmpty()) VISIBLE else GONE
-        }
-        binding.buttonRecord.apply {
-            visibility = if (isEnabled && binding.edittextPrompt.text.isEmpty()) VISIBLE else GONE
         }
     }
 
