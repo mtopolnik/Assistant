@@ -145,11 +145,7 @@ class ChatFragment : Fragment(), MenuProvider {
         }
         binding.buttonRecord.setOnTouchListener { _, event ->
             when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    vibrate()
-                    startRecordingPrompt()
-                    true
-                }
+                MotionEvent.ACTION_DOWN -> { vibrate(); startRecordingPrompt(); true }
                 MotionEvent.ACTION_UP -> {
                     if (_mediaRecorder != null) {
                         vibrate()
@@ -195,11 +191,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
     override fun onMenuItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
-            R.id.action_clear_chat_history -> {
-                vibrate()
-                clearChat()
-                true
-            }
+            R.id.action_clear_chat_history -> { vibrate(); clearChat(); true }
             else -> false
         }
     }
@@ -287,10 +279,7 @@ class ChatFragment : Fragment(), MenuProvider {
                             channel.send(tts.speakToFile(sentence, nextUtteranceId++))
                         }
                         .onCompletion {
-                            tts.apply {
-                                stop()
-                                shutdown()
-                            }
+                            tts.apply { stop(); shutdown() }
                         }
                         .launchIn(this)
                 }
@@ -299,10 +288,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 var cancelled = false
                 voiceFileFlow
                     .onCompletion {
-                        mediaPlayer.apply {
-                            stop()
-                            release()
-                        }
+                        mediaPlayer.apply { stop(); release() }
                     }
                     .collect {
                         try {
@@ -426,9 +412,7 @@ class ChatFragment : Fragment(), MenuProvider {
         binding.buttonRecord.setActive(false)
         viewLifecycleOwner.lifecycleScope.launch {
             try {
-                val recordingSuccess = withContext(IO) {
-                    stopRecording()
-                }
+                val recordingSuccess = withContext(IO) { stopRecording() }
                 if (!recordingSuccess) {
                     return@launch
                 }
@@ -456,11 +440,9 @@ class ChatFragment : Fragment(), MenuProvider {
         val mediaRecorder = _mediaRecorder ?: return false
         _mediaRecorder = null
         return try {
-            mediaRecorder.stop()
-            true
+            mediaRecorder.stop(); true
         } catch (e: Exception) {
-            File(audioPathname).delete()
-            false
+            File(audioPathname).delete(); false
         } finally {
             mediaRecorder.release()
         }
@@ -470,10 +452,7 @@ class ChatFragment : Fragment(), MenuProvider {
         setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> { vibrate(); true }
-                MotionEvent.ACTION_UP -> {
-                    pointerUpAction()
-                    true
-                }
+                MotionEvent.ACTION_UP -> { pointerUpAction(); true }
                 else -> false
             }
         }
