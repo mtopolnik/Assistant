@@ -44,7 +44,6 @@ import android.view.View.*
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import android.widget.ImageButton
-import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -63,6 +62,7 @@ import com.google.mlkit.nl.languageid.LanguageIdentification
 import com.google.mlkit.nl.languageid.LanguageIdentificationOptions
 import com.google.mlkit.nl.languageid.LanguageIdentifier
 import com.google.mlkit.nl.languageid.LanguageIdentifier.UNDETERMINED_LANGUAGE_TAG
+import io.ktor.utils.io.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Job
@@ -298,7 +298,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 val mediaPlayer = MediaPlayer()
                 var cancelled = false
                 voiceFileFlow
-                    .onCompletion { exception ->
+                    .onCompletion {
                         mediaPlayer.apply {
                             stop()
                             release()
@@ -491,7 +491,6 @@ class ChatFragment : Fragment(), MenuProvider {
         binding.buttonSend.visibility = VISIBLE
         binding.edittextPrompt.apply {
             visibility = VISIBLE
-            text.clear()
             requestFocus()
         }
         if (bringUpKeyboard) {
