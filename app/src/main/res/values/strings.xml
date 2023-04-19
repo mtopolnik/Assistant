@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <!--
   ~ Copyright (c) 2023 Marko Topolnik.
   ~
@@ -16,7 +17,7 @@
   -->
 
 <resources>
-    <string name="app_name">Assistant</string>
+    <string name="app_name">Chatty Assistant</string>
     <string name="action_settings">Settings</string>
     <string name="first_fragment_label">Chat</string>
     <string name="record">Record Voice</string>
@@ -26,18 +27,19 @@
     <string name="clear_chat_history">Clear Chat History</string>
     <string name="chat_message_hint">Chat message</string>
     <string name="enter_openai_api_key">Your OpenAI API key</string>
+    <string name="ok">OK</string>
     <string name="openai_entry_explanation">
 Chatty Assistant needs your OpenAI key to work. In order to obtain it, visit
 platform.openai.com and create an account, and then at
 https://platform.openai.com/account/api-keys create an API key.
-
-Chatty Assistant will use your API key strictly to access OpenAI API
-when you enter a prompt. Your key will be stored as a standard Android
-application preference and as such may get backed up to your Google account
-so that it's available on your other devices.
-
-The application is open-source, available at
-https://github.com/mtopolnik/Assistant, where you can review and inspect
-its usage of your API key.
     </string>
 </resources>
+
+<!--Chatty Assistant will use your API key strictly to access OpenAI API-->
+<!--when you enter a prompt. Your key will be stored as a standard Android-->
+<!--application preference and as such may get backed up to your Google account-->
+<!--so that it's available on your other devices.-->
+
+<!--The application is open-source, available at-->
+<!--https://github.com/mtopolnik/Assistant, where you can review and inspect-->
+<!--its usage of your API key.-->

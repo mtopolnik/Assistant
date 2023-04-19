@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <!--
   ~ Copyright (c) 2023 Marko Topolnik.
   ~
@@ -15,7 +16,6 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 
-<?xml version="1.0" encoding="utf-8"?>
 <vector
     android:height="108dp"
     android:width="108dp"

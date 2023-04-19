@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <!--
   ~ Copyright (c) 2023 Marko Topolnik.
   ~
@@ -15,7 +16,6 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 
-<?xml version="1.0" encoding="utf-8"?>
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:color="@color/grey" android:state_checked="true" />
     <item android:color="@color/white" />

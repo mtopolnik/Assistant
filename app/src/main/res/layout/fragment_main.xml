@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <!--
   ~ Copyright (c) 2023 Marko Topolnik.
   ~
@@ -15,8 +16,6 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 
-<?xml version="1.0" encoding="utf-8"?>
-
 <FrameLayout
         xmlns:android="http://schemas.android.com/apk/res/android"
         xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -25,7 +24,7 @@
         android:layout_height="match_parent"
         >
     <LinearLayout
-            android:id="@+id/fragment_container"
+            android:id="@+id/nav_host_fragment"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:orientation="vertical"
