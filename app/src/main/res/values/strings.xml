@@ -24,6 +24,7 @@
     <string name="send">Send</string>
     <string name="prompt_hint">Message</string>
     <string name="gpt_4">GPT-4</string>
+    <string name="gpt4_unavailable">GPT-4 is not available with your API key.</string>
     <string name="clear_chat_history">Clear Chat History</string>
     <string name="chat_message_hint">Chat message</string>
     <string name="enter_apikey_title">Enter Your OpenAI API key</string>

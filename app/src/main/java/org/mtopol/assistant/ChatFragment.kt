@@ -261,7 +261,7 @@ class ChatFragment : Fragment(), MenuProvider {
                                 when {
                                     it is CancellationException -> Unit
                                     (it.message ?: "").endsWith("does not exist") -> {
-                                        gptReply.append("GPT-4 is not yet avaiable. Sorry.")
+                                        gptReply.append(getString(R.string.gpt4_unavailable))
                                         scrollToBottom()
                                     }
                                     else -> Toast.makeText(
@@ -275,6 +275,7 @@ class ChatFragment : Fragment(), MenuProvider {
                                 channel.send(gptReply.substring(lastSpokenPos, gptReply.length))
                             }
                             gptReply.trimToSize()
+                            messageView.text = gptReply
                         }
                         .launchIn(this)
                 }
