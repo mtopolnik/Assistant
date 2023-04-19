@@ -21,6 +21,7 @@ import android.app.Application
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.ContextCompat
+import androidx.preference.PreferenceManager
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -32,12 +33,27 @@ lateinit var openAi: Lazy<OpenAI>
 
 class AssistantApplication : Application() {
 
-    @OptIn(DelicateCoroutinesApi::class)
     override fun onCreate() {
         super.onCreate()
         openAi = lazy { OpenAI(applicationContext) }
-        GlobalScope.launch(Dispatchers.IO) { openAi.value }
     }
 }
 
 fun Context.getColorCompat(id: Int) = ContextCompat.getColor(this, id)
+
+val Context.mainPrefs: SharedPreferences get() = PreferenceManager.getDefaultSharedPreferences(this)
+
+inline fun SharedPreferences.applyUpdate(block: SharedPreferences.Editor.() -> Unit) {
+    with (edit()) {
+        try {
+            block()
+        } finally {
+            apply()
+        }
+    }
+}
+
+val SharedPreferences.openaiApiKey: String get() = getString(KEY_OPENAI_API_KEY, "")!!
+
+fun SharedPreferences.Editor.setOpenaiApiKey(apiKey: String): SharedPreferences.Editor =
+    putString(KEY_OPENAI_API_KEY, apiKey)

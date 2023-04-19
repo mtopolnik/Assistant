@@ -65,7 +65,10 @@ import com.google.mlkit.nl.languageid.LanguageIdentifier
 import com.google.mlkit.nl.languageid.LanguageIdentifier.UNDETERMINED_LANGUAGE_TAG
 import io.ktor.utils.io.*
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Dispatchers.IO
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.delay
@@ -110,10 +113,13 @@ class ChatFragment : Fragment(), MenuProvider {
         else Log.w("", "User did not grant us the requested permissions")
     }
 
+    @OptIn(DelicateCoroutinesApi::class)
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
+        GlobalScope.launch(IO) { openAi.value }
+
         val binding = FragmentMainBinding.inflate(inflater, container, false).also {
             _binding = it
         }
@@ -253,6 +259,9 @@ class ChatFragment : Fragment(), MenuProvider {
                                     )
                                         .show()
                                 }
+                            }
+                            if (lastSpokenPos < gptReply.length) {
+                                channel.send(gptReply.substring(lastSpokenPos, gptReply.length))
                             }
                             gptReply.trimToSize()
                         }

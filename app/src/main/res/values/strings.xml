@@ -26,20 +26,24 @@
     <string name="gpt_4">GPT-4</string>
     <string name="clear_chat_history">Clear Chat History</string>
     <string name="chat_message_hint">Chat message</string>
-    <string name="enter_openai_api_key">Your OpenAI API key</string>
+    <string name="enter_apikey_title">Enter Your OpenAI API key</string>
+    <string name="api_key_hint">Your OpenAI API key</string>
     <string name="ok">OK</string>
-    <string name="openai_entry_explanation">
-Chatty Assistant needs your OpenAI key to work. In order to obtain it, visit
-platform.openai.com and create an account, and then at
-https://platform.openai.com/account/api-keys create an API key.
+    <string name="enter_apikey_explanation">
+        Chatty Assistant needs your OpenAI key to work. In order to obtain it, visit
+        \nhttps://platform.openai.com
+        \nand create an account. Then create an API key at
+        \nhttps://platform.openai.com/account/api-keys.
+        \n
+        \nChatty Assistant will use your API key strictly to access OpenAI API
+        when you enter a prompt. Your key will be stored as a standard Android
+        application preference and as such may get backed up to your Google account
+        so that it is available on your other devices.
+        \n
+        \nChatty Assistant is an open-source application, available at
+        \nhttps://github.com/mtopolnik/Assistant
+        \nwhere you can review and inspect its usage of your API key.
     </string>
 </resources>
 
-<!--Chatty Assistant will use your API key strictly to access OpenAI API-->
-<!--when you enter a prompt. Your key will be stored as a standard Android-->
-<!--application preference and as such may get backed up to your Google account-->
-<!--so that it's available on your other devices.-->
 
-<!--The application is open-source, available at-->
-<!--https://github.com/mtopolnik/Assistant, where you can review and inspect-->
-<!--its usage of your API key.-->

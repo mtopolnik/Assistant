@@ -40,7 +40,7 @@ import com.aallam.openai.client.OpenAI as OpenAIClient
 class OpenAI(context: Context) {
     private val client = OpenAIClient(
         OpenAIConfig(
-            token = context.getString(R.string.openai_api_key),
+            token = context.mainPrefs.openaiApiKey,
             timeout = Timeout(connect = 5.seconds, socket = 5.seconds, request = 180.seconds),
             retry = RetryStrategy(1, 2.0, 2.seconds),
         )

@@ -22,8 +22,8 @@ import android.view.Menu
 import android.view.MenuItem
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
-import androidx.fragment.app.commit
-import androidx.fragment.app.replace
+import androidx.navigation.fragment.NavHostFragment
+import androidx.preference.PreferenceManager
 import org.mtopol.assistant.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
@@ -35,9 +35,14 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        supportFragmentManager.commit {
-            replace<ChatFragment>(R.id.fragment_container)
-        }
+        val openaiApiKey = mainPrefs.openaiApiKey
+        (supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as NavHostFragment).navController.navigate(
+            if (openaiApiKey == "") {
+                R.id.fragment_api_key
+            } else {
+                R.id.fragment_chat
+            }
+        )
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
