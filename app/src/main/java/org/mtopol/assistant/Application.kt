@@ -14,15 +14,19 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 package org.mtopol.assistant
 
 import android.app.Application
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+
+const val KEY_OPENAI_API_KEY = "openai_api_key"
 
 lateinit var openAi: Lazy<OpenAI>
 
