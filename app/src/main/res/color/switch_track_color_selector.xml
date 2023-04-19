@@ -17,6 +17,6 @@
 -->
 
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:color="@color/grey" android:state_checked="true" />
-    <item android:color="@color/white" />
+    <item android:color="@color/solarized_base02" android:state_checked="true" />
+    <item android:color="@color/solarized_base02" />
 </selector>
