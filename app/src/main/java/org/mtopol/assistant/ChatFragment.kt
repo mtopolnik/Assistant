@@ -98,7 +98,7 @@ import kotlin.math.sin
 class ChatFragment : Fragment(), MenuProvider {
 
     private val messages = mutableListOf<MessageModel>()
-    private val punctuationRegex = """\D\.'?\s|[;!?]'?\s|\n""".toRegex()
+    private val punctuationRegex = """(?<=\D\.'?)\s+|(?<=[;!?]'?)\s+|\n+""".toRegex()
     private val whitespaceRegex = """\s+""".toRegex()
     private lateinit var audioPathname: String
     private lateinit var systemLanguages: List<String>
@@ -250,12 +250,12 @@ class ChatFragment : Fragment(), MenuProvider {
                             chunk.choices[0].delta?.content?.also { token ->
                                 gptReply.append(token)
                                 messageView.editableText.append(token)
-                                val sentence = gptReply.substring(lastSpokenPos, gptReply.length)
-                                if (sentence.contains(punctuationRegex) &&
-                                    (lastSpokenPos > 0 || wordCount(sentence) >= 3)
-                                ) {
-                                    channel.send(sentence.trim())
-                                    lastSpokenPos = gptReply.length
+                                val fullSentences = gptReply
+                                    .substring(lastSpokenPos, gptReply.length)
+                                    .dropLastIncompleteSentence()
+                                if (wordCount(fullSentences) >= 3) {
+                                    channel.send(fullSentences.trim())
+                                    lastSpokenPos += fullSentences.length
                                 }
                             }
                             scrollToBottom()
@@ -664,6 +664,11 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun wordCount(sentence: String) = sentence.split(whitespaceRegex).size
+
+    private fun String.dropLastIncompleteSentence(): String {
+        val lastMatch = punctuationRegex.findAll(this).lastOrNull() ?: return ""
+        return substring(0, lastMatch.range.last + 1)
+    }
 
     private fun isGpt4Selected(): Boolean {
         return (_binding ?: return false).toolbar.menu.findItem(R.id.menuitem_gpt_switch).actionView!!
