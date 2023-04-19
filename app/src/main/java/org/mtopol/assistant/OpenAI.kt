@@ -36,6 +36,15 @@ import java.io.IOException
 import kotlin.time.Duration.Companion.seconds
 import com.aallam.openai.client.OpenAI as OpenAIClient
 
+lateinit var openAi: Lazy<OpenAI>
+
+fun resetOpenAi(context: Context): Lazy<OpenAI> {
+    if (::openAi.isInitialized) {
+        openAi.value.close()
+    }
+    return lazy { OpenAI(context) }.also { openAi = it }
+}
+
 @OptIn(BetaOpenAI::class)
 class OpenAI(context: Context) {
     private val client = OpenAIClient(
@@ -65,6 +74,10 @@ class OpenAI(context: Context) {
                 temperature = 0.2,
                 responseFormat = "text"
         )).text.replace("\n", "")
+    }
+
+    fun close() {
+        client.close()
     }
 
     private fun List<MessageModel>.toDto() = map { ChatMessage(role = it.author.toDto(), content = it.text.toString()) }

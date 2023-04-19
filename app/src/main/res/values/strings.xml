@@ -44,6 +44,7 @@
         \nhttps://github.com/mtopolnik/Assistant
         \nwhere you can review and inspect its usage of your API key.
     </string>
+    <string name="action_delete_openai_key">Delete API Key</string>
 </resources>
 
 

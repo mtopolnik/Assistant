@@ -36,5 +36,9 @@
             android:id="@+id/action_settings"
             android:title="@string/action_settings"
             android:visible="false"
-            app:showAsAction="ifRoom" />
+            app:showAsAction="never" />
+    <item
+            android:id="@+id/action_delete_openai_key"
+            android:title="@string/action_delete_openai_key"
+            app:showAsAction="never" />
 </menu>

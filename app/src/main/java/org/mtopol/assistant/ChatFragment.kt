@@ -58,7 +58,9 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import androidx.navigation.fragment.findNavController
 import com.aallam.openai.api.BetaOpenAI
+import com.aallam.openai.api.exception.OpenAIAPIException
 import com.google.mlkit.nl.languageid.LanguageIdentification
 import com.google.mlkit.nl.languageid.LanguageIdentificationOptions
 import com.google.mlkit.nl.languageid.LanguageIdentifier
@@ -118,20 +120,21 @@ class ChatFragment : Fragment(), MenuProvider {
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        GlobalScope.launch(IO) { openAi.value }
-
         val binding = FragmentMainBinding.inflate(inflater, container, false).also {
             _binding = it
-        }
-        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, windowInsets ->
-            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.ime())
-            v.setPadding(v.paddingLeft, v.paddingTop, v.paddingRight, insets.bottom)
-            windowInsets
         }
         val activity = requireActivity() as AppCompatActivity
         activity.setSupportActionBar(binding.toolbar)
         activity.addMenuProvider(this, viewLifecycleOwner)
         val context: Context = activity
+
+        GlobalScope.launch(IO) { openAi.value }
+
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, windowInsets ->
+            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.ime())
+            v.setPadding(v.paddingLeft, v.paddingTop, v.paddingRight, insets.bottom)
+            windowInsets
+        }
 
         pixelDensity = context.resources.displayMetrics.density
         systemLanguages = run {
@@ -200,6 +203,14 @@ class ChatFragment : Fragment(), MenuProvider {
     override fun onMenuItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             R.id.action_clear_chat_history -> { vibrate(); clearChat(); true }
+            R.id.action_delete_openai_key -> {
+                requireContext().mainPrefs.applyUpdate {
+                    setOpenaiApiKey("")
+                    resetOpenAi(requireContext())
+                    findNavController().navigate(R.id.fragment_api_key)
+                }
+                true
+            }
             else -> false
         }
     }
@@ -405,6 +416,7 @@ class ChatFragment : Fragment(), MenuProvider {
             }
             animateRecordingGlow()
         } catch (e: Exception) {
+            Log.e("speech", "Voice recording error", e)
             Toast.makeText(requireContext(),
                 "Something went wrong while we were recording your voice",
                 Toast.LENGTH_SHORT).show()
@@ -437,9 +449,17 @@ class ChatFragment : Fragment(), MenuProvider {
                 }
                 switchToTyping(false)
             } catch (e: Exception) {
-                Toast.makeText(requireContext(),
-                    "Something went wrong while OpenAI was listening to you",
-                    Toast.LENGTH_SHORT).show()
+                Log.e("speech", "Text-to-speech error", e)
+                if (e is OpenAIAPIException) {
+                    Toast.makeText(requireContext(),
+                        if (e.statusCode == 401) "Invalid OpenAI API key. Delete it and enter a new one."
+                        else "OpenAI error: ${e.message}",
+                        Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(requireContext(),
+                        "Something went wrong while OpenAI was listening to you",
+                        Toast.LENGTH_SHORT).show()
+                }
             } finally {
                 binding.buttonRecord.setActive(true)
                 removeRecordingGlow()
