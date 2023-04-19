@@ -68,7 +68,6 @@ import com.google.mlkit.nl.languageid.LanguageIdentifier.UNDETERMINED_LANGUAGE_T
 import io.ktor.utils.io.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.DelicateCoroutinesApi
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
@@ -98,7 +97,8 @@ import kotlin.math.sin
 class ChatFragment : Fragment(), MenuProvider {
 
     private val messages = mutableListOf<MessageModel>()
-    private val punctuationRegex = """\D\.|[;!?\n]""".toRegex()
+    private val punctuationRegex = """\D\.\s|[;!?]\s|\n""".toRegex()
+    private val whitespaceRegex = """\s+""".toRegex()
     private lateinit var audioPathname: String
     private lateinit var systemLanguages: List<String>
     private lateinit var languageIdentifier: LanguageIdentifier
@@ -249,7 +249,9 @@ class ChatFragment : Fragment(), MenuProvider {
                                 gptReply.append(token)
                                 messageView.editableText.append(token)
                                 val sentence = gptReply.substring(lastSpokenPos, gptReply.length)
-                                if (sentence.contains(punctuationRegex)) {
+                                if (sentence.contains(punctuationRegex) &&
+                                    (lastSpokenPos > 0 || sentence.split(whitespaceRegex).size >= 3)
+                                ) {
                                     channel.send(sentence.trim())
                                     lastSpokenPos = gptReply.length
                                 }
