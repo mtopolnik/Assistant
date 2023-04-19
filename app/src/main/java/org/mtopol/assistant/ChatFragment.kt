@@ -90,6 +90,7 @@ import kotlin.Result.Companion.failure
 import kotlin.Result.Companion.success
 import kotlin.coroutines.Continuation
 import kotlin.math.log2
+import kotlin.math.roundToLong
 import kotlin.math.sin
 
 @OptIn(BetaOpenAI::class)
@@ -97,7 +98,7 @@ import kotlin.math.sin
 class ChatFragment : Fragment(), MenuProvider {
 
     private val messages = mutableListOf<MessageModel>()
-    private val punctuationRegex = """\D\.\s|[;!?]\s|\n""".toRegex()
+    private val punctuationRegex = """\D\.'?\s|[;!?]'?\s|\n""".toRegex()
     private val whitespaceRegex = """\s+""".toRegex()
     private lateinit var audioPathname: String
     private lateinit var systemLanguages: List<String>
@@ -109,6 +110,7 @@ class ChatFragment : Fragment(), MenuProvider {
     private var _recordingGlowJob: Job? = null
     private var _receiveResponseJob: Job? = null
     private var _autoscrollEnabled: Boolean = true
+    private var _lastPromptLanguage: String? = null
 
     private val permissionRequest = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         if (it.isNotEmpty()) Log.i("", "User granted us the requested permissions")
@@ -250,7 +252,7 @@ class ChatFragment : Fragment(), MenuProvider {
                                 messageView.editableText.append(token)
                                 val sentence = gptReply.substring(lastSpokenPos, gptReply.length)
                                 if (sentence.contains(punctuationRegex) &&
-                                    (lastSpokenPos > 0 || sentence.split(whitespaceRegex).size >= 3)
+                                    (lastSpokenPos > 0 || wordCount(sentence) >= 3)
                                 ) {
                                     channel.send(sentence.trim())
                                     lastSpokenPos = gptReply.length
@@ -296,7 +298,6 @@ class ChatFragment : Fragment(), MenuProvider {
                             Log.i("speech", "Speak: $sentence")
                             if (!systemLanguages.contains(lastIdentifiedLanguage)) {
                                 identifyLanguage(sentence).also {
-                                    Log.i("speech", "Identified language: $it")
                                     lastIdentifiedLanguage = it
                                 }
                             }
@@ -443,12 +444,14 @@ class ChatFragment : Fragment(), MenuProvider {
                     return@launch
                 }
                 val transcription = openAi.value.getTranscription(audioPathname)
-                if (transcription.isEmpty()) {
+                if (transcription.text.isEmpty()) {
                     return@launch
                 }
                 binding.edittextPrompt.editableText.apply {
                     clear()
-                    append(transcription)
+                    append(transcription.text)
+                    Log.i("speech", "transcription.language: ${transcription.language}")
+                    _lastPromptLanguage = transcription.language
                 }
                 switchToTyping(false)
             } catch (e: Exception) {
@@ -616,10 +619,20 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private suspend fun identifyLanguage(text: String): String {
-        val languages = languageIdentifier.identifyPossibleLanguages(text).await().map { it.languageTag }
-        return languages
-            .firstOrNull { systemLanguages.contains(it) }
-            ?: languages.first()
+        val languagesWithConfidence = languageIdentifier.identifyPossibleLanguages(text).await()
+        val diagnosticFormat = languagesWithConfidence.joinToString {
+            "${it.languageTag} ${(it.confidence * 100).roundToLong()}"
+        }
+        Log.i("speech", "Identified languages: $diagnosticFormat")
+        val languages = languagesWithConfidence.map { it.languageTag }
+        val chosenLanguage = languages.firstOrNull { systemLanguages.contains(it) }
+        return when {
+            chosenLanguage != null -> chosenLanguage
+            wordCount(text) < 2 -> _lastPromptLanguage ?: systemLanguages.first()
+            else -> languages.first()
+        }.also {
+            Log.i("speech", "Chosen language: $it")
+        }
     }
 
     private fun vibrate() {
@@ -650,6 +663,8 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
+    private fun wordCount(sentence: String) = sentence.split(whitespaceRegex).size
+
     private fun isGpt4Selected(): Boolean {
         return (_binding ?: return false).toolbar.menu.findItem(R.id.menuitem_gpt_switch).actionView!!
             .findViewById<SwitchCompat>(R.id.view_gpt_switch).isChecked
@@ -664,3 +679,8 @@ data class MessageModel(
 enum class Role {
     USER, GPT
 }
+
+data class Transcription(
+    val text: String,
+    val language: String?
+)

@@ -65,7 +65,7 @@ class OpenAI(context: Context) {
         return client.chatCompletions(chatCompletionRequest)
     }
 
-    suspend fun getTranscription(audioPathname: String): String {
+    suspend fun getTranscription(audioPathname: String): Transcription {
         return client.transcription(
             TranscriptionRequest(
                 audio = FileSource(audioPathname, File(audioPathname).source()),
@@ -73,7 +73,7 @@ class OpenAI(context: Context) {
                 model = ModelId("whisper-1"),
                 temperature = 0.2,
                 responseFormat = "text"
-        )).text.replace("\n", "")
+        )).let { Transcription(it.text.replace("\n", ""), it.language) }
     }
 
     fun close() {
