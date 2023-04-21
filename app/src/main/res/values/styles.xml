@@ -17,7 +17,7 @@
 
 <resources>
     <style name="ActionBarTitleStyle" parent="TextAppearance.Widget.AppCompat.Toolbar.Title">
-        <item name="android:textColor">@color/light_grey</item>
+        <item name="android:textColor">@color/white_semitransparent</item>
         <item name="android:textSize">20sp</item>
     </style>
 </resources>

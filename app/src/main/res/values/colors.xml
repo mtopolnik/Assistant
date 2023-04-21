@@ -40,6 +40,7 @@
     <!-- Greyscale -->
     <color name="black">#000000</color>
     <color name="white">#FFFFFF</color>
+    <color name="white_semitransparent">#80FFFFFF</color>
     <color name="light_grey">#AAAAAA</color>
     <color name="grey">#888888</color>
     <color name="dark_grey">#444444</color>
