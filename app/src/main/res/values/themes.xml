@@ -16,11 +16,8 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 
-<resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Base.Theme.Assistant" parent="Theme.Material3.DayNight.NoActionBar">
+<resources>
+    <style name="Theme.Assistant" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/primary</item>
     </style>
-
-    <style name="Theme.Assistant" parent="Base.Theme.Assistant" />
 </resources>

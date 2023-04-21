@@ -49,7 +49,6 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.widget.SwitchCompat
 import androidx.core.content.ContextCompat.checkSelfPermission
 import androidx.core.os.ConfigurationCompat
 import androidx.core.os.LocaleListCompat
@@ -201,7 +200,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
     override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
         val toggleItem = menu.findItem(R.id.action_gpt_toggle)
-        val toggleButton = toggleItem.actionView!!.findViewById<TextView>(R.id.view_gpt_toggle)
+        val toggleButton = toggleItem.actionView!!.findViewById<TextView>(R.id.textview_gpt_toggle)
 
         toggleButton.setOnClickListener {
             it.isSelected = !it.isSelected
@@ -679,7 +678,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun isGpt4Selected(): Boolean {
         return (_binding ?: return false).toolbar.menu.findItem(R.id.action_gpt_toggle).actionView!!
-            .findViewById<TextView>(R.id.view_gpt_toggle).isSelected
+            .findViewById<TextView>(R.id.textview_gpt_toggle).isSelected
     }
 }
 
