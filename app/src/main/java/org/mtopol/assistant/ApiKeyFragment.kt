@@ -18,6 +18,7 @@
 package org.mtopol.assistant
 
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -31,6 +32,7 @@ class ApiKeyFragment : Fragment() {
     private var _binding: FragmentApiKeyBinding? = null
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+        Log.i("lifecycle", "onCreateView ApiKeyFragment")
         val binding = FragmentApiKeyBinding.inflate(inflater, container, false).also {
             _binding = it
         }
@@ -44,5 +46,10 @@ class ApiKeyFragment : Fragment() {
             }
         }
         return binding.root
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        Log.i("lifecycle", "onDestroy ApiKeyFragment")
     }
 }

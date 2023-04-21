@@ -18,43 +18,38 @@
 package org.mtopol.assistant
 
 import android.os.Bundle
-import android.view.Menu
-import android.view.MenuItem
+import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.navigation.fragment.NavHostFragment
-import androidx.preference.PreferenceManager
 import org.mtopol.assistant.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var binding: ActivityMainBinding
-
     override fun onCreate(savedInstanceState: Bundle?) {
+        Log.i("lifecycle", "onCreate MainActivity")
         WindowCompat.setDecorFitsSystemWindows(window, true)
         super.onCreate(savedInstanceState)
-        binding = ActivityMainBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+        setContentView(ActivityMainBinding.inflate(layoutInflater).root)
         resetOpenAi(this)
+        if (savedInstanceState != null) {
+            return
+        }
+        // Continue here only on the first time since app startup.
         val openaiApiKey = mainPrefs.openaiApiKey
-        (supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as NavHostFragment).navController.navigate(
+        val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as NavHostFragment
+        navHostFragment.navController.navigate(
             if (openaiApiKey == "") {
                 R.id.fragment_api_key
             } else {
+                Log.i("lifecycle", "Navigate to chat fragment")
                 R.id.fragment_chat
             }
         )
     }
 
-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menuInflater.inflate(R.menu.menu_main, menu)
-        return true
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when (item.itemId) {
-            R.id.action_settings -> true
-            else -> super.onOptionsItemSelected(item)
-        }
+    override fun onDestroy() {
+        super.onDestroy()
+        Log.i("lifecycle", "onDestroy MainActivity")
     }
 }

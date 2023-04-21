@@ -131,6 +131,7 @@ class ChatFragment : Fragment(), MenuProvider {
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
+        Log.i("lifecycle", "onCreateView ChatFragment")
         val binding = FragmentMainBinding.inflate(inflater, container, false).also {
             _binding = it
         }
@@ -205,10 +206,13 @@ class ChatFragment : Fragment(), MenuProvider {
 
     override fun onDestroyView() {
         super.onDestroyView()
+        Log.i("lifecycle", "onDestroyView ChatFragment")
         _binding = null
     }
 
     override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
+        Log.i("lifecycle", "onCreateMenu")
+        menuInflater.inflate(R.menu.menu_main, menu)
         val toggleItem = menu.findItem(R.id.action_gpt_toggle)
         val toggleButton = toggleItem.actionView!!.findViewById<TextView>(R.id.textview_gpt_toggle)
 
