@@ -18,6 +18,10 @@
 package org.mtopol.assistant
 
 import android.Manifest.permission
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.TimeInterpolator
+import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Context.VIBRATOR_SERVICE
@@ -88,9 +92,15 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlin.Result.Companion.failure
 import kotlin.Result.Companion.success
 import kotlin.coroutines.Continuation
+import kotlin.coroutines.resume
 import kotlin.math.log2
 import kotlin.math.roundToLong
 import kotlin.math.sin
+
+private val quadratic = TimeInterpolator { t ->
+    if (t <= 0.5) 2 * t * t
+    else (1 - 2 * (1 - t) * (1 - t))
+}
 
 @OptIn(BetaOpenAI::class)
 @SuppressLint("ClickableViewAccessibility")
@@ -538,6 +548,7 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
+    @SuppressLint("Recycle")
     private fun animateRecordingGlow() {
         val binding = _binding ?: return
         _recordingGlowJob = viewLifecycleOwner.lifecycleScope.launch {
@@ -549,27 +560,42 @@ class ChatFragment : Fragment(), MenuProvider {
             fun nanosToSeconds(nanos: Long): Float = nanos.toFloat() / 1_000_000_000
 
             try {
+                val recordingStart = System.nanoTime()
                 var lastPeak = 0f
                 var lastPeakTime = 0L
+                var lastRecordingVolume = 0f
                 while (true) {
                     val frameTime = awaitFrame()
                     val mediaRecorder = _mediaRecorder ?: break
-                    val soundVolume = (log2(mediaRecorder.maxAmplitude.toDouble()) / 15)
-                        .coerceAtLeast(0.0).coerceAtMost(1.0).toFloat()
+                    val initialGrowthCap = (1.1f * nanosToSeconds(frameTime - recordingStart)).coerceAtMost(1f)
+                    val soundVolume = (log2(mediaRecorder.maxAmplitude.toDouble()) / 15).toFloat()
+                        .coerceAtLeast(0f).coerceAtMost(initialGrowthCap)
                     val decayingPeak = lastPeak * (1f - 2 * nanosToSeconds(frameTime - lastPeakTime))
-                    binding.recordingGlow.setVolume(
-                        if (decayingPeak > soundVolume) {
-                            decayingPeak
-                        } else {
-                            lastPeak = soundVolume
-                            lastPeakTime = frameTime
-                            soundVolume
-                    })
+                    lastRecordingVolume = if (decayingPeak > soundVolume) {
+                        decayingPeak
+                    } else {
+                        lastPeak = soundVolume
+                        lastPeakTime = frameTime
+                        soundVolume
+                    }
+                    binding.recordingGlow.setVolume(lastRecordingVolume)
                 }
-                val start = System.nanoTime()
+
+                fun waitingVolume(time: Long) = (3.5f + 1.5f * sin(4 * nanosToSeconds(time))) / 20
+
+                val targetVolume = waitingVolume(0)
+                ValueAnimator.ofFloat(lastRecordingVolume, targetVolume).apply {
+                    duration = 500
+                    interpolator = quadratic
+                    addUpdateListener { anim ->
+                        binding.recordingGlow.setVolume(anim.animatedValue as Float)
+                    }
+                    run()
+                }
+                val waitingStart = System.nanoTime()
                 while (true) {
                     val frameTime = awaitFrame()
-                    binding.recordingGlow.setVolume((3.5f + 1.5f * sin(4 * nanosToSeconds(frameTime - start))) / 20)
+                    binding.recordingGlow.setVolume(waitingVolume(frameTime - waitingStart))
                 }
             } finally {
                 binding.recordingGlow.visibility = INVISIBLE
@@ -580,6 +606,17 @@ class ChatFragment : Fragment(), MenuProvider {
     private fun removeRecordingGlow() {
         _recordingGlowJob?.cancel()
         _recordingGlowJob = null
+    }
+
+    private suspend fun ValueAnimator.run() {
+        suspendCancellableCoroutine { cont ->
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(a: Animator) {
+                    cont.resume(Unit)
+                }
+            })
+            start()
+        }
     }
 
     private fun addMessage(message: MessageModel): TextView {
