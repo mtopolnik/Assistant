@@ -17,12 +17,22 @@
 
 package org.mtopol.assistant
 
+import android.app.Application
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceManager
 
 const val KEY_OPENAI_API_KEY = "openai_api_key"
+
+lateinit var appContext: Context
+
+class ChatApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        appContext = applicationContext
+    }
+}
 
 fun Context.getColorCompat(id: Int) = ContextCompat.getColor(this, id)
 
