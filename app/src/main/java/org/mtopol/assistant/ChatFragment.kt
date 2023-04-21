@@ -200,6 +200,13 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
+        val toggleItem = menu.findItem(R.id.action_gpt_toggle)
+        val toggleButton = toggleItem.actionView!!.findViewById<TextView>(R.id.view_gpt_toggle)
+
+        toggleButton.setOnClickListener {
+            it.isSelected = !it.isSelected
+            toggleButton.text = getString(if (it.isSelected) R.string.gpt_4 else R.string.gpt_3_5)
+        }
     }
 
     override fun onMenuItemSelected(item: MenuItem): Boolean {
@@ -671,8 +678,8 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun isGpt4Selected(): Boolean {
-        return (_binding ?: return false).toolbar.menu.findItem(R.id.menuitem_gpt_switch).actionView!!
-            .findViewById<SwitchCompat>(R.id.view_gpt_switch).isChecked
+        return (_binding ?: return false).toolbar.menu.findItem(R.id.action_gpt_toggle).actionView!!
+            .findViewById<TextView>(R.id.view_gpt_toggle).isSelected
     }
 }
 

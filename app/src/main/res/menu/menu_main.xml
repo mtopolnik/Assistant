@@ -18,12 +18,11 @@
 
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
         xmlns:app="http://schemas.android.com/apk/res-auto"
-        xmlns:tools="http://schemas.android.com/tools"
-        tools:context="org.mtopol.assistant.MainActivity">
+        >
     <item
-            android:id="@+id/menuitem_gpt_switch"
+            android:id="@+id/action_gpt_toggle"
             android:title="@string/gpt_4"
-            app:actionLayout="@layout/menu_item_switch"
+            app:actionLayout="@layout/button_gpt_toggle"
             app:showAsAction="ifRoom" />
     <item
             android:id="@+id/action_clear_chat_history"
