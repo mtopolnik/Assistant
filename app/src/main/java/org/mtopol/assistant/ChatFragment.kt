@@ -106,6 +106,7 @@ private val quadratic = TimeInterpolator { t ->
 }
 
 class ChatFragmentModel : ViewModel() {
+    var binding: FragmentMainBinding? = null
     val chatHistory = mutableListOf<MessageModel>()
     var receiveResponseJob: Job? = null
     var autoscrollEnabled: Boolean = true
@@ -126,7 +127,6 @@ class ChatFragment : Fragment(), MenuProvider {
     private lateinit var languageIdentifier: LanguageIdentifier
     private var pixelDensity = 0f
 
-    private var _binding: FragmentMainBinding? = null
     private var _mediaRecorder: MediaRecorder? = null
     private var _recordingGlowJob: Job? = null
 
@@ -153,7 +153,7 @@ class ChatFragment : Fragment(), MenuProvider {
     ): View {
         Log.i("lifecycle", "onCreateView ChatFragment")
         val binding = FragmentMainBinding.inflate(inflater, container, false).also {
-            _binding = it
+            vmodel.binding = it
         }
         val activity = requireActivity() as AppCompatActivity
         activity.setSupportActionBar(binding.toolbar)
@@ -162,27 +162,27 @@ class ChatFragment : Fragment(), MenuProvider {
         GlobalScope.launch(IO) { openAi.value }
 
         if (savedInstanceState != null) {
-            // Set text from the previous view instance
-            binding.edittextPrompt.text = vmodel.promptEditable
-            var bottomEditable: Editable? = null
+            binding.edittextPrompt.setText(vmodel.promptEditable.toString())
+            var newestHistoryEditable: Editable? = null
+            var newestHistoryMessage: MessageModel? = null
             for (message in vmodel.chatHistory) {
-                bottomEditable = addMessageView(message)
+                newestHistoryMessage = message
+                newestHistoryEditable = addMessageView(message)
             }
-            vmodel.replyEditable?.also { replyEditable ->
-                bottomEditable!!.apply {
-                    append(replyEditable)
-                    vmodel.replyEditable = this
+            if (vmodel.replyEditable != null) {
+                newestHistoryEditable!!.also {
+                    vmodel.replyEditable = it
+                    newestHistoryMessage!!.text = it
                 }
             }
-        } else {
-//            Log.i("lifecycle", "savedInstanceState is null")
-//            binding.edittextPrompt.append("Write ten sentences of lorem ipsum, please.")
         }
-        // Save the current view instance's editable to ViewModel
         vmodel.promptEditable = binding.edittextPrompt.editableText
         if (vmodel.promptEditable.isNotEmpty()) {
             Log.i("lifecycle", "promptEditable: ${vmodel.promptEditable}")
             switchToTyping(false)
+        }
+        if (vmodel.receiveResponseJob != null) {
+            binding.buttonStopResponding.visibility = VISIBLE
         }
 
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, windowInsets ->
@@ -250,7 +250,7 @@ class ChatFragment : Fragment(), MenuProvider {
     override fun onDestroyView() {
         super.onDestroyView()
         Log.i("lifecycle", "onDestroyView ChatFragment")
-        _binding = null
+        vmodel.binding = null
     }
 
     override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
@@ -286,7 +286,7 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun sendPromptAndReceiveResponse() {
-        val binding = _binding ?: return
+        val binding = vmodel.binding ?: return
         val prompt = binding.edittextPrompt.text.toString()
         if (prompt.isEmpty()) {
             return
@@ -333,11 +333,14 @@ class ChatFragment : Fragment(), MenuProvider {
                                         replyEditable.append(getString(R.string.gpt4_unavailable))
                                         scrollToBottom()
                                     }
-                                    else -> Toast.makeText(
-                                        requireContext(),
-                                        "Something went wrong while GPT was talking", Toast.LENGTH_SHORT
-                                    )
-                                        .show()
+                                    else -> {
+                                        Log.e("lifecycle", "Error in chatCompletions flow", exception)
+                                        Toast.makeText(
+                                            appContext,
+                                            "Something went wrong while GPT was talking", Toast.LENGTH_SHORT
+                                        )
+                                            .show()
+                                    }
                                 }
                             }
                             if (lastSpokenPos < replyEditable.length) {
@@ -395,7 +398,7 @@ class ChatFragment : Fragment(), MenuProvider {
             } catch (e: Exception) {
                 Log.e("lifecycle", "Error in receiveResponseJob", e)
             } finally {
-                binding.buttonStopResponding.visibility = GONE
+                vmodel.binding?.buttonStopResponding?.visibility = GONE
                 vmodel.receiveResponseJob = null
             }
         }
@@ -496,13 +499,13 @@ class ChatFragment : Fragment(), MenuProvider {
                 withContext(IO) {
                     stopRecording()
                 }
-                _binding?.buttonRecord?.setActive(true)
+                vmodel.binding?.buttonRecord?.setActive(true)
             }
         }
     }
 
     private fun showRecordedPrompt() {
-        val binding = _binding ?: return
+        val binding = vmodel.binding ?: return
         binding.buttonRecord.setActive(false)
         viewLifecycleOwner.lifecycleScope.launch {
             try {
@@ -572,7 +575,7 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun switchToTyping(bringUpKeyboard: Boolean) {
-        val binding = _binding ?: return
+        val binding = vmodel.binding ?: return
         binding.buttonKeyboard.visibility = GONE
         binding.buttonRecord.visibility = GONE
         binding.buttonSend.visibility = VISIBLE
@@ -587,7 +590,7 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun switchToVoice() {
-        val binding = _binding ?: return
+        val binding = vmodel.binding ?: return
         binding.edittextPrompt.editableText.clear()
         (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
             .hideSoftInputFromWindow(binding.root.windowToken, 0)
@@ -605,7 +608,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
     @SuppressLint("Recycle")
     private fun animateRecordingGlow() {
-        val binding = _binding ?: return
+        val binding = vmodel.binding ?: return
         _recordingGlowJob = viewLifecycleOwner.lifecycleScope.launch {
             binding.recordingGlow.apply {
                 alignWithView(binding.buttonRecord)
@@ -622,7 +625,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 while (true) {
                     val frameTime = awaitFrame()
                     val mediaRecorder = _mediaRecorder ?: break
-                    val initialGrowthCap = (1.1f * nanosToSeconds(frameTime - recordingStart)).coerceAtMost(1f)
+                    val initialGrowthCap = (1.5f * nanosToSeconds(frameTime - recordingStart)).coerceAtMost(1f)
                     val soundVolume = (log2(mediaRecorder.maxAmplitude.toDouble()) / 15).toFloat()
                         .coerceAtLeast(0f).coerceAtMost(initialGrowthCap)
                     val decayingPeak = lastPeak * (1f - 2 * nanosToSeconds(frameTime - lastPeakTime))
@@ -676,7 +679,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun addMessageView(message: MessageModel): Editable {
         val context = requireContext()
-        val chatView = _binding!!.viewChat
+        val chatView = vmodel.binding!!.viewChat
         val messageView = LayoutInflater.from(requireContext())
             .inflate(R.layout.chat_message_item, chatView, false) as TextView
         messageView.setTextColor(
@@ -698,7 +701,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun clearChat() {
         Log.i("lifecycle", "clearChat")
-        val binding = _binding ?: return
+        val binding = vmodel.binding ?: return
         Log.i("lifecycle", "clearChat: binding is not null")
         vmodel.receiveResponseJob?.cancel()
         binding.viewChat.removeAllViews()
@@ -707,7 +710,7 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun scrollToBottom() {
-        val binding = _binding ?: return
+        val binding = vmodel.binding ?: return
         binding.scrollviewChat.post {
             if (!vmodel.autoscrollEnabled || !binding.scrollviewChat.canScrollVertically(1)) {
                 return@post
@@ -770,7 +773,7 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun isGpt4Selected(): Boolean {
-        return (_binding ?: return false).toolbar.menu.findItem(R.id.action_gpt_toggle).actionView!!
+        return (vmodel.binding ?: return false).toolbar.menu.findItem(R.id.action_gpt_toggle).actionView!!
             .findViewById<TextView>(R.id.textview_gpt_toggle).isSelected
     }
 }
