@@ -107,6 +107,8 @@ private val quadratic = TimeInterpolator { t ->
 
 class ChatFragmentModel : ViewModel() {
     var binding: FragmentMainBinding? = null
+    var isMuted = false
+    var isGpt4 = false
     val chatHistory = mutableListOf<MessageModel>()
     var receiveResponseJob: Job? = null
     var autoscrollEnabled: Boolean = true
@@ -257,12 +259,18 @@ class ChatFragment : Fragment(), MenuProvider {
     override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
         Log.i("lifecycle", "onCreateMenu")
         menuInflater.inflate(R.menu.menu_main, menu)
-        val toggleItem = menu.findItem(R.id.action_gpt_toggle)
-        val toggleButton = toggleItem.actionView!!.findViewById<TextView>(R.id.textview_gpt_toggle)
 
-        toggleButton.setOnClickListener {
-            it.isSelected = !it.isSelected
-            toggleButton.text = getString(if (it.isSelected) R.string.gpt_4 else R.string.gpt_3_5)
+        updateMuteItem(menu.findItem(R.id.action_sound_toggle))
+
+        fun TextView.updateText() {
+            text = getString(if (vmodel.isGpt4) R.string.gpt_4 else R.string.gpt_3_5)
+        }
+        menu.findItem(R.id.action_gpt_toggle).actionView!!.findViewById<TextView>(R.id.textview_gpt_toggle).apply {
+            updateText()
+            setOnClickListener {
+                vmodel.isGpt4 = !vmodel.isGpt4
+                updateText()
+            }
         }
     }
 
@@ -270,14 +278,9 @@ class ChatFragment : Fragment(), MenuProvider {
         return when (item.itemId) {
             R.id.action_clear_chat_history -> { clearChat(); true }
             R.id.action_sound_toggle -> {
-                item.isChecked = !item.isChecked
-                if (item.isChecked) {
-                    item.setIcon(R.drawable.baseline_volume_up_24)
-                    vmodel.mediaPlayer?.setVolume(1f, 1f)
-                } else {
-                    item.setIcon(R.drawable.baseline_volume_off_24)
-                    vmodel.mediaPlayer?.setVolume(0f, 0f)
-                }
+                vmodel.isMuted = !vmodel.isMuted
+                updateMuteItem(item)
+                updateMediaPlayerVolume()
                 true
             }
             R.id.action_delete_openai_key -> {
@@ -290,6 +293,11 @@ class ChatFragment : Fragment(), MenuProvider {
             }
             else -> false
         }
+    }
+
+    private fun updateMuteItem(item: MenuItem) {
+        item.isChecked = vmodel.isMuted
+        item.setIcon(if (vmodel.isMuted) R.drawable.baseline_volume_off_24 else R.drawable.baseline_volume_up_24)
     }
 
     override fun onPause() {
@@ -392,6 +400,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
                 val mediaPlayer = MediaPlayer().also {
                     vmodel.mediaPlayer = it
+                    updateMediaPlayerVolume()
                 }
                 var cancelled = false
                 voiceFileFlow
@@ -721,8 +730,10 @@ class ChatFragment : Fragment(), MenuProvider {
         Log.i("lifecycle", "clearChat")
         vmodel.receiveResponseJob?.cancel()
         val binding = vmodel.binding ?: return
-        binding.viewChat.removeAllViews()
-        vmodel.chatHistory.clear()
+        if (vmodel.chatHistory.isNotEmpty()) {
+            binding.viewChat.removeAllViews()
+            vmodel.chatHistory.clear()
+        }
         binding.edittextPrompt.editableText.clear()
     }
 
@@ -780,6 +791,11 @@ class ChatFragment : Fragment(), MenuProvider {
                 language = Locale.forLanguageTag("hr")
             }
         }
+    }
+
+    private fun updateMediaPlayerVolume() {
+        val volume = if (vmodel.isMuted) 0f else 1f
+        vmodel.mediaPlayer?.setVolume(volume, volume)
     }
 
     private val viewScope get() = viewLifecycleOwner.lifecycleScope
