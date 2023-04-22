@@ -47,6 +47,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.View.*
 import android.view.ViewGroup
+import android.view.animation.LinearInterpolator
 import android.view.inputmethod.InputMethodManager
 import android.widget.ImageButton
 import android.widget.TextView
@@ -652,7 +653,6 @@ class ChatFragment : Fragment(), MenuProvider {
                 while (true) {
                     val frameTime = awaitFrame()
                     val mediaRecorder = _mediaRecorder ?: break
-                    val initialGrowthCap = (1.5f * nanosToSeconds(frameTime - recordingStart)).coerceAtMost(1f)
                     val soundVolume = (log2(mediaRecorder.maxAmplitude.toDouble()) / 15).toFloat().coerceAtLeast(0f)
                     val decayingPeak = lastPeak * (1f - 2 * nanosToSeconds(frameTime - lastPeakTime))
                     lastRecordingVolume = if (decayingPeak > soundVolume) {
@@ -662,6 +662,7 @@ class ChatFragment : Fragment(), MenuProvider {
                         lastPeakTime = frameTime
                         soundVolume
                     }
+                    val initialGrowthCap = (2f * nanosToSeconds(frameTime - recordingStart)).coerceAtMost(1f)
                     binding.recordingGlow.setVolume(lastRecordingVolume.coerceAtMost(initialGrowthCap))
                 }
 
@@ -669,8 +670,8 @@ class ChatFragment : Fragment(), MenuProvider {
 
                 val targetVolume = waitingVolume(0)
                 ValueAnimator.ofFloat(lastRecordingVolume, targetVolume).apply {
-                    duration = 500
-                    interpolator = quadratic
+                    duration = 200
+                    interpolator = LinearInterpolator()
                     addUpdateListener { anim ->
                         binding.recordingGlow.setVolume(anim.animatedValue as Float)
                     }
