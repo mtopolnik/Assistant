@@ -233,7 +233,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
                 override fun afterTextChanged(editable: Editable) {
                     if (editable.isEmpty() && hadTextLastTime) {
-                        viewLifecycleOwner.lifecycleScope.launch {
+                        viewScope.launch {
                             switchToVoice()
                         }
                     }
@@ -507,7 +507,7 @@ class ChatFragment : Fragment(), MenuProvider {
     private fun showRecordedPrompt() {
         val binding = vmodel.binding ?: return
         binding.buttonRecord.setActive(false)
-        viewLifecycleOwner.lifecycleScope.launch {
+        viewScope.launch {
             try {
                 val recordingSuccess = withContext(IO) { stopRecording() }
                 if (!recordingSuccess) {
@@ -594,7 +594,7 @@ class ChatFragment : Fragment(), MenuProvider {
         binding.edittextPrompt.editableText.clear()
         (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
             .hideSoftInputFromWindow(binding.root.windowToken, 0)
-        viewLifecycleOwner.lifecycleScope.launch {
+        viewScope.launch {
             delay(100)
             binding.buttonKeyboard.visibility = VISIBLE
             binding.buttonRecord.visibility = VISIBLE
@@ -609,7 +609,7 @@ class ChatFragment : Fragment(), MenuProvider {
     @SuppressLint("Recycle")
     private fun animateRecordingGlow() {
         val binding = vmodel.binding ?: return
-        _recordingGlowJob = viewLifecycleOwner.lifecycleScope.launch {
+        _recordingGlowJob = viewScope.launch {
             binding.recordingGlow.apply {
                 alignWithView(binding.buttonRecord)
                 visibility = VISIBLE
@@ -764,6 +764,8 @@ class ChatFragment : Fragment(), MenuProvider {
             }
         }
     }
+
+    private val viewScope get() = viewLifecycleOwner.lifecycleScope
 
     private fun wordCount(sentence: String) = sentence.split(whitespaceRegex).size
 
