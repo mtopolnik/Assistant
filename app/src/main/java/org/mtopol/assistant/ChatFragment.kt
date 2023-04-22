@@ -229,7 +229,13 @@ class ChatFragment : Fragment(), MenuProvider {
             }
         }
         binding.buttonKeyboard.onClickWithVibrate { switchToTyping(true) }
-        binding.buttonSend.onClickWithVibrate { sendPromptAndReceiveResponse() }
+        binding.buttonSend.onClickWithVibrate {
+            val prompt = binding.edittextPrompt.text.toString()
+            if (prompt.isNotEmpty()) {
+                switchToVoice()
+                sendPromptAndReceiveResponse(prompt)
+            }
+        }
         binding.buttonStopResponding.onClickWithVibrate { vmodel.receiveResponseJob?.cancel() }
         binding.edittextPrompt.apply {
             addTextChangedListener(object : TextWatcher {
@@ -275,9 +281,18 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
+    private fun updateMuteItem(item: MenuItem) {
+        item.isChecked = vmodel.isMuted
+        item.setIcon(if (vmodel.isMuted) R.drawable.baseline_volume_off_24 else R.drawable.baseline_volume_up_24)
+    }
+
     override fun onMenuItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             R.id.action_clear_chat_history -> { clearChat(); true }
+            R.id.action_regenerate -> {
+                viewScope.launch { regenerateResponse() }
+                true
+            }
             R.id.action_sound_toggle -> {
                 vmodel.isMuted = !vmodel.isMuted
                 updateMuteItem(item)
@@ -296,23 +311,29 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun updateMuteItem(item: MenuItem) {
-        item.isChecked = vmodel.isMuted
-        item.setIcon(if (vmodel.isMuted) R.drawable.baseline_volume_off_24 else R.drawable.baseline_volume_up_24)
-    }
-
     override fun onPause() {
         super.onPause()
         stopRecording()
     }
 
-    private fun sendPromptAndReceiveResponse() {
-        val binding = vmodel.binding ?: return
-        val prompt = binding.edittextPrompt.text.toString()
-        if (prompt.isEmpty()) {
+    private suspend fun regenerateResponse() {
+        if (vmodel.chatHistory.isEmpty()) {
             return
         }
-        switchToVoice()
+        vmodel.receiveResponseJob?.apply {
+            cancel()
+            join()
+        }
+        vmodel.chatHistory.removeLast()
+        val prompt = vmodel.chatHistory.removeLast().text
+        vmodel.binding?.viewChat?.apply {
+            repeat(2) { removeViewAt(childCount - 1) }
+        }
+        sendPromptAndReceiveResponse(prompt)
+    }
+
+    private fun sendPromptAndReceiveResponse(prompt: CharSequence) {
+        val binding = vmodel.binding ?: return
         binding.buttonStopResponding.visibility = VISIBLE
         var lastSpokenPos = 0
         val previousReceiveJob = vmodel.receiveResponseJob?.apply { cancel() }
