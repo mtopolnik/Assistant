@@ -20,7 +20,6 @@ package org.mtopol.assistant
 import android.Manifest.permission
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
-import android.animation.TimeInterpolator
 import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
@@ -100,11 +99,6 @@ import kotlin.coroutines.resume
 import kotlin.math.log2
 import kotlin.math.roundToLong
 import kotlin.math.sin
-
-private val quadratic = TimeInterpolator { t ->
-    if (t <= 0.5) 2 * t * t
-    else (1 - 2 * (1 - t) * (1 - t))
-}
 
 class ChatFragmentModel : ViewModel() {
     var binding: FragmentMainBinding? = null
