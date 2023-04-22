@@ -313,22 +313,24 @@ class ChatFragment : Fragment(), MenuProvider {
             return
         }
         switchToVoice()
-        MessageModel(Role.USER, prompt).also { promptMessage ->
-            vmodel.chatHistory.add(promptMessage)
-            addMessageView(promptMessage)
-        }
-        val replyMessage = MessageModel(Role.GPT, "").also { replyMessage ->
-            val editable = addMessageView(replyMessage)
-            replyMessage.text = editable
-            vmodel.replyEditable = editable
-            vmodel.chatHistory.add(replyMessage)
-        }
-        vmodel.autoscrollEnabled = true
-        scrollToBottom()
         binding.buttonStopResponding.visibility = VISIBLE
         var lastSpokenPos = 0
+        val previousReceiveJob = vmodel.receiveResponseJob?.apply { cancel() }
         vmodel.receiveResponseJob = vmodel.viewModelScope.launch {
             try {
+                previousReceiveJob?.join()
+                MessageModel(Role.USER, prompt).also { promptMessage ->
+                    vmodel.chatHistory.add(promptMessage)
+                    addMessageView(promptMessage)
+                }
+                val replyMessage = MessageModel(Role.GPT, "").also { replyMessage ->
+                    val editable = addMessageView(replyMessage)
+                    replyMessage.text = editable
+                    vmodel.replyEditable = editable
+                    vmodel.chatHistory.add(replyMessage)
+                }
+                vmodel.autoscrollEnabled = true
+                scrollToBottom()
                 val sentenceFlow: Flow<String> = channelFlow {
                     openAi.value.chatCompletions(vmodel.chatHistory, isGpt4Selected())
                         .onEach { chunk ->
