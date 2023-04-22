@@ -107,19 +107,6 @@
                     android:contentDescription="@string/send"
                     />
             <ImageButton
-                    android:id="@+id/button_stopResponding"
-                    android:layout_width="50dp"
-                    android:layout_height="50dp"
-                    android:layout_marginStart="8dp"
-                    android:layout_gravity="bottom"
-                    android:visibility="gone"
-                    android:src="@drawable/baseline_cancel_28"
-                    app:tint="@color/white"
-                    android:background="@drawable/rounded_button"
-                    android:backgroundTint="@color/button_danger"
-                    android:contentDescription="@string/send"
-                    />
-            <ImageButton
                     android:id="@+id/button_record"
                     android:layout_width="0dp"
                     android:layout_height="50dp"

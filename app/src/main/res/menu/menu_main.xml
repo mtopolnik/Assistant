@@ -33,6 +33,12 @@
             app:iconTint="@color/white"
             app:showAsAction="always" />
     <item
+            android:id="@+id/action_cancel"
+            android:title="@string/cancel"
+            android:icon="@drawable/baseline_cancel_24"
+            app:iconTint="@color/white"
+            app:showAsAction="always" />
+    <item
             android:id="@+id/action_sound_toggle"
             android:title="@string/sound_toggle"
             android:icon="@drawable/baseline_volume_up_24"

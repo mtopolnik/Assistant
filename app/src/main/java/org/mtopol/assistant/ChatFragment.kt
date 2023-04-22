@@ -179,9 +179,6 @@ class ChatFragment : Fragment(), MenuProvider {
             Log.i("lifecycle", "promptEditable: ${vmodel.promptEditable}")
             switchToTyping(false)
         }
-        if (vmodel.receiveResponseJob != null) {
-            binding.buttonStopResponding.visibility = VISIBLE
-        }
 
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, windowInsets ->
             val insets = windowInsets.getInsets(WindowInsetsCompat.Type.ime())
@@ -230,7 +227,6 @@ class ChatFragment : Fragment(), MenuProvider {
                 sendPromptAndReceiveResponse(prompt)
             }
         }
-        binding.buttonStopResponding.onClickWithVibrate { vmodel.receiveResponseJob?.cancel() }
         binding.edittextPrompt.apply {
             addTextChangedListener(object : TextWatcher {
                 private var hadTextLastTime = text.isNotEmpty()
@@ -260,7 +256,6 @@ class ChatFragment : Fragment(), MenuProvider {
     override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
         Log.i("lifecycle", "onCreateMenu")
         menuInflater.inflate(R.menu.menu_main, menu)
-
         updateMuteItem(menu.findItem(R.id.action_sound_toggle))
 
         fun TextView.updateText() {
@@ -275,6 +270,12 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
+    override fun onPrepareMenu(menu: Menu) {
+        val responding = vmodel.receiveResponseJob != null
+        menu.findItem(R.id.action_cancel).isVisible = responding
+        menu.findItem(R.id.action_regenerate).isVisible = !responding
+    }
+
     private fun updateMuteItem(item: MenuItem) {
         item.isChecked = vmodel.isMuted
         item.setIcon(if (vmodel.isMuted) R.drawable.baseline_volume_off_24 else R.drawable.baseline_volume_up_24)
@@ -282,7 +283,14 @@ class ChatFragment : Fragment(), MenuProvider {
 
     override fun onMenuItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
-            R.id.action_clear_chat_history -> { clearChat(); true }
+            R.id.action_clear_chat_history -> {
+                clearChat()
+                true
+            }
+            R.id.action_cancel -> {
+                vmodel.receiveResponseJob?.cancel()
+                true
+            }
             R.id.action_regenerate -> {
                 viewScope.launch { regenerateResponse() }
                 true
@@ -327,8 +335,6 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun sendPromptAndReceiveResponse(prompt: CharSequence) {
-        val binding = vmodel.binding ?: return
-        binding.buttonStopResponding.visibility = VISIBLE
         var lastSpokenPos = 0
         val previousReceiveJob = vmodel.receiveResponseJob?.apply { cancel() }
         vmodel.receiveResponseJob = vmodel.viewModelScope.launch {
@@ -443,10 +449,11 @@ class ChatFragment : Fragment(), MenuProvider {
             } catch (e: Exception) {
                 Log.e("lifecycle", "Error in receiveResponseJob", e)
             } finally {
-                vmodel.binding?.buttonStopResponding?.visibility = GONE
                 vmodel.receiveResponseJob = null
+                activity?.invalidateOptionsMenu()
             }
         }
+        activity?.invalidateOptionsMenu()
     }
 
     private suspend fun MediaPlayer.play(file: File) {

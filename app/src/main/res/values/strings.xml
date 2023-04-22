@@ -32,6 +32,7 @@
     <string name="api_key_hint">Your OpenAI API key</string>
     <string name="ok">OK</string>
     <string name="sound_toggle">Mute Sound</string>
+    <string name="cancel">Stop Responding</string>
     <string name="enter_apikey_explanation">
         Chatty Assistant needs your OpenAI key to work. In order to obtain it, visit
         \nhttps://platform.openai.com
