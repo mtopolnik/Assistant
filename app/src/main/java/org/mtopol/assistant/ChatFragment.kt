@@ -653,8 +653,7 @@ class ChatFragment : Fragment(), MenuProvider {
                     val frameTime = awaitFrame()
                     val mediaRecorder = _mediaRecorder ?: break
                     val initialGrowthCap = (1.5f * nanosToSeconds(frameTime - recordingStart)).coerceAtMost(1f)
-                    val soundVolume = (log2(mediaRecorder.maxAmplitude.toDouble()) / 15).toFloat()
-                        .coerceAtLeast(0f).coerceAtMost(initialGrowthCap)
+                    val soundVolume = (log2(mediaRecorder.maxAmplitude.toDouble()) / 15).toFloat().coerceAtLeast(0f)
                     val decayingPeak = lastPeak * (1f - 2 * nanosToSeconds(frameTime - lastPeakTime))
                     lastRecordingVolume = if (decayingPeak > soundVolume) {
                         decayingPeak
@@ -663,7 +662,7 @@ class ChatFragment : Fragment(), MenuProvider {
                         lastPeakTime = frameTime
                         soundVolume
                     }
-                    binding.recordingGlow.setVolume(lastRecordingVolume)
+                    binding.recordingGlow.setVolume(lastRecordingVolume.coerceAtMost(initialGrowthCap))
                 }
 
                 fun waitingVolume(time: Long) = (3.5f + 1.5f * sin(4 * nanosToSeconds(time))) / 20
