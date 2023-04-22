@@ -112,6 +112,7 @@ class ChatFragmentModel : ViewModel() {
     var autoscrollEnabled: Boolean = true
     var lastPromptLanguage: String? = null
     var replyEditable: Editable? = null
+    var mediaPlayer: MediaPlayer? = null
     lateinit var promptEditable: Editable
 }
 
@@ -268,6 +269,17 @@ class ChatFragment : Fragment(), MenuProvider {
     override fun onMenuItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             R.id.action_clear_chat_history -> { clearChat(); true }
+            R.id.action_sound_toggle -> {
+                item.isChecked = !item.isChecked
+                if (item.isChecked) {
+                    item.setIcon(R.drawable.baseline_volume_up_24)
+                    vmodel.mediaPlayer?.setVolume(1f, 1f)
+                } else {
+                    item.setIcon(R.drawable.baseline_volume_off_24)
+                    vmodel.mediaPlayer?.setVolume(0f, 0f)
+                }
+                true
+            }
             R.id.action_delete_openai_key -> {
                 requireContext().mainPrefs.applyUpdate {
                     setOpenaiApiKey("")
@@ -378,11 +390,17 @@ class ChatFragment : Fragment(), MenuProvider {
                         .launchIn(this)
                 }
 
-                val mediaPlayer = MediaPlayer()
+                val mediaPlayer = MediaPlayer().also {
+                    vmodel.mediaPlayer = it
+                }
                 var cancelled = false
                 voiceFileFlow
                     .onCompletion {
-                        mediaPlayer.apply { stop(); release() }
+                        mediaPlayer.apply {
+                            stop()
+                            release()
+                            vmodel.mediaPlayer = null
+                        }
                     }
                     .collect {
                         try {

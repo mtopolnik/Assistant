@@ -16,20 +16,29 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 
-<menu xmlns:android="http://schemas.android.com/apk/res/android"
+<menu xmlns:tools="http://schemas.android.com/tools"
+        xmlns:android="http://schemas.android.com/apk/res/android"
         xmlns:app="http://schemas.android.com/apk/res-auto"
         >
     <item
             android:id="@+id/action_gpt_toggle"
             android:title="@string/gpt_4"
             app:actionLayout="@layout/button_gpt_toggle"
-            app:showAsAction="ifRoom" />
+            app:showAsAction="always"
+            tools:ignore="AlwaysShowAction" />
+    <item
+            android:id="@+id/action_sound_toggle"
+            android:title="@string/sound_toggle"
+            android:icon="@drawable/baseline_volume_up_24"
+            android:checkable="true"
+            app:iconTint="@color/white"
+            app:showAsAction="always" />
     <item
             android:id="@+id/action_clear_chat_history"
             android:title="@string/clear_chat_history"
             android:icon="@drawable/baseline_delete_sweep_24"
             app:iconTint="@color/white"
-            app:showAsAction="ifRoom" />
+            app:showAsAction="always" />
     <item
             android:id="@+id/action_settings"
             android:title="@string/action_settings"
