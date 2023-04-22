@@ -155,6 +155,9 @@ class ChatFragment : Fragment(), MenuProvider {
         }
         val activity = requireActivity() as AppCompatActivity
         activity.setSupportActionBar(binding.toolbar)
+        activity.supportActionBar?.apply {
+            setDisplayShowTitleEnabled(false)
+        }
         val context: Context = activity
 
         GlobalScope.launch(IO) { openAi.value }

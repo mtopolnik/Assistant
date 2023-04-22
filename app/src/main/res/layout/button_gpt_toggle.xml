@@ -23,9 +23,8 @@
         >
     <Button
             android:id="@+id/textview_gpt_toggle"
-            android:layout_width="82dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:padding="2dp"
             android:text="@string/gpt_3_5"
             android:textColor="@color/white"
             android:textSize="18dp" tools:ignore="SpUsage"
