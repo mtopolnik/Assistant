@@ -719,9 +719,8 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun clearChat() {
         Log.i("lifecycle", "clearChat")
-        val binding = vmodel.binding ?: return
-        Log.i("lifecycle", "clearChat: binding is not null")
         vmodel.receiveResponseJob?.cancel()
+        val binding = vmodel.binding ?: return
         binding.viewChat.removeAllViews()
         vmodel.chatHistory.clear()
         binding.edittextPrompt.editableText.clear()
