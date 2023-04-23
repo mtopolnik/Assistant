@@ -102,6 +102,8 @@ import kotlin.math.sin
 
 class ChatFragmentModel : ViewModel() {
     var binding: FragmentMainBinding? = null
+    @SuppressLint("StaticFieldLeak") // Code guarantees it's always the current activity
+    var activity: AppCompatActivity? = null
     var isMuted = false
     var isGpt4 = false
     val chatHistory = mutableListOf<MessageModel>()
@@ -135,12 +137,21 @@ class ChatFragment : Fragment(), MenuProvider {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.i("lifecycle", "onCreate ChatFragment")
-        (requireActivity() as AppCompatActivity).addMenuProvider(this, this)
         vmodel = ViewModelProvider(this)[ChatFragmentModel::class.java].apply {
             addCloseable {
                 Log.i("lifecycle", "Destroy ViewModel")
             }
         }
+        (requireActivity() as AppCompatActivity).also {
+            vmodel.activity = it
+            it.addMenuProvider(this, this)
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        Log.i("lifecycle", "onDestroy ChatFragment")
+        vmodel.activity = null
     }
 
     @OptIn(DelicateCoroutinesApi::class)
@@ -152,12 +163,12 @@ class ChatFragment : Fragment(), MenuProvider {
         val binding = FragmentMainBinding.inflate(inflater, container, false).also {
             vmodel.binding = it
         }
-        val activity = requireActivity() as AppCompatActivity
-        activity.setSupportActionBar(binding.toolbar)
-        activity.supportActionBar?.apply {
-            setDisplayShowTitleEnabled(false)
+        val context: Context = (requireActivity() as AppCompatActivity).also {
+            it.setSupportActionBar(binding.toolbar)
+            it.supportActionBar?.apply {
+                setDisplayShowTitleEnabled(false)
+            }
         }
-        val context: Context = activity
 
         GlobalScope.launch(IO) { openAi.value }
 
@@ -454,7 +465,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 Log.e("lifecycle", "Error in receiveResponseJob", e)
             } finally {
                 vmodel.receiveResponseJob = null
-                activity?.invalidateOptionsMenu()
+                vmodel.activity?.invalidateOptionsMenu()
             }
         }
         activity?.invalidateOptionsMenu()
