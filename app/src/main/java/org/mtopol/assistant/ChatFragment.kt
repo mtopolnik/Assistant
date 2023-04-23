@@ -180,7 +180,7 @@ class ChatFragment : Fragment(), MenuProvider {
         vmodel.promptEditable = binding.edittextPrompt.editableText
         if (vmodel.promptEditable.isNotEmpty()) {
             Log.i("lifecycle", "promptEditable: ${vmodel.promptEditable}")
-            switchToTyping(false)
+            switchToTyping()
         }
 
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, windowInsets ->
@@ -222,7 +222,11 @@ class ChatFragment : Fragment(), MenuProvider {
                 else -> false
             }
         }
-        binding.buttonKeyboard.onClickWithVibrate { switchToTyping(true) }
+        binding.buttonKeyboard.onClickWithVibrate {
+            switchToTyping()
+            (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+                .showSoftInput(binding.edittextPrompt, InputMethodManager.SHOW_IMPLICIT)
+        }
         binding.buttonSend.onClickWithVibrate {
             val prompt = binding.edittextPrompt.text.toString()
             if (prompt.isNotEmpty()) {
@@ -336,7 +340,7 @@ class ChatFragment : Fragment(), MenuProvider {
         binding.edittextPrompt.apply {
             setText(prompt)
         }
-        switchToTyping(false)
+        switchToTyping()
     }
 
     private fun sendPromptAndReceiveResponse(prompt: CharSequence) {
@@ -582,7 +586,7 @@ class ChatFragment : Fragment(), MenuProvider {
                     Log.i("speech", "transcription.language: ${transcription.language}")
                     vmodel.lastPromptLanguage = transcription.language
                 }
-                switchToTyping(false)
+                switchToTyping()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -635,7 +639,7 @@ class ChatFragment : Fragment(), MenuProvider {
         isEnabled = newActive
     }
 
-    private fun switchToTyping(bringUpKeyboard: Boolean) {
+    private fun switchToTyping() {
         val binding = vmodel.binding ?: return
         binding.buttonKeyboard.visibility = GONE
         binding.buttonRecord.visibility = GONE
@@ -643,10 +647,6 @@ class ChatFragment : Fragment(), MenuProvider {
         binding.edittextPrompt.apply {
             visibility = VISIBLE
             requestFocus()
-        }
-        if (bringUpKeyboard) {
-            (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
-                .showSoftInput(binding.edittextPrompt, InputMethodManager.SHOW_IMPLICIT)
         }
     }
 
