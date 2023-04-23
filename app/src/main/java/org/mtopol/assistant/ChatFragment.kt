@@ -110,7 +110,6 @@ class ChatFragmentModel : ViewModel() {
     var lastPromptLanguage: String? = null
     var replyEditable: Editable? = null
     var mediaPlayer: MediaPlayer? = null
-    lateinit var promptEditable: Editable
 }
 
 @OptIn(BetaOpenAI::class)
@@ -163,7 +162,6 @@ class ChatFragment : Fragment(), MenuProvider {
         GlobalScope.launch(IO) { openAi.value }
 
         if (savedInstanceState != null) {
-            binding.edittextPrompt.setText(vmodel.promptEditable.toString())
             var newestHistoryEditable: Editable? = null
             var newestHistoryMessage: MessageModel? = null
             for (message in vmodel.chatHistory) {
@@ -177,12 +175,6 @@ class ChatFragment : Fragment(), MenuProvider {
                 }
             }
         }
-        vmodel.promptEditable = binding.edittextPrompt.editableText
-        if (vmodel.promptEditable.isNotEmpty()) {
-            Log.i("lifecycle", "promptEditable: ${vmodel.promptEditable}")
-            switchToTyping()
-        }
-
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, windowInsets ->
             val insets = windowInsets.getInsets(WindowInsetsCompat.Type.ime())
             v.setPadding(v.paddingLeft, v.paddingTop, v.paddingRight, insets.bottom)
@@ -241,6 +233,8 @@ class ChatFragment : Fragment(), MenuProvider {
                 override fun afterTextChanged(editable: Editable) {
                     if (editable.isEmpty() && hadTextLastTime) {
                         switchToVoice()
+                    } else if (editable.isNotEmpty() && !hadTextLastTime) {
+                        switchToTyping()
                     }
                     hadTextLastTime = editable.isNotEmpty()
                 }
@@ -340,7 +334,6 @@ class ChatFragment : Fragment(), MenuProvider {
         binding.edittextPrompt.editableText.apply {
             replace(0, length, prompt)
         }
-        switchToTyping()
     }
 
     private fun sendPromptAndReceiveResponse(prompt: CharSequence) {
@@ -585,7 +578,6 @@ class ChatFragment : Fragment(), MenuProvider {
                     Log.i("speech", "transcription.language: ${transcription.language}")
                     vmodel.lastPromptLanguage = transcription.language
                 }
-                switchToTyping()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
