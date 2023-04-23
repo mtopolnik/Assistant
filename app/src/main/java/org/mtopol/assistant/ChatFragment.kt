@@ -451,6 +451,8 @@ class ChatFragment : Fragment(), MenuProvider {
                             it.delete()
                         }
                     }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e("lifecycle", "Error in receiveResponseJob", e)
             } finally {
@@ -581,6 +583,8 @@ class ChatFragment : Fragment(), MenuProvider {
                     vmodel.lastPromptLanguage = transcription.language
                 }
                 switchToTyping(false)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e("speech", "Text-to-speech error", e)
                 if (e is OpenAIAPIException) {
