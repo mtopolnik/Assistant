@@ -49,7 +49,7 @@
         \nwhere you can review and inspect its usage of your API key.
     </string>
     <string name="action_delete_openai_key">Delete API Key</string>
-    <string name="refresh">Regenerate Response</string>
+    <string name="undo">Undo Last Prompt</string>
 </resources>
 
 
