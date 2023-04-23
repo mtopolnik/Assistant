@@ -283,7 +283,7 @@ class ChatFragment : Fragment(), MenuProvider {
     override fun onPrepareMenu(menu: Menu) {
         val responding = vmodel.receiveResponseJob != null
         menu.findItem(R.id.action_cancel).isVisible = responding
-        menu.findItem(R.id.action_regenerate).isVisible = !responding
+        menu.findItem(R.id.action_undo).isVisible = !responding
     }
 
     private fun updateMuteItem(item: MenuItem) {
@@ -301,7 +301,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 vmodel.receiveResponseJob?.cancel()
                 true
             }
-            R.id.action_regenerate -> {
+            R.id.action_undo -> {
                 viewScope.launch { regenerateResponse() }
                 true
             }

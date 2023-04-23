@@ -34,7 +34,7 @@
             app:iconTint="@color/white"
             app:showAsAction="always" />
     <item
-            android:id="@+id/action_regenerate"
+            android:id="@+id/action_undo"
             android:title="@string/undo"
             android:icon="@drawable/baseline_undo_24"
             app:iconTint="@color/white"
