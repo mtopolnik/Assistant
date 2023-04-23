@@ -51,7 +51,7 @@ class OpenAI(context: Context) {
         OpenAIConfig(
             token = context.mainPrefs.openaiApiKey,
             timeout = Timeout(connect = 5.seconds, socket = 5.seconds, request = 180.seconds),
-            retry = RetryStrategy(1, 2.0, 2.seconds),
+            retry = RetryStrategy(0, 2.0, 2.seconds),
         )
     )
 
