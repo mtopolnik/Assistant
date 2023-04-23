@@ -337,8 +337,8 @@ class ChatFragment : Fragment(), MenuProvider {
         binding.viewChat.apply {
             repeat(2) { removeViewAt(childCount - 1) }
         }
-        binding.edittextPrompt.apply {
-            setText(prompt)
+        binding.edittextPrompt.editableText.apply {
+            replace(0, length, prompt)
         }
         switchToTyping()
     }
@@ -581,8 +581,7 @@ class ChatFragment : Fragment(), MenuProvider {
                     return@launch
                 }
                 binding.edittextPrompt.editableText.apply {
-                    clear()
-                    append(transcription.text)
+                    replace(0, length, transcription.text)
                     Log.i("speech", "transcription.language: ${transcription.language}")
                     vmodel.lastPromptLanguage = transcription.language
                 }
