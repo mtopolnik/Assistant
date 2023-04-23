@@ -329,10 +329,14 @@ class ChatFragment : Fragment(), MenuProvider {
         }
         vmodel.chatHistory.removeLast()
         val prompt = vmodel.chatHistory.removeLast().text
-        vmodel.binding?.viewChat?.apply {
+        val binding = vmodel.binding ?: return
+        binding.viewChat.apply {
             repeat(2) { removeViewAt(childCount - 1) }
         }
-        sendPromptAndReceiveResponse(prompt)
+        binding.edittextPrompt.apply {
+            setText(prompt)
+        }
+        switchToTyping(false)
     }
 
     private fun sendPromptAndReceiveResponse(prompt: CharSequence) {
