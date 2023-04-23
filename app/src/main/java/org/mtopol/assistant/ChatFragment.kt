@@ -236,9 +236,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
                 override fun afterTextChanged(editable: Editable) {
                     if (editable.isEmpty() && hadTextLastTime) {
-                        viewScope.launch {
-                            switchToVoice()
-                        }
+                        switchToVoice()
                     }
                     hadTextLastTime = editable.isNotEmpty()
                 }
