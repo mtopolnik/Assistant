@@ -226,7 +226,7 @@ class ChatFragment : Fragment(), MenuProvider {
         binding.buttonSend.onClickWithVibrate {
             val prompt = binding.edittextPrompt.text.toString()
             if (prompt.isNotEmpty()) {
-                switchToVoice()
+                binding.edittextPrompt.editableText.clear()
                 sendPromptAndReceiveResponse(prompt)
             }
         }
