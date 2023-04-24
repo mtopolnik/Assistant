@@ -48,6 +48,11 @@ class ApiKeyFragment : Fragment() {
         return binding.root
     }
 
+    override fun onDestroyView() {
+        super.onDestroyView()
+        Log.i("lifecycle", "onDestroyView ApiKeyFragment")
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         Log.i("lifecycle", "onDestroy ApiKeyFragment")

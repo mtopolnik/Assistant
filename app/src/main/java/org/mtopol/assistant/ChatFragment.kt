@@ -267,6 +267,7 @@ class ChatFragment : Fragment(), MenuProvider {
         super.onDestroyView()
         Log.i("lifecycle", "onDestroyView ChatFragment")
         vmodel.binding = null
+        (requireActivity() as AppCompatActivity).removeMenuProvider(this)
     }
 
     override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
