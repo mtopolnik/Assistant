@@ -63,7 +63,6 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.doOnLayout
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
-import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -107,19 +106,28 @@ import kotlin.math.log2
 import kotlin.math.roundToLong
 
 private const val KEY_CHAT_HISTORY = "chat_history"
+private const val KEY_IS_MUTED = "is_muted"
+private const val KEY_IS_GPT4 = "is_gpt4"
 
 class ChatFragmentModel(
-    private val savedState: SavedStateHandle
+    savedState: SavedStateHandle
 ) : ViewModel() {
-    private val _liveData = MutableLiveData<(ChatFragment) -> Unit>()
-    val liveData: LiveData<(ChatFragment) -> Unit> get() = _liveData
+    val withFragmentLiveData = MutableLiveData<(ChatFragment) -> Unit>()
 
     fun withFragment(task: (ChatFragment) -> Unit) {
-        _liveData.value = task
+        withFragmentLiveData.value = task
     }
 
-    var isMuted = false
-    var isGpt4 = false
+    private val _isMutedLiveData = savedState.getLiveData(KEY_IS_MUTED, false)
+    var isMuted: Boolean
+        get() = _isMutedLiveData.value!!
+        set(value) { _isMutedLiveData.value = value }
+
+    private val _isGpt4LiveData = savedState.getLiveData(KEY_IS_GPT4, false)
+    var isGpt4: Boolean
+        get() = _isGpt4LiveData.value!!
+        set(value) { _isGpt4LiveData.value = value }
+
     val chatHistory = savedState.getLiveData<MutableList<PromptAndResponse>>(KEY_CHAT_HISTORY, mutableListOf()).value!!
     var receiveResponseJob: Job? = null
     var recordingGlowJob: Job? = null
@@ -171,8 +179,7 @@ class ChatFragment : Fragment(), MenuProvider {
     ): View {
         Log.i("lifecycle", "onCreateView ChatFragment")
         binding = FragmentMainBinding.inflate(inflater, container, false)
-        vmodel.liveData.observe(viewLifecycleOwner) { it.invoke(this) }
-
+        vmodel.withFragmentLiveData.observe(viewLifecycleOwner) { it.invoke(this) }
         val context: Context = (requireActivity() as AppCompatActivity).also { activity ->
             activity.setSupportActionBar(binding.toolbar)
             activity.supportActionBar?.apply {
