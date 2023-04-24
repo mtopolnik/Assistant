@@ -30,6 +30,7 @@ import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.os.Build
 import android.os.Bundle
+import android.os.Parcelable
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -64,6 +65,7 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewModelScope
@@ -92,6 +94,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import kotlinx.parcelize.Parcelize
 import org.mtopol.assistant.databinding.FragmentMainBinding
 import java.io.File
 import java.util.*
@@ -103,8 +106,11 @@ import kotlin.coroutines.resume
 import kotlin.math.log2
 import kotlin.math.roundToLong
 
+private const val KEY_CHAT_HISTORY = "chat_history"
 
-class ChatFragmentModel : ViewModel() {
+class ChatFragmentModel(
+    private val savedState: SavedStateHandle
+) : ViewModel() {
     private val _liveData = MutableLiveData<(ChatFragment) -> Unit>()
     val liveData: LiveData<(ChatFragment) -> Unit> get() = _liveData
 
@@ -114,7 +120,7 @@ class ChatFragmentModel : ViewModel() {
 
     var isMuted = false
     var isGpt4 = false
-    val chatHistory = mutableListOf<PromptAndResponse>()
+    val chatHistory = savedState.getLiveData<MutableList<PromptAndResponse>>(KEY_CHAT_HISTORY, mutableListOf()).value!!
     var receiveResponseJob: Job? = null
     var recordingGlowJob: Job? = null
     var autoscrollEnabled: Boolean = true
@@ -880,10 +886,11 @@ class ChatFragment : Fragment(), MenuProvider {
 
 private fun nanosToSeconds(nanos: Long): Float = nanos.toFloat() / 1_000_000_000
 
+@Parcelize
 data class PromptAndResponse(
     var prompt: CharSequence,
     var response: CharSequence
-)
+) : Parcelable
 
 data class Transcription(
     val text: String,
