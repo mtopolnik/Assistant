@@ -630,20 +630,20 @@ class ChatFragment : Fragment(), MenuProvider {
                 val low = 0.125f
                 val high = 0.25f
                 ValueAnimator.ofFloat(lastRecordingVolume, high).apply {
-                    duration = 200
+                    duration = 300
                     interpolator = LinearInterpolator()
                     connectWithGlow()
                     run()
                 }
                 while (true) {
                     ValueAnimator.ofFloat(high, low).apply {
-                        duration = 700
+                        duration = 600
                         interpolator = LinearInterpolator()
                         connectWithGlow()
                         run()
                     }
                     ValueAnimator.ofFloat(low, high).apply {
-                        duration = 100
+                        duration = 300
                         interpolator = android.view.animation.DecelerateInterpolator()
                         connectWithGlow()
                         run()
