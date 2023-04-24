@@ -306,8 +306,10 @@ class ChatFragment : Fragment(), MenuProvider {
 
     override fun onMenuItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
-            R.id.action_clear_chat_history -> {
-                clearChat()
+            R.id.action_sound_toggle -> {
+                vmodel.isMuted = !vmodel.isMuted
+                updateMuteItem(item)
+                updateMediaPlayerVolume()
                 true
             }
             R.id.action_cancel -> {
@@ -318,10 +320,8 @@ class ChatFragment : Fragment(), MenuProvider {
                 viewScope.launch { regenerateResponse() }
                 true
             }
-            R.id.action_sound_toggle -> {
-                vmodel.isMuted = !vmodel.isMuted
-                updateMuteItem(item)
-                updateMediaPlayerVolume()
+            R.id.action_clear_chat_history -> {
+                clearChat()
                 true
             }
             R.id.action_delete_openai_key -> {
