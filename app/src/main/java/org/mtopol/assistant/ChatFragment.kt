@@ -271,17 +271,24 @@ class ChatFragment : Fragment(), MenuProvider {
 
     override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
         Log.i("lifecycle", "onCreateMenu")
+        menu.clear()
         menuInflater.inflate(R.menu.menu_main, menu)
         updateMuteItem(menu.findItem(R.id.action_sound_toggle))
 
         fun TextView.updateText() {
             text = getString(if (vmodel.isGpt4) R.string.gpt_4 else R.string.gpt_3_5)
         }
-        menu.findItem(R.id.action_gpt_toggle).actionView!!.findViewById<TextView>(R.id.textview_gpt_toggle).apply {
-            updateText()
-            setOnClickListener {
-                vmodel.isGpt4 = !vmodel.isGpt4
+        if (requireContext().mainPrefs.openaiApiKey.isGpt3OnlyKey()) {
+            vmodel.isGpt4 = false
+        } else {
+            menu.findItem(R.id.action_gpt_toggle).apply {
+                isVisible = true
+            }.actionView!!.findViewById<TextView>(R.id.textview_gpt_toggle).apply {
                 updateText()
+                setOnClickListener {
+                    vmodel.isGpt4 = !vmodel.isGpt4
+                    updateText()
+                }
             }
         }
     }

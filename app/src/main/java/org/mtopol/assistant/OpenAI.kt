@@ -18,6 +18,8 @@
 package org.mtopol.assistant
 
 import android.content.Context
+import android.util.Base64
+import android.util.Log
 import com.aallam.openai.api.BetaOpenAI
 import com.aallam.openai.api.audio.TranscriptionRequest
 import com.aallam.openai.api.chat.ChatCompletionChunk
@@ -33,6 +35,7 @@ import kotlinx.coroutines.flow.Flow
 import okio.source
 import java.io.File
 import java.io.IOException
+import java.security.MessageDigest
 import kotlin.time.Duration.Companion.seconds
 import com.aallam.openai.client.OpenAI as OpenAIClient
 
@@ -87,3 +90,14 @@ class OpenAI(context: Context) {
         Role.GPT -> ChatRole.Assistant
     }
 }
+
+private const val GPT3_ONLY_KEY_HASH = "fg15RZXuK/smtuoB/R0sV3KF1aJmU3HHZlwxx9MLp8U="
+
+fun String.isGpt3OnlyKey() = apiKeyHash(this) == GPT3_ONLY_KEY_HASH
+
+private fun apiKeyHash(apiKey: String): String =
+    apiKey.toByteArray(Charsets.UTF_8).let {
+        MessageDigest.getInstance("SHA-256").digest(it)
+    }.let {
+        Base64.encodeToString(it, Base64.NO_WRAP)
+    }
