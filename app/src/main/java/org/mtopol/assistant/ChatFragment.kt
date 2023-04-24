@@ -114,7 +114,7 @@ class ChatFragmentModel : ViewModel() {
 
     var isMuted = false
     var isGpt4 = false
-    val chatHistory = mutableListOf<MessageModel>()
+    val chatHistory = mutableListOf<PromptAndResponse>()
     var receiveResponseJob: Job? = null
     var recordingGlowJob: Job? = null
     var autoscrollEnabled: Boolean = true
@@ -178,15 +178,15 @@ class ChatFragment : Fragment(), MenuProvider {
 
         if (savedInstanceState != null) {
             var newestHistoryEditable: Editable? = null
-            var newestHistoryMessage: MessageModel? = null
-            for (message in vmodel.chatHistory) {
-                newestHistoryMessage = message
-                newestHistoryEditable = addMessageView(message)
+            var newestHistoryMessagePair: PromptAndResponse? = null
+            for (promptAndResponse in vmodel.chatHistory) {
+                newestHistoryMessagePair = promptAndResponse
+                newestHistoryEditable = addPromptAndResponseToView(promptAndResponse)
             }
             if (vmodel.replyEditable != null) {
                 newestHistoryEditable!!.also {
                     vmodel.replyEditable = it
-                    newestHistoryMessage!!.text = it
+                    newestHistoryMessagePair!!.response = it
                 }
             }
         }
@@ -353,11 +353,10 @@ class ChatFragment : Fragment(), MenuProvider {
             cancel()
             join()
         }
-        vmodel.chatHistory.removeLast()
-        val prompt = vmodel.chatHistory.removeLast().text
         binding.viewChat.apply {
             repeat(2) { removeViewAt(childCount - 1) }
         }
+        val prompt = vmodel.chatHistory.removeLast().prompt
         binding.edittextPrompt.editableText.apply {
             replace(0, length, prompt)
         }
@@ -369,16 +368,11 @@ class ChatFragment : Fragment(), MenuProvider {
         vmodel.receiveResponseJob = vmodel.viewModelScope.launch {
             try {
                 previousReceiveJob?.join()
-                MessageModel(Role.USER, prompt).also { promptMessage ->
-                    vmodel.chatHistory.add(promptMessage)
-                    addMessageView(promptMessage)
-                }
-                val replyMessage = MessageModel(Role.GPT, "").also { replyMessage ->
-                    val editable = addMessageView(replyMessage)
-                    replyMessage.text = editable
-                    vmodel.replyEditable = editable
-                    vmodel.chatHistory.add(replyMessage)
-                }
+                val promptAndResponse = PromptAndResponse(prompt, "")
+                vmodel.chatHistory.add(promptAndResponse)
+                val editable = addPromptAndResponseToView(promptAndResponse)
+                promptAndResponse.response = editable
+                vmodel.replyEditable = editable
                 vmodel.autoscrollEnabled = true
                 scrollToBottom()
                 val sentenceFlow: Flow<String> = channelFlow {
@@ -419,7 +413,7 @@ class ChatFragment : Fragment(), MenuProvider {
                             if (lastSpokenPos < replyEditable.length) {
                                 channel.send(replyEditable.substring(lastSpokenPos, replyEditable.length))
                             }
-                            replyMessage.text = replyEditable.toString()
+                            promptAndResponse.response = replyEditable.toString()
                             vmodel.replyEditable = null
                         }
                         .launchIn(this)
@@ -781,26 +775,22 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun addMessageView(message: MessageModel): Editable {
+    private fun addPromptAndResponseToView(promptAndResponse: PromptAndResponse): Editable {
         val context = requireContext()
         val chatView = binding.viewChat
-        val messageView = LayoutInflater.from(requireContext())
-            .inflate(R.layout.chat_message_item, chatView, false) as TextView
-        messageView.setTextColor(
-            when (message.author) {
-                Role.USER -> context.getColorCompat(R.color.user_text_foreground)
-                Role.GPT -> context.getColorCompat(R.color.gpt_text_foreground)
-            }
-        )
-        messageView.backgroundTintList = ColorStateList.valueOf(
-            when (message.author) {
-                Role.USER -> context.getColorCompat(R.color.user_text_background)
-                Role.GPT -> context.getColorCompat(R.color.gpt_text_background)
-            }
-        )
-        messageView.text = message.text
-        chatView.addView(messageView)
-        return messageView.editableText
+
+        fun addMessageView(textColor: Int, backgroundColor: Int, text: CharSequence): Editable {
+            val messageView = LayoutInflater.from(requireContext())
+                .inflate(R.layout.chat_message_item, chatView, false) as TextView
+            messageView.setTextColor(context.getColorCompat(textColor))
+            messageView.backgroundTintList = ColorStateList.valueOf(context.getColorCompat(backgroundColor))
+            messageView.text = text
+            chatView.addView(messageView)
+            return messageView.editableText
+        }
+
+        addMessageView(R.color.user_text_foreground, R.color.user_text_background, promptAndResponse.prompt)
+        return addMessageView(R.color.gpt_text_foreground, R.color.gpt_text_background, promptAndResponse.response)
     }
 
     private fun clearChat() {
@@ -890,14 +880,10 @@ class ChatFragment : Fragment(), MenuProvider {
 
 private fun nanosToSeconds(nanos: Long): Float = nanos.toFloat() / 1_000_000_000
 
-data class MessageModel(
-    val author: Role,
-    var text: CharSequence
+data class PromptAndResponse(
+    var prompt: CharSequence,
+    var response: CharSequence
 )
-
-enum class Role {
-    USER, GPT
-}
 
 data class Transcription(
     val text: String,

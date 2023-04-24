@@ -19,7 +19,6 @@ package org.mtopol.assistant
 
 import android.content.Context
 import android.util.Base64
-import android.util.Log
 import com.aallam.openai.api.BetaOpenAI
 import com.aallam.openai.api.audio.TranscriptionRequest
 import com.aallam.openai.api.chat.ChatCompletionChunk
@@ -59,11 +58,11 @@ class OpenAI(context: Context) {
     )
 
     @Throws(IOException::class)
-    fun chatCompletions(history: List<MessageModel>, useGpt4: Boolean): Flow<ChatCompletionChunk> {
+    fun chatCompletions(history: List<PromptAndResponse>, useGpt4: Boolean): Flow<ChatCompletionChunk> {
         val gptModel = if (useGpt4) "gpt-4" else "gpt-3.5-turbo"
         val chatCompletionRequest = ChatCompletionRequest(
             model = ModelId(gptModel),
-            messages = history.toDto()
+            messages = history.toDto().dropLast(1)
         )
         return client.chatCompletions(chatCompletionRequest)
     }
@@ -83,11 +82,11 @@ class OpenAI(context: Context) {
         client.close()
     }
 
-    private fun List<MessageModel>.toDto() = map { ChatMessage(role = it.author.toDto(), content = it.text.toString()) }
-
-    private fun Role.toDto() = when(this) {
-        Role.USER -> ChatRole.User
-        Role.GPT -> ChatRole.Assistant
+    private fun List<PromptAndResponse>.toDto() = flatMap {
+        listOf(
+            ChatMessage(role = ChatRole.User, content = it.prompt.toString()),
+            ChatMessage(role = ChatRole.Assistant, content = it.response.toString()),
+        )
     }
 }
 
