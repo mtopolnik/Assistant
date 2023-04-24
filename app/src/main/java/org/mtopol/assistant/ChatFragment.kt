@@ -61,8 +61,10 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.doOnLayout
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.fragment.findNavController
@@ -76,6 +78,7 @@ import io.ktor.utils.io.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers.IO
+import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.android.awaitFrame
@@ -100,10 +103,15 @@ import kotlin.coroutines.resume
 import kotlin.math.log2
 import kotlin.math.roundToLong
 
+
 class ChatFragmentModel : ViewModel() {
-    var binding: FragmentMainBinding? = null
-    @SuppressLint("StaticFieldLeak") // Code guarantees it's always the current activity
-    var activity: AppCompatActivity? = null
+    private val _liveData = MutableLiveData<(ChatFragment) -> Unit>()
+    val liveData: LiveData<(ChatFragment) -> Unit> get() = _liveData
+
+    fun withFragment(task: (ChatFragment) -> Unit) {
+        _liveData.value = task
+    }
+
     var isMuted = false
     var isGpt4 = false
     val chatHistory = mutableListOf<MessageModel>()
@@ -113,6 +121,10 @@ class ChatFragmentModel : ViewModel() {
     var lastPromptLanguage: String? = null
     var replyEditable: Editable? = null
     var mediaPlayer: MediaPlayer? = null
+
+    override fun onCleared() {
+        Log.i("lifecycle", "Destroy ViewModel")
+    }
 }
 
 @OptIn(BetaOpenAI::class)
@@ -121,7 +133,8 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private val punctuationRegex = """(?<=\D\.'?)\s+|(?<=[;!?]'?)\s+|\n+""".toRegex()
     private val whitespaceRegex = """\s+""".toRegex()
-    private lateinit var vmodel: ChatFragmentModel
+    private val vmodel: ChatFragmentModel by viewModels()
+    private lateinit var binding: FragmentMainBinding
     private lateinit var audioPathname: String
     private lateinit var systemLanguages: List<String>
     private lateinit var languageIdentifier: LanguageIdentifier
@@ -137,21 +150,12 @@ class ChatFragment : Fragment(), MenuProvider {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.i("lifecycle", "onCreate ChatFragment")
-        vmodel = ViewModelProvider(this)[ChatFragmentModel::class.java].apply {
-            addCloseable {
-                Log.i("lifecycle", "Destroy ViewModel")
-            }
-        }
-        (requireActivity() as AppCompatActivity).also {
-            vmodel.activity = it
-            it.addMenuProvider(this, this)
-        }
+        (requireActivity() as AppCompatActivity).addMenuProvider(this, this)
     }
 
     override fun onDestroy() {
         super.onDestroy()
         Log.i("lifecycle", "onDestroy ChatFragment")
-        vmodel.activity = null
     }
 
     @OptIn(DelicateCoroutinesApi::class)
@@ -160,12 +164,12 @@ class ChatFragment : Fragment(), MenuProvider {
         savedInstanceState: Bundle?
     ): View {
         Log.i("lifecycle", "onCreateView ChatFragment")
-        val binding = FragmentMainBinding.inflate(inflater, container, false).also {
-            vmodel.binding = it
-        }
-        val context: Context = (requireActivity() as AppCompatActivity).also {
-            it.setSupportActionBar(binding.toolbar)
-            it.supportActionBar?.apply {
+        binding = FragmentMainBinding.inflate(inflater, container, false)
+        vmodel.liveData.observe(viewLifecycleOwner) { it.invoke(this) }
+
+        val context: Context = (requireActivity() as AppCompatActivity).also { activity ->
+            activity.setSupportActionBar(binding.toolbar)
+            activity.supportActionBar?.apply {
                 setDisplayShowTitleEnabled(false)
             }
         }
@@ -266,7 +270,6 @@ class ChatFragment : Fragment(), MenuProvider {
     override fun onDestroyView() {
         super.onDestroyView()
         Log.i("lifecycle", "onDestroyView ChatFragment")
-        vmodel.binding = null
         (requireActivity() as AppCompatActivity).removeMenuProvider(this)
     }
 
@@ -352,7 +355,6 @@ class ChatFragment : Fragment(), MenuProvider {
         }
         vmodel.chatHistory.removeLast()
         val prompt = vmodel.chatHistory.removeLast().text
-        val binding = vmodel.binding ?: return
         binding.viewChat.apply {
             repeat(2) { removeViewAt(childCount - 1) }
         }
@@ -479,7 +481,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 Log.e("lifecycle", "Error in receiveResponseJob", e)
             } finally {
                 vmodel.receiveResponseJob = null
-                vmodel.activity?.invalidateOptionsMenu()
+                vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
             }
         }
         activity?.invalidateOptionsMenu()
@@ -582,15 +584,72 @@ class ChatFragment : Fragment(), MenuProvider {
                 withContext(IO) {
                     stopRecording()
                 }
-                vmodel.binding?.buttonRecord?.setActive(true)
+                vmodel.withFragment { it.binding.buttonRecord.setActive(true) }
             }
         } finally {
             activity.unlockOrientation()
         }
     }
 
+    @SuppressLint("Recycle")
+    private fun animateRecordingGlow() {
+        vmodel.recordingGlowJob = vmodel.viewModelScope.launch {
+            vmodel.withFragment { it.binding.showRecordingGlow() }
+
+            try {
+                var lastPeak = 0f
+                var lastPeakTime = 0L
+                var lastRecordingVolume = 0f
+                while (true) {
+                    val frameTime = awaitFrame()
+                    val mediaRecorder = _mediaRecorder ?: break
+                    val soundVolume = (log2(mediaRecorder.maxAmplitude.toDouble()) / 15).toFloat().coerceAtLeast(0f)
+                    val decayingPeak = lastPeak * (1f - 2 * nanosToSeconds(frameTime - lastPeakTime))
+                    lastRecordingVolume = if (decayingPeak > soundVolume) {
+                        decayingPeak
+                    } else {
+                        lastPeak = soundVolume
+                        lastPeakTime = frameTime
+                        soundVolume
+                    }
+                    vmodel.withFragment { it.binding.recordingGlow.setVolume(lastRecordingVolume) }
+                }
+
+                fun ValueAnimator.connectWithGlow() {
+                    addUpdateListener { anim ->
+                        vmodel.withFragment { it.binding.recordingGlow.setVolume(anim.animatedValue as Float) }
+                    }
+                }
+                val low = 0.125f
+                val high = 0.25f
+                ValueAnimator.ofFloat(lastRecordingVolume, high).apply {
+                    duration = 200
+                    interpolator = LinearInterpolator()
+                    connectWithGlow()
+                    run()
+                }
+                while (true) {
+                    ValueAnimator.ofFloat(high, low).apply {
+                        duration = 700
+                        interpolator = LinearInterpolator()
+                        connectWithGlow()
+                        run()
+                    }
+                    ValueAnimator.ofFloat(low, high).apply {
+                        duration = 100
+                        interpolator = android.view.animation.DecelerateInterpolator()
+                        connectWithGlow()
+                        run()
+                    }
+                }
+            } finally {
+                vmodel.withFragment { it.binding.recordingGlow.visibility = INVISIBLE }
+            }
+        }
+    }
+
     private fun showRecordedPrompt() {
-        (vmodel.binding ?: return).buttonRecord.setActive(false)
+        binding.buttonRecord.setActive(false)
         vmodel.viewModelScope.launch {
             try {
                 val recordingSuccess = withContext(IO) { stopRecording() }
@@ -601,31 +660,35 @@ class ChatFragment : Fragment(), MenuProvider {
                 if (transcription.text.isEmpty()) {
                     return@launch
                 }
-                vmodel.binding?.edittextPrompt?.editableText?.apply {
-                    replace(0, length, transcription.text)
-                    Log.i("speech", "transcription.language: ${transcription.language}")
-                    vmodel.lastPromptLanguage = transcription.language
+                vmodel.withFragment {
+                    it.binding.edittextPrompt.editableText.apply {
+                        replace(0, length, transcription.text)
+                        Log.i("speech", "transcription.language: ${transcription.language}")
+                        vmodel.lastPromptLanguage = transcription.language
+                    }
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 Log.e("speech", "Text-to-speech error", e)
-                if (e is OpenAIAPIException) {
-                    Toast.makeText(
-                        vmodel.activity,
-                        if (e.statusCode == 401) "Invalid OpenAI API key. Delete it and enter a new one."
-                        else "OpenAI error: ${e.message}",
-                        Toast.LENGTH_LONG
-                    ).show()
-                } else {
-                    Toast.makeText(
-                        vmodel.activity,
-                        "Something went wrong while OpenAI was listening to you",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                vmodel.withFragment {
+                    if (e is OpenAIAPIException) {
+                        Toast.makeText(
+                            it.activity,
+                            if (e.statusCode == 401) "Invalid OpenAI API key. Delete it and enter a new one."
+                            else "OpenAI error: ${e.message}",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    } else {
+                        Toast.makeText(
+                            it.activity,
+                            "Something went wrong while OpenAI was listening to you",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 }
             } finally {
-                vmodel.binding?.buttonRecord?.setActive(true)
+                vmodel.withFragment { it.binding.buttonRecord.setActive(true) }
                 removeRecordingGlow()
             }
         }
@@ -659,90 +722,31 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun switchToTyping() {
-        val binding = vmodel.binding ?: return
-        binding.buttonKeyboard.visibility = GONE
-        binding.buttonRecord.visibility = GONE
-        binding.buttonSend.visibility = VISIBLE
-        binding.edittextPrompt.apply {
-            visibility = VISIBLE
-            requestFocus()
+        binding.apply {
+            buttonKeyboard.visibility = GONE
+            buttonRecord.visibility = GONE
+            buttonSend.visibility = VISIBLE
+            edittextPrompt.apply {
+                visibility = VISIBLE
+                requestFocus()
+            }
         }
     }
 
     private fun switchToVoice() {
-        val binding = vmodel.binding ?: return
         binding.edittextPrompt.editableText.clear()
         (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
             .hideSoftInputFromWindow(binding.root.windowToken, 0)
         viewScope.launch {
             delay(100)
-            binding.buttonKeyboard.visibility = VISIBLE
-            binding.buttonRecord.visibility = VISIBLE
-            binding.buttonSend.visibility = GONE
-            binding.edittextPrompt.apply {
-                visibility = GONE
-                clearFocus()
-            }
-        }
-    }
-
-    @SuppressLint("Recycle")
-    private fun animateRecordingGlow() {
-        vmodel.recordingGlowJob = vmodel.viewModelScope.launch {
-            (vmodel.binding ?: return@launch).apply {
-                showRecordingGlow()
-            }
-
-            fun nanosToSeconds(nanos: Long): Float = nanos.toFloat() / 1_000_000_000
-
-            try {
-                var lastPeak = 0f
-                var lastPeakTime = 0L
-                var lastRecordingVolume = 0f
-                while (true) {
-                    val frameTime = awaitFrame()
-                    val mediaRecorder = _mediaRecorder ?: break
-                    val soundVolume = (log2(mediaRecorder.maxAmplitude.toDouble()) / 15).toFloat().coerceAtLeast(0f)
-                    val decayingPeak = lastPeak * (1f - 2 * nanosToSeconds(frameTime - lastPeakTime))
-                    lastRecordingVolume = if (decayingPeak > soundVolume) {
-                        decayingPeak
-                    } else {
-                        lastPeak = soundVolume
-                        lastPeakTime = frameTime
-                        soundVolume
-                    }
-                    (vmodel.binding ?: return@launch).recordingGlow.setVolume(lastRecordingVolume)
+            binding.apply {
+                buttonKeyboard.visibility = VISIBLE
+                buttonRecord.visibility = VISIBLE
+                buttonSend.visibility = GONE
+                edittextPrompt.apply {
+                    visibility = GONE
+                    clearFocus()
                 }
-
-                fun ValueAnimator.connectWithGlow() {
-                    addUpdateListener { anim ->
-                        vmodel.binding?.recordingGlow?.setVolume(anim.animatedValue as Float)
-                    }
-                }
-                val low = 0.125f
-                val high = 0.25f
-                ValueAnimator.ofFloat(lastRecordingVolume, high).apply {
-                    duration = 200
-                    interpolator = LinearInterpolator()
-                    connectWithGlow()
-                    run()
-                }
-                while (true) {
-                    ValueAnimator.ofFloat(high, low).apply {
-                        duration = 700
-                        interpolator = LinearInterpolator()
-                        connectWithGlow()
-                        run()
-                    }
-                    ValueAnimator.ofFloat(low, high).apply {
-                        duration = 100
-                        interpolator = android.view.animation.DecelerateInterpolator()
-                        connectWithGlow()
-                        run()
-                    }
-                }
-            } finally {
-                vmodel.binding?.recordingGlow?.visibility = INVISIBLE
             }
         }
     }
@@ -762,22 +766,24 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private suspend fun ValueAnimator.run() {
-        suspendCancellableCoroutine { cont ->
-            addListener(object : AnimatorListenerAdapter() {
-                override fun onAnimationEnd(a: Animator) {
-                    cont.resume(Unit)
+        withContext(Main) {
+            suspendCancellableCoroutine { cont ->
+                addListener(object : AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(a: Animator) {
+                        cont.resume(Unit)
+                    }
+                })
+                cont.invokeOnCancellation {
+                    cancel()
                 }
-            })
-            cont.invokeOnCancellation {
-                cancel()
+                start()
             }
-            start()
         }
     }
 
     private fun addMessageView(message: MessageModel): Editable {
         val context = requireContext()
-        val chatView = vmodel.binding!!.viewChat
+        val chatView = binding.viewChat
         val messageView = LayoutInflater.from(requireContext())
             .inflate(R.layout.chat_message_item, chatView, false) as TextView
         messageView.setTextColor(
@@ -800,7 +806,6 @@ class ChatFragment : Fragment(), MenuProvider {
     private fun clearChat() {
         Log.i("lifecycle", "clearChat")
         vmodel.receiveResponseJob?.cancel()
-        val binding = vmodel.binding ?: return
         if (vmodel.chatHistory.isNotEmpty()) {
             binding.viewChat.removeAllViews()
             vmodel.chatHistory.clear()
@@ -809,7 +814,6 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun scrollToBottom() {
-        val binding = vmodel.binding ?: return
         binding.scrollviewChat.post {
             if (!vmodel.autoscrollEnabled || !binding.scrollviewChat.canScrollVertically(1)) {
                 return@post
@@ -879,10 +883,12 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun isGpt4Selected(): Boolean {
-        return (vmodel.binding ?: return false).toolbar.menu.findItem(R.id.action_gpt_toggle).actionView!!
+        return binding.toolbar.menu.findItem(R.id.action_gpt_toggle).actionView!!
             .findViewById<TextView>(R.id.textview_gpt_toggle).isSelected
     }
 }
+
+private fun nanosToSeconds(nanos: Long): Float = nanos.toFloat() / 1_000_000_000
 
 data class MessageModel(
     val author: Role,
