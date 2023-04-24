@@ -318,7 +318,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 true
             }
             R.id.action_undo -> {
-                viewScope.launch { regenerateResponse() }
+                viewScope.launch { undoLastPrompt() }
                 true
             }
             R.id.action_clear_chat_history -> {
@@ -342,7 +342,7 @@ class ChatFragment : Fragment(), MenuProvider {
         stopRecording()
     }
 
-    private suspend fun regenerateResponse() {
+    private suspend fun undoLastPrompt() {
         if (vmodel.chatHistory.isEmpty()) {
             return
         }
