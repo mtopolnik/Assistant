@@ -59,6 +59,7 @@ import androidx.core.os.LocaleListCompat
 import androidx.core.view.MenuProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.doOnLayout
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -108,6 +109,7 @@ class ChatFragmentModel : ViewModel() {
     var isGpt4 = false
     val chatHistory = mutableListOf<MessageModel>()
     var receiveResponseJob: Job? = null
+    var recordingGlowJob: Job? = null
     var autoscrollEnabled: Boolean = true
     var lastPromptLanguage: String? = null
     var replyEditable: Editable? = null
@@ -127,7 +129,6 @@ class ChatFragment : Fragment(), MenuProvider {
     private var pixelDensity = 0f
 
     private var _mediaRecorder: MediaRecorder? = null
-    private var _recordingGlowJob: Job? = null
 
     private val permissionRequest = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         if (it.isNotEmpty()) Log.i("", "User granted us the requested permissions")
@@ -186,6 +187,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 }
             }
         }
+        // Reduce the size of the scrollview when soft keyboard shown
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, windowInsets ->
             val insets = windowInsets.getInsets(WindowInsetsCompat.Type.ime())
             v.setPadding(v.paddingLeft, v.paddingTop, v.paddingRight, insets.bottom)
@@ -201,6 +203,11 @@ class ChatFragment : Fragment(), MenuProvider {
             LanguageIdentificationOptions.Builder().setConfidenceThreshold(0.2f).build()
         )
         audioPathname = File(context.cacheDir, "prompt.mp4").absolutePath
+        binding.root.doOnLayout {
+            if (vmodel.recordingGlowJob != null) {
+                binding.showRecordingGlow()
+            }
+        }
 
         binding.scrollviewChat.apply {
             setOnScrollChangeListener { view, _, _, _, _ ->
@@ -530,12 +537,14 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun startRecordingPrompt() {
-        val context = requireActivity()
+        val activity = requireActivity() as MainActivity
+
         // don't extract to fun, IDE inspection for permission checks will complain
-        if (checkSelfPermission(context, permission.RECORD_AUDIO) != PERMISSION_GRANTED) {
+        if (checkSelfPermission(activity, permission.RECORD_AUDIO) != PERMISSION_GRANTED) {
             permissionRequest.launch(arrayOf(permission.RECORD_AUDIO, permission.WRITE_EXTERNAL_STORAGE))
             return
         }
+        activity.lockOrientation()
         try {
             val mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 MediaRecorder(requireContext())
@@ -568,13 +577,14 @@ class ChatFragment : Fragment(), MenuProvider {
                 }
                 vmodel.binding?.buttonRecord?.setActive(true)
             }
+        } finally {
+            activity.unlockOrientation()
         }
     }
 
     private fun showRecordedPrompt() {
-        val binding = vmodel.binding ?: return
-        binding.buttonRecord.setActive(false)
-        viewScope.launch {
+        (vmodel.binding ?: return).buttonRecord.setActive(false)
+        vmodel.viewModelScope.launch {
             try {
                 val recordingSuccess = withContext(IO) { stopRecording() }
                 if (!recordingSuccess) {
@@ -584,7 +594,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 if (transcription.text.isEmpty()) {
                     return@launch
                 }
-                binding.edittextPrompt.editableText.apply {
+                vmodel.binding?.edittextPrompt?.editableText?.apply {
                     replace(0, length, transcription.text)
                     Log.i("speech", "transcription.language: ${transcription.language}")
                     vmodel.lastPromptLanguage = transcription.language
@@ -595,20 +605,20 @@ class ChatFragment : Fragment(), MenuProvider {
                 Log.e("speech", "Text-to-speech error", e)
                 if (e is OpenAIAPIException) {
                     Toast.makeText(
-                        requireContext(),
+                        vmodel.activity,
                         if (e.statusCode == 401) "Invalid OpenAI API key. Delete it and enter a new one."
                         else "OpenAI error: ${e.message}",
                         Toast.LENGTH_LONG
                     ).show()
                 } else {
                     Toast.makeText(
-                        requireContext(),
+                        vmodel.activity,
                         "Something went wrong while OpenAI was listening to you",
                         Toast.LENGTH_SHORT
                     ).show()
                 }
             } finally {
-                binding.buttonRecord.setActive(true)
+                vmodel.binding?.buttonRecord?.setActive(true)
                 removeRecordingGlow()
             }
         }
@@ -671,11 +681,9 @@ class ChatFragment : Fragment(), MenuProvider {
 
     @SuppressLint("Recycle")
     private fun animateRecordingGlow() {
-        val binding = vmodel.binding ?: return
-        _recordingGlowJob = viewScope.launch {
-            binding.recordingGlow.apply {
-                alignWithView(binding.buttonRecord)
-                visibility = VISIBLE
+        vmodel.recordingGlowJob = vmodel.viewModelScope.launch {
+            (vmodel.binding ?: return@launch).apply {
+                showRecordingGlow()
             }
 
             fun nanosToSeconds(nanos: Long): Float = nanos.toFloat() / 1_000_000_000
@@ -715,17 +723,26 @@ class ChatFragment : Fragment(), MenuProvider {
                 val waitingStart = System.nanoTime()
                 while (true) {
                     val frameTime = awaitFrame()
-                    binding.recordingGlow.setVolume(waitingVolume(frameTime - waitingStart))
+                    (vmodel.binding ?: return@launch).recordingGlow.setVolume(waitingVolume(frameTime - waitingStart))
                 }
             } finally {
-                binding.recordingGlow.visibility = INVISIBLE
+                vmodel.binding?.recordingGlow?.visibility = INVISIBLE
             }
         }
     }
 
+    private fun FragmentMainBinding.showRecordingGlow() {
+        recordingGlow.apply {
+            alignWithView(buttonRecord)
+            visibility = VISIBLE
+        }
+    }
+
     private fun removeRecordingGlow() {
-        _recordingGlowJob?.cancel()
-        _recordingGlowJob = null
+        vmodel.apply {
+            recordingGlowJob?.cancel()
+            recordingGlowJob = null
+        }
     }
 
     private suspend fun ValueAnimator.run() {
@@ -735,6 +752,9 @@ class ChatFragment : Fragment(), MenuProvider {
                     cont.resume(Unit)
                 }
             })
+            cont.invokeOnCancellation {
+                cancel()
+            }
             start()
         }
     }

@@ -17,8 +17,12 @@
 
 package org.mtopol.assistant
 
+import android.content.pm.ActivityInfo.*
+import android.content.res.Configuration.ORIENTATION_PORTRAIT
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.view.Surface.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.navigation.fragment.NavHostFragment
@@ -52,4 +56,38 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         Log.i("lifecycle", "onDestroy MainActivity")
     }
+
+    fun lockOrientation() {
+        requestedOrientation = currentOrientation
+    }
+
+    fun unlockOrientation() {
+        requestedOrientation = SCREEN_ORIENTATION_UNSPECIFIED
+    }
+
+    private val currentOrientation: Int get() {
+        val display =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                display
+            } else {
+                @Suppress("DEPRECATION") windowManager.defaultDisplay
+            }
+                ?: return SCREEN_ORIENTATION_UNSPECIFIED
+        val rotation = display.rotation
+        return when (resources.configuration.orientation) {
+            ORIENTATION_PORTRAIT -> {
+                when (rotation) {
+                    ROTATION_0, ROTATION_90 -> SCREEN_ORIENTATION_PORTRAIT
+                    else -> SCREEN_ORIENTATION_REVERSE_PORTRAIT
+                }
+            }
+            else -> {
+                when (rotation) {
+                    ROTATION_90, ROTATION_180 -> SCREEN_ORIENTATION_LANDSCAPE
+                    else -> SCREEN_ORIENTATION_REVERSE_LANDSCAPE
+                }
+            }
+        }
+    }
+
 }
