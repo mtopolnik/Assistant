@@ -99,7 +99,6 @@ import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import kotlin.math.log2
 import kotlin.math.roundToLong
-import kotlin.math.sin
 
 class ChatFragmentModel : ViewModel() {
     var binding: FragmentMainBinding? = null
@@ -689,7 +688,6 @@ class ChatFragment : Fragment(), MenuProvider {
             fun nanosToSeconds(nanos: Long): Float = nanos.toFloat() / 1_000_000_000
 
             try {
-                val recordingStart = System.nanoTime()
                 var lastPeak = 0f
                 var lastPeakTime = 0L
                 var lastRecordingVolume = 0f
@@ -705,25 +703,35 @@ class ChatFragment : Fragment(), MenuProvider {
                         lastPeakTime = frameTime
                         soundVolume
                     }
-                    val initialGrowthCap = (2f * nanosToSeconds(frameTime - recordingStart)).coerceAtMost(1f)
-                    binding.recordingGlow.setVolume(lastRecordingVolume.coerceAtMost(initialGrowthCap))
+                    (vmodel.binding ?: return@launch).recordingGlow.setVolume(lastRecordingVolume)
                 }
 
-                fun waitingVolume(time: Long) = (3.5f + 1.5f * sin(4 * nanosToSeconds(time))) / 20
-
-                val targetVolume = waitingVolume(0)
-                ValueAnimator.ofFloat(lastRecordingVolume, targetVolume).apply {
+                fun ValueAnimator.connectWithGlow() {
+                    addUpdateListener { anim ->
+                        vmodel.binding?.recordingGlow?.setVolume(anim.animatedValue as Float)
+                    }
+                }
+                val low = 0.125f
+                val high = 0.25f
+                ValueAnimator.ofFloat(lastRecordingVolume, high).apply {
                     duration = 200
                     interpolator = LinearInterpolator()
-                    addUpdateListener { anim ->
-                        binding.recordingGlow.setVolume(anim.animatedValue as Float)
-                    }
+                    connectWithGlow()
                     run()
                 }
-                val waitingStart = System.nanoTime()
                 while (true) {
-                    val frameTime = awaitFrame()
-                    (vmodel.binding ?: return@launch).recordingGlow.setVolume(waitingVolume(frameTime - waitingStart))
+                    ValueAnimator.ofFloat(high, low).apply {
+                        duration = 700
+                        interpolator = LinearInterpolator()
+                        connectWithGlow()
+                        run()
+                    }
+                    ValueAnimator.ofFloat(low, high).apply {
+                        duration = 100
+                        interpolator = android.view.animation.DecelerateInterpolator()
+                        connectWithGlow()
+                        run()
+                    }
                 }
             } finally {
                 vmodel.binding?.recordingGlow?.visibility = INVISIBLE
