@@ -311,6 +311,7 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     override fun onPrepareMenu(menu: Menu) {
+        Log.i("lifecycle", "onPrepareMenu")
         val responding = vmodel.receiveResponseJob != null
         menu.findItem(R.id.action_cancel).isVisible = responding
         menu.findItem(R.id.action_undo).isVisible = !responding
@@ -357,8 +358,14 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        Log.i("lifecycle", "onResume")
+    }
+
     override fun onPause() {
         super.onPause()
+        Log.i("lifecycle", "onPause")
         stopRecording()
     }
 
