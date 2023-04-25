@@ -17,23 +17,48 @@
 
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
         xmlns:app="http://schemas.android.com/apk/res-auto"
-        xmlns:tools="http://schemas.android.com/tools"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:padding="16dp">
+        android:orientation="vertical">
 
-    <EditText
-            android:id="@+id/editTextPrompt"
+    <androidx.appcompat.widget.Toolbar
+            android:id="@+id/toolbar"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="@string/title_edit_system_prompt"
-            android:importantForAutofill="no" />
+            android:layout_height="?attr/actionBarSize"
+            android:background="?attr/colorPrimary"
+            />
 
-    <Button
-            android:id="@+id/btnSave"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="end"
-            android:text="@string/action_save" />
+    <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+        <ScrollView
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                >
+
+            <EditText
+                    android:id="@+id/edittext_system_prompt"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="top|start"
+                    android:hint="@string/title_edit_system_prompt"
+                    android:inputType="textMultiLine|textCapSentences"
+                    android:importantForAutofill="no"
+                    />
+        </ScrollView>
+        <Button
+                android:id="@+id/button_save_system_prompt"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom"
+                android:layout_marginTop="24dp"
+                android:text="@string/action_save"
+                android:textColor="@color/white"
+                android:textSize="18sp"
+                />
+    </LinearLayout>
 </LinearLayout>
