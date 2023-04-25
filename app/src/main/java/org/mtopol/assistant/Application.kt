@@ -24,6 +24,7 @@ import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceManager
 
 const val KEY_OPENAI_API_KEY = "openai_api_key"
+const val KEY_SYSTEM_PROMPT = "system_prompt"
 
 lateinit var appContext: Context
 
@@ -52,3 +53,9 @@ val SharedPreferences.openaiApiKey: String get() = getString(KEY_OPENAI_API_KEY,
 
 fun SharedPreferences.Editor.setOpenaiApiKey(apiKey: String): SharedPreferences.Editor =
     putString(KEY_OPENAI_API_KEY, apiKey)
+
+val SharedPreferences.systemPrompt: String get() = getString(KEY_SYSTEM_PROMPT,
+    appContext.getString(R.string.system_prompt_default))!!
+
+fun SharedPreferences.Editor.setSystemPrompt(systemPrompt: String): SharedPreferences.Editor =
+    putString(KEY_SYSTEM_PROMPT, systemPrompt)

@@ -34,4 +34,10 @@
             android:label="Chat Fragment"
             />
 
+    <fragment
+            android:id="@+id/fragment_system_prompt"
+            android:name="org.mtopol.assistant.SystemPromptFragment"
+            android:label="System Prompt Fragment"
+            />
+
 </navigation>

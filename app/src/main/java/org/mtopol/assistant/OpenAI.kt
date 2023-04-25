@@ -48,14 +48,9 @@ fun resetOpenAi(context: Context): Lazy<OpenAI> {
 }
 
 @OptIn(BetaOpenAI::class)
-private val systemPrompt = ChatMessage(ChatRole.System,
-    "Tvoje ime je Pričljivko. Živiš u pametnom telefonu." +
-    " Tvoji odgovori su kratki i zabavni, osim ako je pitanje dugo ili ozbiljno."
-)
-
-@OptIn(BetaOpenAI::class)
-class OpenAI(context: Context) {
-
+class OpenAI(
+    private val context: Context
+) {
     private val client = OpenAIClient(
         OpenAIConfig(
             token = context.mainPrefs.openaiApiKey,
@@ -69,7 +64,7 @@ class OpenAI(context: Context) {
         val gptModel = if (useGpt4) "gpt-4" else "gpt-3.5-turbo"
         val chatCompletionRequest = ChatCompletionRequest(
             model = ModelId(gptModel),
-            messages = listOf(systemPrompt) + history.toDto().dropLast(1)
+            messages = systemPrompt() + history.toDto().dropLast(1)
         )
         return client.chatCompletions(chatCompletionRequest)
     }
@@ -87,6 +82,13 @@ class OpenAI(context: Context) {
 
     fun close() {
         client.close()
+    }
+
+    private fun systemPrompt(): List<ChatMessage> {
+        return context.mainPrefs.systemPrompt
+            .takeIf { it.isNotBlank() }
+            ?.let { listOf(ChatMessage(ChatRole.System, it)) }
+            ?: emptyList()
     }
 
     private fun List<PromptAndResponse>.toDto() = flatMap {
