@@ -16,9 +16,9 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 
-<menu xmlns:tools="http://schemas.android.com/tools"
-        xmlns:android="http://schemas.android.com/apk/res/android"
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
         xmlns:app="http://schemas.android.com/apk/res-auto"
+        xmlns:tools="http://schemas.android.com/tools"
         >
     <item
             android:id="@+id/action_gpt_toggle"

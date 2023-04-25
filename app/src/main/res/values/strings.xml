@@ -58,6 +58,7 @@
         \nhttps://github.com/mtopolnik/Assistant
         \nwhere you can review and inspect its usage of your API key.
     </string>
+    <string name="action_reset">Reset to Default</string>
 </resources>
 
 

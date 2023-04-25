@@ -31,40 +31,47 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.view.MenuProvider
 import androidx.navigation.fragment.findNavController
+import org.mtopol.assistant.databinding.FragmentChatBinding
+import org.mtopol.assistant.databinding.FragmentSystemPromptBinding
 
 class SystemPromptFragment : Fragment(), MenuProvider {
 
+    private lateinit var binding: FragmentSystemPromptBinding
+
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
-        val view = inflater.inflate(R.layout.fragment_system_prompt, container, false)
+        binding = FragmentSystemPromptBinding.inflate(inflater, container, false)
         val activity = requireActivity() as AppCompatActivity
-        view.findViewById<Toolbar>(R.id.toolbar).also {
-            activity.setSupportActionBar(it)
-        }
+        activity.setSupportActionBar(binding.toolbar)
         activity.supportActionBar?.apply {
             setDisplayHomeAsUpEnabled(true)
             setTitle(R.string.title_edit_system_prompt)
         }
         activity.addMenuProvider(this, viewLifecycleOwner)
 
-        val edittextPrompt = view.findViewById<EditText>(R.id.edittext_system_prompt)
-        val buttonSave = view.findViewById<Button>(R.id.button_save_system_prompt)
+        val edittextPrompt = binding.edittextSystemPrompt
         edittextPrompt.setText(requireContext().mainPrefs.systemPrompt)
-        buttonSave.setOnClickListener {
+        binding.buttonSaveSystemPrompt.setOnClickListener {
             requireContext().mainPrefs.applyUpdate {
                 setSystemPrompt(edittextPrompt.text.toString())
             }
             findNavController().popBackStack()
         }
-        return view
+        return binding.root
     }
 
     override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
+        menuInflater.inflate(R.menu.menu_systemprompt, menu)
     }
 
     override fun onMenuItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == android.R.id.home) {
-            findNavController().popBackStack()
-            return true
+        when (item.itemId) {
+            R.id.action_reset -> {
+                binding.edittextSystemPrompt.setText(appContext.getString(R.string.system_prompt_default))
+            }
+            android.R.id.home -> {
+                findNavController().popBackStack()
+                return true
+            }
         }
         return false
     }
