@@ -94,7 +94,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import kotlinx.parcelize.Parcelize
-import org.mtopol.assistant.databinding.FragmentMainBinding
+import org.mtopol.assistant.databinding.FragmentChatBinding
 import java.io.File
 import java.util.*
 import java.util.concurrent.atomic.AtomicReference
@@ -148,7 +148,7 @@ class ChatFragment : Fragment(), MenuProvider {
     private val punctuationRegex = """(?<=\D\.'?)\s+|(?<=[;!?]'?)\s+|\n+""".toRegex()
     private val whitespaceRegex = """\s+""".toRegex()
     private val vmodel: ChatFragmentModel by viewModels()
-    private lateinit var binding: FragmentMainBinding
+    private lateinit var binding: FragmentChatBinding
     private lateinit var audioPathname: String
     private lateinit var systemLanguages: List<String>
     private lateinit var languageIdentifier: LanguageIdentifier
@@ -178,7 +178,7 @@ class ChatFragment : Fragment(), MenuProvider {
         savedInstanceState: Bundle?
     ): View {
         Log.i("lifecycle", "onCreateView ChatFragment")
-        binding = FragmentMainBinding.inflate(inflater, container, false)
+        binding = FragmentChatBinding.inflate(inflater, container, false)
         vmodel.withFragmentLiveData.observe(viewLifecycleOwner) { it.invoke(this) }
         val context: Context = (requireActivity() as AppCompatActivity).also { activity ->
             activity.setSupportActionBar(binding.toolbar)
@@ -761,7 +761,7 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun FragmentMainBinding.showRecordingGlow() {
+    private fun FragmentChatBinding.showRecordingGlow() {
         recordingGlow.apply {
             alignWithView(buttonRecord)
             visibility = VISIBLE

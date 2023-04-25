@@ -48,7 +48,6 @@
                         android:layout_height="?attr/actionBarSize"
                         android:background="?attr/colorPrimary"
                         app:layout_scrollFlags="scroll|enterAlways"
-                        app:titleTextAppearance="@style/ActionBarTitleStyle"
                         />
 
             </com.google.android.material.appbar.AppBarLayout>
