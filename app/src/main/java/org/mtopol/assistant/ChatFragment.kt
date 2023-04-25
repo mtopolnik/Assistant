@@ -164,7 +164,6 @@ class ChatFragment : Fragment(), MenuProvider {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.i("lifecycle", "onCreate ChatFragment")
-        (requireActivity() as AppCompatActivity).addMenuProvider(this, this)
     }
 
     override fun onDestroy() {
@@ -181,6 +180,7 @@ class ChatFragment : Fragment(), MenuProvider {
         binding = FragmentChatBinding.inflate(inflater, container, false)
         vmodel.withFragmentLiveData.observe(viewLifecycleOwner) { it.invoke(this) }
         val context: Context = (requireActivity() as AppCompatActivity).also { activity ->
+            activity.addMenuProvider(this, viewLifecycleOwner)
             activity.setSupportActionBar(binding.toolbar)
             activity.supportActionBar?.apply {
                 setDisplayShowTitleEnabled(false)
