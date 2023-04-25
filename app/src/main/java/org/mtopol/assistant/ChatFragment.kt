@@ -341,12 +341,16 @@ class ChatFragment : Fragment(), MenuProvider {
                 clearChat()
                 true
             }
+            R.id.action_edit_system_prompt -> {
+                findNavController().navigate(R.id.fragment_system_prompt)
+                true
+            }
             R.id.action_delete_openai_key -> {
                 requireContext().mainPrefs.applyUpdate {
                     setOpenaiApiKey("")
-                    resetOpenAi(requireContext())
-                    findNavController().navigate(R.id.fragment_api_key)
                 }
+                resetOpenAi(requireContext())
+                findNavController().navigate(R.id.fragment_api_key)
                 true
             }
             else -> false
@@ -406,19 +410,23 @@ class ChatFragment : Fragment(), MenuProvider {
                         }
                         .onCompletion { exception ->
                             val replyEditable = vmodel.replyEditable!!
-                            exception?.also {
-                                when {
-                                    it is CancellationException -> {}
-                                    (it.message ?: "").endsWith("does not exist") -> {
-                                        replyEditable.append(getString(R.string.gpt4_unavailable))
-                                        scrollToBottom()
+                            exception?.also { e ->
+                                when (e) {
+                                    is CancellationException -> {}
+                                    is OpenAIAPIException -> {
+                                        Log.e("lifecycle", "OpenAI error in chatCompletions flow", e)
+                                        if ((e.message ?: "").endsWith("does not exist")) {
+                                            Toast.makeText(appContext,
+                                                getString(R.string.gpt4_unavailable), Toast.LENGTH_SHORT)
+                                                .show()
+                                        } else {
+                                            showApiErrorToast(e)
+                                        }
                                     }
                                     else -> {
-                                        Log.e("lifecycle", "Error in chatCompletions flow", exception)
-                                        Toast.makeText(
-                                            appContext,
-                                            "Something went wrong while GPT was talking", Toast.LENGTH_SHORT
-                                        )
+                                        Log.e("lifecycle", "Error in chatCompletions flow", e)
+                                        Toast.makeText(appContext,
+                                            getString(R.string.error_while_gpt_talking), Toast.LENGTH_SHORT)
                                             .show()
                                     }
                                 }
@@ -680,12 +688,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 Log.e("speech", "Text-to-speech error", e)
                 vmodel.withFragment {
                     if (e is OpenAIAPIException) {
-                        Toast.makeText(
-                            it.activity,
-                            if (e.statusCode == 401) "Invalid OpenAI API key. Delete it and enter a new one."
-                            else "OpenAI error: ${e.message}",
-                            Toast.LENGTH_LONG
-                        ).show()
+                        showApiErrorToast(e)
                     } else {
                         Toast.makeText(
                             it.activity,
@@ -874,6 +877,15 @@ class ChatFragment : Fragment(), MenuProvider {
     private fun updateMediaPlayerVolume() {
         val volume = if (vmodel.isMuted) 0f else 1f
         vmodel.mediaPlayer?.setVolume(volume, volume)
+    }
+
+    private fun showApiErrorToast(e: OpenAIAPIException) {
+        Toast.makeText(
+            requireActivity(),
+            if (e.statusCode == 401) getString(R.string.message_incorrect_api_key)
+            else "OpenAI error: ${e.message}",
+            Toast.LENGTH_LONG
+        ).show()
     }
 
     private val viewScope get() = viewLifecycleOwner.lifecycleScope

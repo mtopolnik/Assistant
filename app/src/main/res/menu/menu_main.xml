@@ -29,20 +29,20 @@
             tools:ignore="AlwaysShowAction" />
     <item
             android:id="@+id/action_sound_toggle"
-            android:title="@string/sound_toggle"
+            android:title="@string/action_mute"
             android:icon="@drawable/baseline_volume_up_24"
             android:checkable="true"
             app:iconTint="@color/white"
             app:showAsAction="always" />
     <item
             android:id="@+id/action_undo"
-            android:title="@string/undo"
+            android:title="@string/action_undo"
             android:icon="@drawable/baseline_undo_24"
             app:iconTint="@color/white"
             app:showAsAction="always" />
     <item
             android:id="@+id/action_cancel"
-            android:title="@string/cancel"
+            android:title="@string/action_cancel"
             android:icon="@drawable/baseline_cancel_24"
             app:iconTint="@color/white"
             app:showAsAction="always" />
@@ -53,9 +53,8 @@
             app:iconTint="@color/white"
             app:showAsAction="always" />
     <item
-            android:id="@+id/action_settings"
-            android:title="@string/action_settings"
-            android:visible="false"
+            android:id="@+id/action_edit_system_prompt"
+            android:title="@string/action_edit_system_prompt"
             app:showAsAction="never" />
     <item
             android:id="@+id/action_delete_openai_key"

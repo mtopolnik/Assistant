@@ -28,7 +28,7 @@
             android:id="@+id/textview_apikey_title"
             android:layout_height="wrap_content"
             android:layout_width="wrap_content"
-            android:text="@string/enter_apikey_title"
+            android:text="@string/title_enter_api_key"
             android:textSize="24sp"
             android:layout_marginTop="12dp"
             android:layout_marginBottom="24dp"
@@ -68,7 +68,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
-            android:text="@string/ok"
+            android:text="@string/action_save"
             android:textColor="@color/white"
             android:textSize="18sp"
             />

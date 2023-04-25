@@ -28,11 +28,21 @@
     <string name="gpt4_unavailable">GPT-4 is not available with your API key.</string>
     <string name="clear_chat_history">Clear Chat History</string>
     <string name="chat_message_hint">Chat message</string>
-    <string name="enter_apikey_title">Enter Your OpenAI API key</string>
+    <string name="action_mute">Mute Sound</string>
+    <string name="action_cancel">Stop Responding</string>
+    <string name="action_save">Save</string>
+    <string name="action_undo">Undo Last Prompt</string>
+    <string name="action_edit_system_prompt">Edit System Prompt</string>
+    <string name="title_edit_system_prompt">Edit System Prompt</string>
+    <string name="action_delete_openai_key">Delete API Key</string>
+    <string name="title_enter_api_key">We Need Your OpenAI API key</string>
     <string name="api_key_hint">Your OpenAI API key</string>
-    <string name="ok">OK</string>
-    <string name="sound_toggle">Mute Sound</string>
-    <string name="cancel">Stop Responding</string>
+    <string name="error_while_gpt_talking">Something went wrong while GPT was talking</string>
+    <string name="message_incorrect_api_key">Incorrect OpenAI API key. Delete it and enter a new one.</string>
+    <string name="system_prompt_default">
+        Tvoje ime je Pričljivko. Živiš u pametnom telefonu.
+        Tvoji odgovori su kratki i zabavni, osim ako je pitanje dugo ili ozbiljno.
+    </string>
     <string name="enter_apikey_explanation">
         Chatty Assistant needs your OpenAI key to work. In order to obtain it, visit
         \nhttps://platform.openai.com
@@ -48,8 +58,6 @@
         \nhttps://github.com/mtopolnik/Assistant
         \nwhere you can review and inspect its usage of your API key.
     </string>
-    <string name="action_delete_openai_key">Delete API Key</string>
-    <string name="undo">Undo Last Prompt</string>
 </resources>
 
 
