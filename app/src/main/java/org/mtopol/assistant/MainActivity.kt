@@ -23,12 +23,22 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.Surface.*
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
+import androidx.navigation.NavController
 import androidx.navigation.fragment.NavHostFragment
 import org.mtopol.assistant.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
+
+    private val onDestinationChangedListener = NavController.OnDestinationChangedListener { _, destination, _ ->
+        if (destination.id == R.id.fragment_api_key) {
+            onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {}
+            })
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         Log.i("lifecycle", "onCreate MainActivity")
@@ -40,22 +50,28 @@ class MainActivity : AppCompatActivity() {
             return
         }
         // Continue here only on the first time since app startup.
-        val openaiApiKey = mainPrefs.openaiApiKey
-        val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as NavHostFragment
-        navHostFragment.navController.navigate(
-            if (openaiApiKey == "") {
-                R.id.fragment_api_key
-            } else {
-                Log.i("lifecycle", "Navigate to chat fragment")
-                R.id.fragment_chat
-            }
-        )
+        if (mainPrefs.openaiApiKey.isBlank()) {
+            navController.navigate(R.id.fragment_api_key)
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
         Log.i("lifecycle", "onDestroy MainActivity")
     }
+
+    override fun onResume() {
+        super.onResume()
+        navController.addOnDestinationChangedListener(onDestinationChangedListener)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        navController.removeOnDestinationChangedListener(onDestinationChangedListener)
+    }
+
+    private val navController get() =
+        (supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as NavHostFragment).navController
 
     fun lockOrientation() {
         requestedOrientation = currentOrientation
