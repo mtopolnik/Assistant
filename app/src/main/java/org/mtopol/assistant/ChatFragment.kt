@@ -26,8 +26,6 @@ import android.content.Context
 import android.content.Context.VIBRATOR_SERVICE
 import android.content.pm.PackageManager.PERMISSION_GRANTED
 import android.content.res.ColorStateList
-import android.graphics.Color
-import android.graphics.PorterDuff
 import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.os.Build
@@ -110,6 +108,8 @@ import kotlin.math.roundToLong
 private const val KEY_CHAT_HISTORY = "chat_history"
 private const val KEY_IS_MUTED = "is_muted"
 private const val KEY_IS_GPT4 = "is_gpt4"
+
+private const val MAX_RECORDING_TIME_MILLIS = 60_000L
 
 class ChatFragmentModel(
     savedState: SavedStateHandle
@@ -621,7 +621,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 "Something went wrong while we were recording your voice",
                 Toast.LENGTH_SHORT
             ).show()
-            removeRecordingGlow()
+            stopRecordingGlowAnimation()
             lifecycleScope.launch {
                 withContext(IO) {
                     stopRecording()
@@ -633,11 +633,26 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
+    private fun stopRecording(): Boolean {
+        val mediaRecorder = _mediaRecorder ?: return false
+        _mediaRecorder = null
+        return try {
+            mediaRecorder.stop(); true
+        } catch (e: Exception) {
+            File(audioPathname).delete(); false
+        } finally {
+            mediaRecorder.release()
+        }
+    }
+
     @SuppressLint("Recycle")
     private fun animateRecordingGlow() {
         vmodel.recordingGlowJob = vmodel.viewModelScope.launch {
             vmodel.withFragment { it.binding.showRecordingGlow() }
-
+            launch {
+                delay(MAX_RECORDING_TIME_MILLIS)
+                showRecordedPrompt()
+            }
             try {
                 var lastPeak = 0f
                 var lastPeakTime = 0L
@@ -726,20 +741,8 @@ class ChatFragment : Fragment(), MenuProvider {
                 }
             } finally {
                 vmodel.withFragment { it.binding.buttonRecord.setActive(true) }
-                removeRecordingGlow()
+                stopRecordingGlowAnimation()
             }
-        }
-    }
-
-    private fun stopRecording(): Boolean {
-        val mediaRecorder = _mediaRecorder ?: return false
-        _mediaRecorder = null
-        return try {
-            mediaRecorder.stop(); true
-        } catch (e: Exception) {
-            File(audioPathname).delete(); false
-        } finally {
-            mediaRecorder.release()
         }
     }
 
@@ -795,7 +798,7 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun removeRecordingGlow() {
+    private fun stopRecordingGlowAnimation() {
         vmodel.apply {
             recordingGlowJob?.cancel()
             recordingGlowJob = null
