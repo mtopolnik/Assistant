@@ -30,6 +30,7 @@ import android.widget.EditText
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.view.MenuProvider
+import androidx.core.widget.addTextChangedListener
 import androidx.navigation.fragment.findNavController
 import org.mtopol.assistant.databinding.FragmentChatBinding
 import org.mtopol.assistant.databinding.FragmentSystemPromptBinding
@@ -37,6 +38,8 @@ import org.mtopol.assistant.databinding.FragmentSystemPromptBinding
 class SystemPromptFragment : Fragment(), MenuProvider {
 
     private lateinit var binding: FragmentSystemPromptBinding
+
+    private var didResetPrompt = false
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         binding = FragmentSystemPromptBinding.inflate(inflater, container, false)
@@ -49,10 +52,17 @@ class SystemPromptFragment : Fragment(), MenuProvider {
         activity.addMenuProvider(this, viewLifecycleOwner)
 
         val edittextPrompt = binding.edittextSystemPrompt
-        edittextPrompt.setText(requireContext().mainPrefs.systemPrompt)
+        edittextPrompt.apply {
+            setText(requireContext().mainPrefs.systemPrompt)
+            addTextChangedListener {
+                didResetPrompt = false
+            }
+        }
         binding.buttonSaveSystemPrompt.setOnClickListener {
             requireContext().mainPrefs.applyUpdate {
-                setSystemPrompt(edittextPrompt.text.toString())
+                setSystemPrompt(
+                    if (didResetPrompt) null else edittextPrompt.text.toString()
+                )
             }
             findNavController().popBackStack()
         }
@@ -67,6 +77,7 @@ class SystemPromptFragment : Fragment(), MenuProvider {
         when (item.itemId) {
             R.id.action_reset -> {
                 binding.edittextSystemPrompt.setText(appContext.getString(R.string.system_prompt_default))
+                didResetPrompt = true
             }
             android.R.id.home -> {
                 findNavController().popBackStack()

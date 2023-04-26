@@ -57,5 +57,5 @@ fun SharedPreferences.Editor.setOpenaiApiKey(apiKey: String): SharedPreferences.
 val SharedPreferences.systemPrompt: String get() = getString(KEY_SYSTEM_PROMPT,
     appContext.getString(R.string.system_prompt_default))!!
 
-fun SharedPreferences.Editor.setSystemPrompt(systemPrompt: String): SharedPreferences.Editor =
+fun SharedPreferences.Editor.setSystemPrompt(systemPrompt: String?): SharedPreferences.Editor =
     putString(KEY_SYSTEM_PROMPT, systemPrompt)
