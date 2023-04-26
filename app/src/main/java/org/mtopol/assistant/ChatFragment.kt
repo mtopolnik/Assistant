@@ -90,6 +90,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
@@ -385,7 +386,8 @@ class ChatFragment : Fragment(), MenuProvider {
     override fun onPause() {
         super.onPause()
         Log.i("lifecycle", "onPause")
-        stopRecording()
+        runBlocking { stopRecording() }
+        stopRecordingGlowAnimation()
     }
 
     private suspend fun undoLastPrompt() {
@@ -623,9 +625,7 @@ class ChatFragment : Fragment(), MenuProvider {
             ).show()
             stopRecordingGlowAnimation()
             lifecycleScope.launch {
-                withContext(IO) {
-                    stopRecording()
-                }
+                stopRecording()
                 vmodel.withFragment { it.binding.buttonRecord.setActive(true) }
             }
         } finally {
@@ -633,15 +633,18 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun stopRecording(): Boolean {
+    private suspend fun stopRecording(): Boolean {
+        Log.i("recording", "stopRecording()")
         val mediaRecorder = _mediaRecorder ?: return false
         _mediaRecorder = null
-        return try {
-            mediaRecorder.stop(); true
-        } catch (e: Exception) {
-            File(audioPathname).delete(); false
-        } finally {
-            mediaRecorder.release()
+        return withContext(IO) {
+            try {
+                mediaRecorder.stop(); true
+            } catch (e: Exception) {
+                File(audioPathname).delete(); false
+            } finally {
+                mediaRecorder.release()
+            }
         }
     }
 
@@ -709,7 +712,7 @@ class ChatFragment : Fragment(), MenuProvider {
         binding.buttonRecord.setActive(false)
         vmodel.viewModelScope.launch {
             try {
-                val recordingSuccess = withContext(IO) { stopRecording() }
+                val recordingSuccess = stopRecording()
                 if (!recordingSuccess) {
                     return@launch
                 }
