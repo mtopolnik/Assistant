@@ -19,6 +19,7 @@ package org.mtopol.assistant
 
 import android.content.Context
 import android.util.Base64
+import android.util.Log
 import com.aallam.openai.api.BetaOpenAI
 import com.aallam.openai.api.audio.TranscriptionRequest
 import com.aallam.openai.api.chat.ChatCompletionChunk
@@ -62,6 +63,7 @@ class OpenAI(
     @Throws(IOException::class)
     fun chatCompletions(history: List<PromptAndResponse>, useGpt4: Boolean): Flow<ChatCompletionChunk> {
         val gptModel = if (useGpt4) "gpt-4" else "gpt-3.5-turbo"
+        Log.i("gpt", "Model: $gptModel")
         val chatCompletionRequest = ChatCompletionRequest(
             model = ModelId(gptModel),
             messages = systemPrompt() + history.toDto().dropLast(1)
