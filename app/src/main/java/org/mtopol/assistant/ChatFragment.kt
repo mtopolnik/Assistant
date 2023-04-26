@@ -419,7 +419,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 vmodel.autoscrollEnabled = true
                 scrollToBottom()
                 val sentenceFlow: Flow<String> = channelFlow {
-                    openAi.value.chatCompletions(vmodel.chatHistory, isGpt4Selected())
+                    openAi.value.chatCompletions(vmodel.chatHistory, vmodel.isGpt4)
                         .onEach { chunk ->
                             chunk.choices[0].delta?.content?.also { token ->
                                 val replyEditable = vmodel.replyEditable!!
@@ -926,11 +926,6 @@ class ChatFragment : Fragment(), MenuProvider {
     private fun String.dropLastIncompleteSentence(): String {
         val lastMatch = punctuationRegex.findAll(this).lastOrNull() ?: return ""
         return substring(0, lastMatch.range.last + 1)
-    }
-
-    private fun isGpt4Selected(): Boolean {
-        return binding.toolbar.menu.findItem(R.id.action_gpt_toggle).actionView!!
-            .findViewById<TextView>(R.id.textview_gpt_toggle).isSelected
     }
 }
 
