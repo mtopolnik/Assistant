@@ -28,6 +28,13 @@
             app:showAsAction="always"
             tools:ignore="AlwaysShowAction" />
     <item
+            android:id="@+id/action_speak_again"
+            android:title="@string/action_speak_again"
+            android:icon="@drawable/baseline_refresh_24"
+            app:iconTint="@color/icon_alpha_selector"
+            android:enabled="false"
+            app:showAsAction="always" />
+    <item
             android:id="@+id/action_sound_toggle"
             android:title="@string/action_mute"
             android:icon="@drawable/baseline_volume_up_24"

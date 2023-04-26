@@ -17,6 +17,25 @@
   -->
 
 <resources>
+    <string name="enter_apikey_explanation">
+        Chatty Assistant needs your OpenAI key to work. In order to obtain it, visit
+        \nhttps://platform.openai.com
+        \nand create an account. Then create an API key at
+        \nhttps://platform.openai.com/account/api-keys.
+        \n
+        \nChatty Assistant will use your API key strictly to access OpenAI API
+        when you enter a prompt. Your key will be stored as a standard Android
+        application preference and as such may get backed up to your Google account
+        so that it is available on your other devices.
+        \n
+        \nChatty Assistant is an open-source application, available at
+        \nhttps://github.com/mtopolnik/Assistant
+        \nwhere you can review and inspect its usage of your API key.
+    </string>
+    <string name="system_prompt_default">
+        Tvoje ime je Pričljivko. Živiš u pametnom telefonu.
+        Tvoji odgovori su kratki i zabavni, osim ako je pitanje dugo ili ozbiljno.
+    </string>
     <string name="app_name">Chatty Assistant</string>
     <string name="action_settings">Settings</string>
     <string name="first_fragment_label">Chat</string>
@@ -39,26 +58,8 @@
     <string name="api_key_hint">Your OpenAI API key</string>
     <string name="error_while_gpt_talking">Something went wrong while GPT was talking</string>
     <string name="message_incorrect_api_key">Incorrect OpenAI API key. Delete it and enter a new one.</string>
-    <string name="system_prompt_default">
-        Tvoje ime je Pričljivko. Živiš u pametnom telefonu.
-        Tvoji odgovori su kratki i zabavni, osim ako je pitanje dugo ili ozbiljno.
-    </string>
-    <string name="enter_apikey_explanation">
-        Chatty Assistant needs your OpenAI key to work. In order to obtain it, visit
-        \nhttps://platform.openai.com
-        \nand create an account. Then create an API key at
-        \nhttps://platform.openai.com/account/api-keys.
-        \n
-        \nChatty Assistant will use your API key strictly to access OpenAI API
-        when you enter a prompt. Your key will be stored as a standard Android
-        application preference and as such may get backed up to your Google account
-        so that it is available on your other devices.
-        \n
-        \nChatty Assistant is an open-source application, available at
-        \nhttps://github.com/mtopolnik/Assistant
-        \nwhere you can review and inspect its usage of your API key.
-    </string>
     <string name="action_reset">Reset to Default</string>
+    <string name="action_speak_again">Speak Again</string>
 </resources>
 
 

@@ -26,6 +26,8 @@ import android.content.Context
 import android.content.Context.VIBRATOR_SERVICE
 import android.content.pm.PackageManager.PERMISSION_GRANTED
 import android.content.res.ColorStateList
+import android.graphics.Color
+import android.graphics.PorterDuff
 import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.os.Build
@@ -129,7 +131,7 @@ class ChatFragmentModel(
         set(value) { _isGpt4LiveData.value = value }
 
     val chatHistory = savedState.getLiveData<MutableList<PromptAndResponse>>(KEY_CHAT_HISTORY, mutableListOf()).value!!
-    var receiveResponseJob: Job? = null
+    var handleResponseJob: Job? = null
     var recordingGlowJob: Job? = null
     var autoscrollEnabled: Boolean = true
     var lastPromptLanguage: String? = null
@@ -312,9 +314,11 @@ class ChatFragment : Fragment(), MenuProvider {
 
     override fun onPrepareMenu(menu: Menu) {
         Log.i("lifecycle", "onPrepareMenu")
-        val responding = vmodel.receiveResponseJob != null
+        val responding = vmodel.handleResponseJob != null
+        val hasHistory = vmodel.chatHistory.isNotEmpty()
         menu.findItem(R.id.action_cancel).isVisible = responding
         menu.findItem(R.id.action_undo).isVisible = !responding
+        menu.findItem(R.id.action_speak_again).isEnabled = !vmodel.isMuted && !responding && hasHistory
     }
 
     private fun updateMuteItem(item: MenuItem) {
@@ -324,14 +328,29 @@ class ChatFragment : Fragment(), MenuProvider {
 
     override fun onMenuItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
+            R.id.action_speak_again -> {
+                val previousResponseJob = vmodel.handleResponseJob?.apply { cancel() }
+                vmodel.handleResponseJob = vmodel.viewModelScope.launch {
+                    try {
+                        previousResponseJob?.join()
+                        speakLastResponse()
+
+                    } finally {
+                        vmodel.handleResponseJob = null
+                        vmodel.withFragment { it.activity?.invalidateOptionsMenu() }                    }
+                }
+                activity?.invalidateOptionsMenu()
+                true
+            }
             R.id.action_sound_toggle -> {
                 vmodel.isMuted = !vmodel.isMuted
                 updateMuteItem(item)
                 updateMediaPlayerVolume()
+                activity?.invalidateOptionsMenu()
                 true
             }
             R.id.action_cancel -> {
-                vmodel.receiveResponseJob?.cancel()
+                vmodel.handleResponseJob?.cancel()
                 true
             }
             R.id.action_undo -> {
@@ -373,7 +392,7 @@ class ChatFragment : Fragment(), MenuProvider {
         if (vmodel.chatHistory.isEmpty()) {
             return
         }
-        vmodel.receiveResponseJob?.apply {
+        vmodel.handleResponseJob?.apply {
             cancel()
             join()
         }
@@ -388,10 +407,10 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun sendPromptAndReceiveResponse(prompt: CharSequence) {
         var lastSpokenPos = 0
-        val previousReceiveJob = vmodel.receiveResponseJob?.apply { cancel() }
-        vmodel.receiveResponseJob = vmodel.viewModelScope.launch {
+        val previousResponseJob = vmodel.handleResponseJob?.apply { cancel() }
+        vmodel.handleResponseJob = vmodel.viewModelScope.launch {
             try {
-                previousReceiveJob?.join()
+                previousResponseJob?.join()
                 val promptAndResponse = PromptAndResponse(prompt, "")
                 vmodel.chatHistory.add(promptAndResponse)
                 val editable = addPromptAndResponseToView(promptAndResponse)
@@ -502,7 +521,7 @@ class ChatFragment : Fragment(), MenuProvider {
             } catch (e: Exception) {
                 Log.e("lifecycle", "Error in receiveResponseJob", e)
             } finally {
-                vmodel.receiveResponseJob = null
+                vmodel.handleResponseJob = null
                 vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
             }
         }
@@ -542,28 +561,29 @@ class ChatFragment : Fragment(), MenuProvider {
         val utteranceId = utteranceIdNumeric.toString()
         return suspendCancellableCoroutine { continuation: Continuation<File> ->
             val utteranceFile = File(appContext.cacheDir, "utterance-$utteranceId.wav")
-            @Suppress("ThrowableNotThrown")
-            setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(utteranceId: String) {}
-                override fun onDone(doneUutteranceId: String) {
-                    if (doneUutteranceId != utteranceId) {
-                        Log.e("speech", "unexpected utteranceId in onDone: $doneUutteranceId != $utteranceId")
-                    }
-                    continuation.resumeWith(success(utteranceFile))
+            setOnUtteranceProgressListener(UtteranceContinuationListener(utteranceId, continuation, utteranceFile))
+            if (synthesizeToFile(sentence, Bundle(), utteranceFile, utteranceId) == TextToSpeech.ERROR) {
+                continuation.resumeWith(failure(Exception("synthesizeToFile() failed to enqueue its request")))
+            }
+        }
+    }
+
+    private suspend fun speakLastResponse() {
+        val response = vmodel.chatHistory.lastOrNull()?.response?.toString() ?: return
+        val utteranceId = "speak_again"
+        val tts = newTextToSpeech()
+        try {
+            identifyLanguage(response).also {
+                tts.setSpokenLanguage(it)
+            }
+            suspendCancellableCoroutine { continuation ->
+                tts.setOnUtteranceProgressListener(UtteranceContinuationListener(utteranceId, continuation, Unit))
+                if (tts.speak(response, TextToSpeech.QUEUE_FLUSH, null, utteranceId) == TextToSpeech.ERROR) {
+                    continuation.resumeWith(failure(Exception("speak() failed to enqueue its request")))
                 }
-                override fun onStop(utteranceId: String?, interrupted: Boolean) {
-                    continuation.resumeWith(failure(CancellationException()))
-                }
-                override fun onError(utteranceId: String?, errorCode: Int) {
-                    Log.e("speech", "Error while speaking, error code: $errorCode")
-                    continuation.resumeWith(failure(Exception("TextToSpeech error code $errorCode")))
-                }
-                @Deprecated("", ReplaceWith("Can't replace, it's an abstract method!"))
-                override fun onError(utteranceId: String) {
-                    onError(utteranceId, TextToSpeech.ERROR)
-                }
-            })
-            synthesizeToFile(sentence, Bundle(), utteranceFile, utteranceId)
+            }
+        } finally {
+            tts.apply { stop(); shutdown() }
         }
     }
 
@@ -818,12 +838,13 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun clearChat() {
         Log.i("lifecycle", "clearChat")
-        vmodel.receiveResponseJob?.cancel()
+        vmodel.handleResponseJob?.cancel()
         if (vmodel.chatHistory.isNotEmpty()) {
             binding.viewChat.removeAllViews()
             vmodel.chatHistory.clear()
         }
         binding.edittextPrompt.editableText.clear()
+        activity?.invalidateOptionsMenu()
     }
 
     private fun scrollToBottom() {
@@ -907,6 +928,35 @@ class ChatFragment : Fragment(), MenuProvider {
     private fun isGpt4Selected(): Boolean {
         return binding.toolbar.menu.findItem(R.id.action_gpt_toggle).actionView!!
             .findViewById<TextView>(R.id.textview_gpt_toggle).isSelected
+    }
+}
+
+class UtteranceContinuationListener<T>(
+    private val utteranceId: String,
+    private val continuation: Continuation<T>,
+    private val successValue: T
+) : UtteranceProgressListener() {
+    override fun onStart(utteranceId: String) {}
+
+    override fun onDone(doneUutteranceId: String) {
+        if (doneUutteranceId != utteranceId) {
+            Log.e("speech", "unexpected utteranceId in onDone: $doneUutteranceId != $utteranceId")
+        }
+        continuation.resumeWith(success(successValue))
+    }
+
+    override fun onStop(utteranceId: String?, interrupted: Boolean) {
+        continuation.resumeWith(failure(CancellationException()))
+    }
+
+    override fun onError(utteranceId: String?, errorCode: Int) {
+        Log.e("speech", "Error while speaking, error code: $errorCode")
+        continuation.resumeWith(failure(Exception("TextToSpeech error code $errorCode")))
+    }
+
+    @Deprecated("", ReplaceWith("Can't replace, it's an abstract method!"))
+    override fun onError(utteranceId: String) {
+        onError(utteranceId, TextToSpeech.ERROR)
     }
 }
 
