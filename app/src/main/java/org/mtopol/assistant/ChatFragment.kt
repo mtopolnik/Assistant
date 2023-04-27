@@ -709,7 +709,9 @@ class ChatFragment : Fragment(), MenuProvider {
                 if (!recordingSuccess) {
                     return@launch
                 }
-                val transcription = openAi.value.getTranscription(audioPathname)
+                val promptContext = appContext.mainPrefs.systemPrompt + " " +
+                        vmodel.chatHistory.joinToString(" ") { it.prompt.toString() }
+                val transcription = openAi.value.getTranscription(promptContext, audioPathname)
                 if (transcription.text.isEmpty()) {
                     return@launch
                 }
