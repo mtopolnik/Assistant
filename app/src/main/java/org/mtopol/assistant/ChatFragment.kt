@@ -863,16 +863,28 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private suspend fun identifyLanguage(text: String): String {
         val languagesWithConfidence = languageIdentifier.identifyPossibleLanguages(text).await()
-        val diagnosticFormat = languagesWithConfidence.joinToString {
-            "${it.languageTag} ${(it.confidence * 100).roundToLong()}"
+        val languagesWithAdjustedConfidence = languagesWithConfidence
+            .map {
+                if (systemLanguages.contains(it.languageTag)) {
+                    IdentifiedLanguage(it.languageTag, (it.confidence + 0.2f).coerceAtMost(1f))
+                } else it
+            }
+            .sortedByDescending { it.confidence }
+        run {
+            val diagnosticFormat1 = languagesWithConfidence.joinToString {
+                "${it.languageTag} ${(it.confidence * 100).roundToLong()}"
+            }
+            val diagnosticFormat2 = languagesWithAdjustedConfidence.joinToString {
+                "${it.languageTag} ${(it.confidence * 100).roundToLong()}"
+            }
+            Log.i("speech", "Identified languages: $diagnosticFormat1, adjusted: $diagnosticFormat2")
         }
-        Log.i("speech", "Identified languages: $diagnosticFormat")
-        val languages = languagesWithConfidence.map { it.languageTag }
-        val chosenLanguage = languages.firstOrNull { systemLanguages.contains(it) }
+        val languages = languagesWithAdjustedConfidence.map { it.languageTag }
         return when {
-            chosenLanguage != null -> chosenLanguage
-            wordCount(text) < 2 -> vmodel.lastPromptLanguage ?: systemLanguages.first()
-            else -> languages.first()
+            wordCount(text) >= 2 -> languages.first()
+            else -> vmodel.lastPromptLanguage
+                ?: languages.firstOrNull { systemLanguages.contains(it) }
+                ?: systemLanguages.first()
         }.also {
             Log.i("speech", "Chosen language: $it")
         }
@@ -926,7 +938,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun String.dropLastIncompleteSentence(): String {
         val lastMatch = punctuationRegex.findAll(this).lastOrNull() ?: return ""
-        return substring(0, lastMatch.range.last + 1).trim()
+        return substring(0, lastMatch.range.last + 1)
     }
 }
 
