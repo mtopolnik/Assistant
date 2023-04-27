@@ -422,17 +422,15 @@ class ChatFragment : Fragment(), MenuProvider {
                 scrollToBottom()
                 val sentenceFlow: Flow<String> = channelFlow {
                     openAi.value.chatCompletions(vmodel.chatHistory, vmodel.isGpt4)
-                        .onEach { chunk ->
-                            chunk.choices[0].delta?.content?.also { token ->
-                                val replyEditable = vmodel.replyEditable!!
-                                replyEditable.append(token)
-                                val fullSentences = replyEditable
-                                    .substring(lastSpokenPos, replyEditable.length)
-                                    .dropLastIncompleteSentence()
-                                if (wordCount(fullSentences) >= 3) {
-                                    channel.send(fullSentences.trim())
-                                    lastSpokenPos += fullSentences.length
-                                }
+                        .onEach { token ->
+                            val replyEditable = vmodel.replyEditable!!
+                            replyEditable.append(token)
+                            val fullSentences = replyEditable
+                                .substring(lastSpokenPos, replyEditable.length)
+                                .dropLastIncompleteSentence()
+                            if (wordCount(fullSentences) >= 3) {
+                                channel.send(fullSentences)
+                                lastSpokenPos += fullSentences.length
                             }
                             scrollToBottom()
                         }
@@ -924,11 +922,11 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private val viewScope get() = viewLifecycleOwner.lifecycleScope
 
-    private fun wordCount(sentence: String) = sentence.split(whitespaceRegex).size
+    private fun wordCount(text: String) = text.trim().split(whitespaceRegex).size
 
     private fun String.dropLastIncompleteSentence(): String {
         val lastMatch = punctuationRegex.findAll(this).lastOrNull() ?: return ""
-        return substring(0, lastMatch.range.last + 1)
+        return substring(0, lastMatch.range.last + 1).trim()
     }
 }
 

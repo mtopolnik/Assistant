@@ -32,6 +32,9 @@ import com.aallam.openai.api.model.ModelId
 import com.aallam.openai.client.OpenAIConfig
 import com.aallam.openai.client.RetryStrategy
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
 import okio.source
 import java.io.File
 import java.io.IOException
@@ -61,7 +64,7 @@ class OpenAI(
     )
 
     @Throws(IOException::class)
-    fun chatCompletions(history: List<PromptAndResponse>, useGpt4: Boolean): Flow<ChatCompletionChunk> {
+    fun chatCompletions(history: List<PromptAndResponse>, useGpt4: Boolean): Flow<String> {
         val gptModel = if (useGpt4) "gpt-4" else "gpt-3.5-turbo"
         Log.i("gpt", "Model: $gptModel")
         val chatCompletionRequest = ChatCompletionRequest(
@@ -69,6 +72,8 @@ class OpenAI(
             messages = systemPrompt() + history.toDto().dropLast(1)
         )
         return client.chatCompletions(chatCompletionRequest)
+            .map { chunk -> chunk.choices[0].delta?.content }
+            .filterNotNull()
     }
 
     suspend fun getTranscription(audioPathname: String): Transcription {
