@@ -71,6 +71,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.fragment.findNavController
 import com.aallam.openai.api.BetaOpenAI
 import com.aallam.openai.api.exception.OpenAIAPIException
+import com.google.mlkit.nl.languageid.IdentifiedLanguage
 import com.google.mlkit.nl.languageid.LanguageIdentification
 import com.google.mlkit.nl.languageid.LanguageIdentificationOptions
 import com.google.mlkit.nl.languageid.LanguageIdentifier
@@ -135,7 +136,6 @@ class ChatFragmentModel(
     var handleResponseJob: Job? = null
     var recordingGlowJob: Job? = null
     var autoscrollEnabled: Boolean = true
-    var lastPromptLanguage: String? = null
     var replyEditable: Editable? = null
     var mediaPlayer: MediaPlayer? = null
 
@@ -428,6 +428,7 @@ class ChatFragment : Fragment(), MenuProvider {
                             val fullSentences = replyEditable
                                 .substring(lastSpokenPos, replyEditable.length)
                                 .dropLastIncompleteSentence()
+                            Log.i("speech", "full sentences: $fullSentences")
                             if (wordCount(fullSentences) >= 3) {
                                 channel.send(fullSentences)
                                 lastSpokenPos += fullSentences.length
@@ -474,16 +475,12 @@ class ChatFragment : Fragment(), MenuProvider {
                 val voiceFileFlow: Flow<File> = channelFlow {
                     val tts = newTextToSpeech()
                     var nextUtteranceId = 0L
-                    var lastIdentifiedLanguage = UNDETERMINED_LANGUAGE_TAG
+                    var previousLanguageTag = UNDETERMINED_LANGUAGE_TAG
                     sentenceFlow
                         .onEach { sentence ->
                             Log.i("speech", "Speak: $sentence")
-                            if (!systemLanguages.contains(lastIdentifiedLanguage)) {
-                                identifyLanguage(sentence).also {
-                                    lastIdentifiedLanguage = it
-                                }
-                            }
-                            tts.setSpokenLanguage(lastIdentifiedLanguage)
+                            previousLanguageTag = identifyLanguage(sentence, previousLanguageTag)
+                            tts.setSpokenLanguage(previousLanguageTag)
                             channel.send(tts.speakToFile(sentence, nextUtteranceId++))
                         }
                         .onCompletion {
@@ -573,9 +570,7 @@ class ChatFragment : Fragment(), MenuProvider {
         val utteranceId = "speak_again"
         val tts = newTextToSpeech()
         try {
-            identifyLanguage(response).also {
-                tts.setSpokenLanguage(it)
-            }
+            tts.setSpokenLanguage(identifyLanguage(response, UNDETERMINED_LANGUAGE_TAG))
             suspendCancellableCoroutine { continuation ->
                 tts.setOnUtteranceProgressListener(UtteranceContinuationListener(utteranceId, continuation, Unit))
                 if (tts.speak(response, TextToSpeech.QUEUE_FLUSH, null, utteranceId) == TextToSpeech.ERROR) {
@@ -721,8 +716,6 @@ class ChatFragment : Fragment(), MenuProvider {
                 vmodel.withFragment {
                     it.binding.edittextPrompt.editableText.apply {
                         replace(0, length, transcription.text)
-                        Log.i("speech", "transcription.language: ${transcription.language}")
-                        vmodel.lastPromptLanguage = transcription.language
                     }
                 }
             } catch (e: CancellationException) {
@@ -861,30 +854,32 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private suspend fun identifyLanguage(text: String): String {
+    private suspend fun identifyLanguage(text: String, previousLanguageTag: String): String {
         val languagesWithConfidence = languageIdentifier.identifyPossibleLanguages(text).await()
         val languagesWithAdjustedConfidence = languagesWithConfidence
-            .map {
-                if (systemLanguages.contains(it.languageTag)) {
-                    IdentifiedLanguage(it.languageTag, (it.confidence + 0.2f).coerceAtMost(1f))
-                } else it
+            .map { lang ->
+                if (systemLanguages.contains(lang.languageTag)) {
+                    IdentifiedLanguage(lang.languageTag, (lang.confidence + 0.2f))
+                } else lang
             }
             .sortedByDescending { it.confidence }
         run {
-            val diagnosticFormat1 = languagesWithConfidence.joinToString {
+            val unadjusted = languagesWithConfidence.joinToString {
                 "${it.languageTag} ${(it.confidence * 100).roundToLong()}"
             }
-            val diagnosticFormat2 = languagesWithAdjustedConfidence.joinToString {
+            val adjusted = languagesWithAdjustedConfidence.joinToString {
                 "${it.languageTag} ${(it.confidence * 100).roundToLong()}"
             }
-            Log.i("speech", "Identified languages: $diagnosticFormat1, adjusted: $diagnosticFormat2")
+            Log.i("speech", "Identified languages: $unadjusted, adjusted: $adjusted")
         }
-        val languages = languagesWithAdjustedConfidence.map { it.languageTag }
+        val topLang = languagesWithAdjustedConfidence.first()
+        val langTags = languagesWithAdjustedConfidence.map { it.languageTag }
         return when {
-            wordCount(text) >= 2 -> languages.first()
-            else -> vmodel.lastPromptLanguage
-                ?: languages.firstOrNull { systemLanguages.contains(it) }
-                ?: systemLanguages.first()
+            topLang.languageTag != UNDETERMINED_LANGUAGE_TAG && topLang.confidence >= 0.8 -> langTags.first()
+            else ->
+                previousLanguageTag.takeIf { it != UNDETERMINED_LANGUAGE_TAG }
+                    ?: langTags.firstOrNull { systemLanguages.contains(it) }
+                    ?: systemLanguages.first()
         }.also {
             Log.i("speech", "Chosen language: $it")
         }
