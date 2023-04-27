@@ -428,7 +428,9 @@ class ChatFragment : Fragment(), MenuProvider {
                             val fullSentences = replyEditable
                                 .substring(lastSpokenPos, replyEditable.length)
                                 .dropLastIncompleteSentence()
-                            Log.i("speech", "full sentences: $fullSentences")
+                            fullSentences.takeIf { it.isNotBlank() }?.also {
+                                Log.i("speech", "full sentences: $it")
+                            }
                             if (wordCount(fullSentences) >= 3) {
                                 channel.send(fullSentences)
                                 lastSpokenPos += fullSentences.length

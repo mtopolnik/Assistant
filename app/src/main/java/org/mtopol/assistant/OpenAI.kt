@@ -62,10 +62,13 @@ class OpenAI(
         )
     )
 
+    private val mockResponse = "Slijedi prijevod na engleski. Bok! Zdravo! Frende!"
+
     @Throws(IOException::class)
     fun chatCompletions(history: List<PromptAndResponse>, useGpt4: Boolean): Flow<String> {
         val gptModel = if (useGpt4) "gpt-4" else "gpt-3.5-turbo"
         Log.i("gpt", "Model: $gptModel")
+//        return mockResponse.split("(?<= )".toRegex()).also { Log.i("speech", "Tokens: $it") }.asFlow()
         val chatCompletionRequest = ChatCompletionRequest(
             model = ModelId(gptModel),
             messages = systemPrompt() + history.toDto().dropLast(1)
