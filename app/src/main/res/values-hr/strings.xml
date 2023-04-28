@@ -19,14 +19,16 @@
 <resources>
     <string name="title_enter_api_key">Treba nam Vaš OpenAI API ključ</string>
     <string name="app_name">GPT Brbljavica</string>
-    <string name="system_prompt_default">
-        Tvoje ime je Brbljavica. Živiš u pametnom telefonu. Tvoji odgovori su kratki i zabavni.
+    <string name="system_prompt_default">Tvoje ime je Brbljavica. Živiš u pametnom telefonu.
+        Tvoji odgovori su kratki i zabavni.
     </string>
-    <string name="enter_apikey_explanation">
-        Brbljavica treba Vaš OpenAI API ključ kako bi mogla raditi. Posjetite
+    <string name="enter_apikey_explanation">Brbljavica treba Vaš OpenAI API ključ kako bi mogla
+        raditi. Posjetite
         \nhttps://platform.openai.com
         \ni tamo kreirajte svoj korisnički račun, zatim kreirajte API ključ na
         \nhttps://platform.openai.com/account/api-keys.
+        \n
+        \nMožete i upisati \"demo\" pa će aplikacija raditi u demo-načinu.
         \n
         \nBrbljavica koristi Vaš API ključ isključivo kako bi pristupila OpenAI-jevom APIju
         kad zadate prompt. Ključ će biti pohranjen u standardnoj Androidovoj aplikacijskoj
@@ -57,4 +59,13 @@
     <string name="message_incorrect_api_key">Ne prolazi OpenAI API ključ. Poništi ga i upiši novi.</string>
     <string name="action_reset">Vrati na default</string>
     <string name="action_speak_again">Reci to ponovo</string>
+    <string name="demo_recognized_speech">Uključen je demo način rada — ovo je fejk pitanje.</string>
+    <string name="demo_response">Uključen je demo način rada — ovo je fejk odgovor.
+        \n
+        \nRiba ribi grize rep.
+        \n
+        \nNavrh brda vrba mrda.
+        \n
+        \nNa sušilu se suši šosić.
+    </string>
 </resources>

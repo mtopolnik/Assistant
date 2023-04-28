@@ -30,6 +30,7 @@ import com.aallam.openai.api.http.Timeout
 import com.aallam.openai.api.model.ModelId
 import com.aallam.openai.client.OpenAIConfig
 import com.aallam.openai.client.RetryStrategy
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.filterNotNull
@@ -40,6 +41,8 @@ import java.io.IOException
 import java.security.MessageDigest
 import kotlin.time.Duration.Companion.seconds
 import com.aallam.openai.client.OpenAI as OpenAIClient
+
+private const val DEMO_API_KEY = "demo"
 
 lateinit var openAi: Lazy<OpenAI>
 
@@ -62,13 +65,18 @@ class OpenAI(
         )
     )
 
-    private val mockResponse = "Slijedi prijevod na engleski. Bok! Zdravo! Frende!"
+    private val demoMode = context.mainPrefs.openaiApiKey.trim().lowercase() == DEMO_API_KEY
+
+    private val mockRecognizedSpeech = context.getString(R.string.demo_recognized_speech)
+    private val mockResponse = context.getString(R.string.demo_response)
 
     @Throws(IOException::class)
     fun chatCompletions(history: List<PromptAndResponse>, useGpt4: Boolean): Flow<String> {
+        if (demoMode) {
+            return mockResponse.split("(?<= )".toRegex()).asFlow().map { delay(100); it}
+        }
         val gptModel = if (useGpt4) "gpt-4" else "gpt-3.5-turbo"
         Log.i("gpt", "Model: $gptModel")
-//        return mockResponse.split("(?<= )".toRegex()).also { Log.i("speech", "Tokens: $it") }.asFlow()
         val chatCompletionRequest = ChatCompletionRequest(
             model = ModelId(gptModel),
             messages = systemPrompt() + history.toDto().dropLast(1)
@@ -80,12 +88,15 @@ class OpenAI(
 
     suspend fun getTranscription(promptContext: String, audioPathname: String): String {
         Log.i("speech", "promptContext $promptContext")
+        if (demoMode) {
+            delay(2000)
+            return mockRecognizedSpeech
+        }
         return client.transcription(
             TranscriptionRequest(
                 audio = FileSource(audioPathname, File(audioPathname).source()),
                 prompt = promptContext,
                 model = ModelId("whisper-1"),
-                temperature = 0.2,
                 responseFormat = "text"
         )).text.replace("\n", "")
     }

@@ -18,11 +18,13 @@
 
 <resources>
     <string name="title_enter_api_key">We Need Your OpenAI API key</string>
-    <string name="enter_apikey_explanation">
-        Chatty Assistant needs your OpenAI key to work. In order to obtain it, visit
+    <string name="enter_apikey_explanation">Chatty Assistant needs your OpenAI key to work.
+        In order to obtain it, visit
         \nhttps://platform.openai.com
         \nand create an account. Then create an API key at
         \nhttps://platform.openai.com/account/api-keys.
+        \n
+        \nYou can also type in \"demo\" and enter the demo mode.
         \n
         \nChatty Assistant will use your API key strictly to access OpenAI API
         when you enter a prompt. Your key will be stored as a standard Android
@@ -33,8 +35,8 @@
         \nhttps://github.com/mtopolnik/Assistant
         \nwhere you can review and inspect its usage of your API key.
     </string>
-    <string name="system_prompt_default">
-        Your name is Chatty. You live in a smartphone. Your answers are short and entertaining.
+    <string name="system_prompt_default">Your name is Chatty. You live in a smartphone.
+        Your answers are short and entertaining.
     </string>
     <string name="app_name">Chatty Assistant</string>
     <string name="action_settings">Settings</string>
@@ -53,10 +55,17 @@
     <string name="title_edit_system_prompt">Edit System Prompt</string>
     <string name="action_delete_openai_key">Delete API Key</string>
     <string name="api_key_hint">Your OpenAI API key</string>
-    <string name="error_while_gpt_talking">Something went wrong while GPT was talking</string>
+    <string name="error_while_gpt_talking">Something went wrong while Chatty was talking</string>
     <string name="message_incorrect_api_key">Incorrect OpenAI API key. Delete it and enter a new one.</string>
     <string name="action_reset">Reset to Default</string>
     <string name="action_speak_again">Speak Again</string>
+    <string name="demo_recognized_speech">Demo mode is on — this is a mock question.</string>
+    <string name="demo_response">Demo mode is on — this is a mock response.
+        \n
+        \nKnock knock! Who\'s there? Not GPT, ha ha!
+        \n
+        \nRoses are red, violets are blue, this isn\'t GPT talking, just some random text for you!
+        \n
+        \nWhy did the chicken cross the road? To remind you that you\'re in demo mode!
+    </string>
 </resources>
-
-
