@@ -42,6 +42,7 @@ class ApiKeyFragment : Fragment() {
                 requireContext().mainPrefs.applyUpdate {
                     setOpenaiApiKey(apiKey)
                 }
+                resetOpenAi(appContext)
                 findNavController().navigate(R.id.fragment_chat)
             }
         }
