@@ -48,10 +48,7 @@
     </string>
     <string name="about_text">
         Verzija %1$s
-        \n© 2018-2022 Marko Topolnik
-        \n\nRadarska slika SLO © Agencija Republike Slovenije za okolje
-        \n\nRadarska slika HR © Državni hidrometeorološki zavod
-        \n\nAutor ikone aplikacije: Emilija Kalajžić
+        \n© 2023 Marko Topolnik
     </string>
     <string name="app_name">GPT Brbljavica</string>
     <string name="action_settings">Postavke</string>
