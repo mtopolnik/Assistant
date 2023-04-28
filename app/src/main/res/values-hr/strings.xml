@@ -18,45 +18,43 @@
 
 <resources>
     <string name="title_enter_api_key">Treba nam Vaš OpenAI API ključ</string>
-    <string name="app_name">Pričljivko</string>
+    <string name="app_name">GPT Brbljavica</string>
     <string name="system_prompt_default">
-        Tvoje ime je Pričljivko. Živiš u pametnom telefonu. Tvoji odgovori su kratki i zabavni.
+        Tvoje ime je Brbljavica. Živiš u pametnom telefonu. Tvoji odgovori su kratki i zabavni.
     </string>
     <string name="enter_apikey_explanation">
-        Pričljivko treba Vaš OpenAI API ključ kako bi mogao raditi. Posjetite
+        Brbljavica treba Vaš OpenAI API ključ kako bi mogla raditi. Posjetite
         \nhttps://platform.openai.com
         \ni tamo kreirajte svoj korisnički račun, zatim kreirajte API ključ na
         \nhttps://platform.openai.com/account/api-keys.
         \n
-        \nPričljivko koristi Vaš API ključ isključivo kako bi pristupio OpenAI-jevom APIju
+        \nBrbljavica koristi Vaš API ključ isključivo kako bi pristupila OpenAI-jevom APIju
         kad zadate prompt. Ključ će biti pohranjen u standardnoj Androidovoj aplikacijskoj
         postavci, a Android može automatski napraviti njegovu sigurnosnu kopiju unutar Vašeg
         Google korisničkog računa, tako da Vam ključ bude dostupan i na drugim uređajima.
         \n
-        \nPričljivko je open-source applikacija, dostupna na
+        \nBrbljavica je open-source applikacija, dostupna na
         \nhttps://github.com/mtopolnik/Assistant
         \nwgdje možete provjeriti točno na koji način koristi Vaš API ključ.
     </string>
-    <string name="action_settings">Settings</string>
-    <string name="first_fragment_label">Chat</string>
-    <string name="record">Record Voice</string>
-    <string name="send">Send</string>
-    <string name="prompt_hint">Message</string>
+    <string name="action_settings">Postavke</string>
+    <string name="record">Snimi glas</string>
+    <string name="send">Šalji</string>
+    <string name="prompt_hint">Poruka</string>
     <string name="gpt_3_5">GPT-3.5</string>
     <string name="gpt_4">GPT-4</string>
-    <string name="gpt4_unavailable">GPT-4 is not available with your API key.</string>
-    <string name="clear_chat_history">Clear Chat History</string>
-    <string name="chat_message_hint">Chat message</string>
-    <string name="action_mute">Mute Sound</string>
-    <string name="action_cancel">Stop Responding</string>
-    <string name="action_save">Save</string>
-    <string name="action_undo">Undo Last Prompt</string>
-    <string name="action_edit_system_prompt">Edit System Prompt</string>
-    <string name="title_edit_system_prompt">Edit System Prompt</string>
-    <string name="action_delete_openai_key">Delete API Key</string>
-    <string name="api_key_hint">Your OpenAI API key</string>
-    <string name="error_while_gpt_talking">Something went wrong while GPT was talking</string>
-    <string name="message_incorrect_api_key">Incorrect OpenAI API key. Delete it and enter a new one.</string>
-    <string name="action_reset">Reset to Default</string>
-    <string name="action_speak_again">Speak Again</string>
+    <string name="gpt4_unavailable">GPT-4 nije dostupan s trenutnim API ključem.</string>
+    <string name="clear_chat_history">Obriši povijest brbljanja</string>
+    <string name="action_mute">Ugasi zvuk</string>
+    <string name="action_cancel">Prestani odgovarati</string>
+    <string name="action_save">Spremi</string>
+    <string name="action_undo">Vrati na prethodni prompt</string>
+    <string name="action_edit_system_prompt">Sistemski prompt</string>
+    <string name="title_edit_system_prompt">Uredi sistemski prompt</string>
+    <string name="action_delete_openai_key">Poništi API ključ</string>
+    <string name="api_key_hint">Tvoj OpenAI API ključ</string>
+    <string name="error_while_gpt_talking">Negdje je zapelo dok je Brbljavica pričala.</string>
+    <string name="message_incorrect_api_key">Ne prolazi OpenAI API ključ. Poništi ga i upiši novi.</string>
+    <string name="action_reset">Vrati na default</string>
+    <string name="action_speak_again">Reci to ponovo</string>
 </resources>
