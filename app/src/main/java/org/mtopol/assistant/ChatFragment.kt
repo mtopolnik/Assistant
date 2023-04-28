@@ -714,12 +714,12 @@ class ChatFragment : Fragment(), MenuProvider {
                 val promptContext = appContext.mainPrefs.systemPrompt + " " +
                         vmodel.chatHistory.joinToString(" ") { it.prompt.toString() }
                 val transcription = openAi.value.getTranscription(promptContext, audioPathname)
-                if (transcription.text.isEmpty()) {
+                if (transcription.isEmpty()) {
                     return@launch
                 }
                 vmodel.withFragment {
                     it.binding.edittextPrompt.editableText.apply {
-                        replace(0, length, transcription.text)
+                        replace(0, length, transcription)
                     }
                 }
             } catch (e: CancellationException) {
@@ -977,8 +977,3 @@ data class PromptAndResponse(
     var prompt: CharSequence,
     var response: CharSequence
 ) : Parcelable
-
-data class Transcription(
-    val text: String,
-    val language: String?
-)

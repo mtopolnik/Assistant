@@ -78,7 +78,7 @@ class OpenAI(
             .filterNotNull()
     }
 
-    suspend fun getTranscription(promptContext: String, audioPathname: String): Transcription {
+    suspend fun getTranscription(promptContext: String, audioPathname: String): String {
         Log.i("speech", "promptContext $promptContext")
         return client.transcription(
             TranscriptionRequest(
@@ -87,7 +87,7 @@ class OpenAI(
                 model = ModelId("whisper-1"),
                 temperature = 0.2,
                 responseFormat = "text"
-        )).let { Transcription(it.text.replace("\n", ""), it.language) }
+        )).text.replace("\n", "")
     }
 
     fun close() {
