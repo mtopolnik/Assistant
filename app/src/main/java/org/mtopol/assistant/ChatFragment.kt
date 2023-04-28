@@ -148,7 +148,8 @@ class ChatFragmentModel(
 @SuppressLint("ClickableViewAccessibility")
 class ChatFragment : Fragment(), MenuProvider {
 
-    private val punctuationRegex = """(?<=\D\.'?)\s+|(?<=[;!?]'?)\s+|\n+""".toRegex()
+    @Suppress("RegExpUnnecessaryNonCapturingGroup")
+    private val punctuationRegex = """(?<=\D[.!]'?)\s+|(?<=\d[.!]'?)\s+(?=\p{Lu})|(?<=.[;?]'?)\s+|\n+""".toRegex()
     private val whitespaceRegex = """\s+""".toRegex()
     private val vmodel: ChatFragmentModel by viewModels()
     private lateinit var binding: FragmentChatBinding
