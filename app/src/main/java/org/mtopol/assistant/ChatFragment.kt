@@ -362,6 +362,10 @@ class ChatFragment : Fragment(), MenuProvider {
                 clearChat()
                 true
             }
+            R.id.action_about -> {
+                showAboutDialogFragment(requireActivity())
+                true
+            }
             R.id.action_edit_system_prompt -> {
                 findNavController().navigate(R.id.fragment_system_prompt)
                 true

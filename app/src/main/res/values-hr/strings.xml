@@ -18,7 +18,6 @@
 
 <resources>
     <string name="title_enter_api_key">Treba nam Vaš OpenAI API ključ</string>
-    <string name="app_name">GPT Brbljavica</string>
     <string name="system_prompt_default">Tvoje ime je Brbljavica. Živiš u pametnom telefonu.
         Tvoji odgovori su kratki i zabavni.
     </string>
@@ -39,6 +38,22 @@
         \nhttps://github.com/mtopolnik/Assistant
         \nwgdje možete provjeriti točno na koji način koristi Vaš API ključ.
     </string>
+    <string name="demo_response">Uključen je demo način rada — ovo je fejk odgovor.
+        \n
+        \nRiba ribi grize rep.
+        \n
+        \nNavrh brda vrba mrda.
+        \n
+        \nNa sušilu se suši šosić.
+    </string>
+    <string name="about_text">
+        Verzija %1$s
+        \n© 2018-2022 Marko Topolnik
+        \n\nRadarska slika SLO © Agencija Republike Slovenije za okolje
+        \n\nRadarska slika HR © Državni hidrometeorološki zavod
+        \n\nAutor ikone aplikacije: Emilija Kalajžić
+    </string>
+    <string name="app_name">GPT Brbljavica</string>
     <string name="action_settings">Postavke</string>
     <string name="record">Snimi glas</string>
     <string name="send">Šalji</string>
@@ -60,12 +75,6 @@
     <string name="action_reset">Vrati na default</string>
     <string name="action_speak_again">Reci to ponovo</string>
     <string name="demo_recognized_speech">Uključen je demo način rada — ovo je fejk pitanje.</string>
-    <string name="demo_response">Uključen je demo način rada — ovo je fejk odgovor.
-        \n
-        \nRiba ribi grize rep.
-        \n
-        \nNavrh brda vrba mrda.
-        \n
-        \nNa sušilu se suši šosić.
-    </string>
+    <string name="close">Zatvori</string>
+    <string name="action_about">O aplikaciji</string>
 </resources>

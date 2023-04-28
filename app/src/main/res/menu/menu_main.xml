@@ -60,6 +60,10 @@
             app:iconTint="@color/white"
             app:showAsAction="always" />
     <item
+            android:id="@+id/action_about"
+            android:title="@string/action_about"
+            app:showAsAction="never" />
+    <item
             android:id="@+id/action_edit_system_prompt"
             android:title="@string/action_edit_system_prompt"
             app:showAsAction="never" />
