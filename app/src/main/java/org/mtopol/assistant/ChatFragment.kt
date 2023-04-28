@@ -193,18 +193,16 @@ class ChatFragment : Fragment(), MenuProvider {
 
         GlobalScope.launch(IO) { openAi.value }
 
-        if (savedInstanceState != null) {
-            var newestHistoryEditable: Editable? = null
-            var newestHistoryMessagePair: PromptAndResponse? = null
-            for (promptAndResponse in vmodel.chatHistory) {
-                newestHistoryMessagePair = promptAndResponse
-                newestHistoryEditable = addPromptAndResponseToView(promptAndResponse)
-            }
-            if (vmodel.replyEditable != null) {
-                newestHistoryEditable!!.also {
-                    vmodel.replyEditable = it
-                    newestHistoryMessagePair!!.response = it
-                }
+        var newestHistoryEditable: Editable? = null
+        var newestHistoryMessagePair: PromptAndResponse? = null
+        for (promptAndResponse in vmodel.chatHistory) {
+            newestHistoryMessagePair = promptAndResponse
+            newestHistoryEditable = addPromptAndResponseToView(promptAndResponse)
+        }
+        if (vmodel.replyEditable != null) {
+            newestHistoryEditable!!.also {
+                vmodel.replyEditable = it
+                newestHistoryMessagePair!!.response = it
             }
         }
         // Reduce the size of the scrollview when soft keyboard shown
