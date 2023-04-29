@@ -19,5 +19,6 @@
 <resources>
     <style name="Theme.Assistant" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/primary</item>
+        <item name="colorAccent">@color/white</item>
     </style>
 </resources>

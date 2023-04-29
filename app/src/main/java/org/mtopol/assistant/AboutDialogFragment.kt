@@ -20,6 +20,7 @@ package org.mtopol.assistant
 import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.app.Dialog
+import android.content.DialogInterface
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -53,5 +54,12 @@ class AboutDialogFragment : DialogFragment() {
             .setView(rootView)
             .setPositiveButton(android.R.string.ok) { _, _ -> }
             .create()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        (dialog as AlertDialog)
+            .getButton(DialogInterface.BUTTON_POSITIVE)
+            .setTextColor(requireContext().getColorCompat(R.color.white))
     }
 }
