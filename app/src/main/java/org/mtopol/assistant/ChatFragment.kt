@@ -370,11 +370,12 @@ class ChatFragment : Fragment(), MenuProvider {
                 true
             }
             R.id.action_delete_openai_key -> {
-                requireContext().mainPrefs.applyUpdate {
+                val activity = requireActivity() as MainActivity
+                activity.mainPrefs.applyUpdate {
                     setOpenaiApiKey("")
                 }
-                resetOpenAi(requireContext())
-                findNavController().navigate(R.id.fragment_api_key)
+                resetOpenAi(activity)
+                activity.navigateToApiKeyFragment()
                 true
             }
             else -> false

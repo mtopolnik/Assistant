@@ -68,7 +68,7 @@
     <string name="action_delete_openai_key">Poništi API ključ</string>
     <string name="api_key_hint">Vaš OpenAI API ključ</string>
     <string name="error_while_gpt_talking">Negdje je zapelo dok je Brbljavica pričala.</string>
-    <string name="message_incorrect_api_key">Ne prolazi OpenAI API ključ. Poništi ga i upiši novi.</string>
+    <string name="message_incorrect_api_key">OpenAI API ključ ne radi. Poništi ga i upiši novi.</string>
     <string name="action_reset">Vrati na default</string>
     <string name="action_speak_again">Reci to ponovo</string>
     <string name="demo_recognized_speech">Uključen je demo način rada — ovo je fejk pitanje.</string>

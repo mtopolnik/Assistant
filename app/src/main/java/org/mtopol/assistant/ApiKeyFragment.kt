@@ -23,6 +23,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
+import androidx.navigation.NavOptions
 import androidx.navigation.fragment.findNavController
 import androidx.preference.PreferenceManager
 import org.mtopol.assistant.databinding.FragmentApiKeyBinding
@@ -43,7 +44,8 @@ class ApiKeyFragment : Fragment() {
                     setOpenaiApiKey(apiKey)
                 }
                 resetOpenAi(appContext)
-                findNavController().navigate(R.id.fragment_chat)
+                findNavController().navigate(R.id.fragment_chat, null,
+                    NavOptions.Builder().setPopUpTo(R.id.fragment_api_key, true).build())
             }
         }
         return binding.root

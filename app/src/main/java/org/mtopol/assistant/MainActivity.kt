@@ -27,18 +27,12 @@ import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.navigation.NavController
+import androidx.navigation.NavOptions
 import androidx.navigation.fragment.NavHostFragment
+import androidx.navigation.fragment.findNavController
 import org.mtopol.assistant.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
-
-    private val onDestinationChangedListener = NavController.OnDestinationChangedListener { _, destination, _ ->
-        if (destination.id == R.id.fragment_api_key) {
-            onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-                override fun handleOnBackPressed() {}
-            })
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         Log.i("lifecycle", "onCreate MainActivity")
@@ -51,7 +45,7 @@ class MainActivity : AppCompatActivity() {
         }
         // Continue here only on the first time since app startup.
         if (mainPrefs.openaiApiKey.isBlank()) {
-            navController.navigate(R.id.fragment_api_key)
+            navigateToApiKeyFragment()
         }
     }
 
@@ -60,18 +54,13 @@ class MainActivity : AppCompatActivity() {
         Log.i("lifecycle", "onDestroy MainActivity")
     }
 
-    override fun onResume() {
-        super.onResume()
-        navController.addOnDestinationChangedListener(onDestinationChangedListener)
-    }
-
-    override fun onPause() {
-        super.onPause()
-        navController.removeOnDestinationChangedListener(onDestinationChangedListener)
-    }
-
     private val navController get() =
         (supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as NavHostFragment).navController
+
+    fun navigateToApiKeyFragment() {
+        navController.navigate(R.id.fragment_api_key, null,
+            NavOptions.Builder().setPopUpTo(R.id.fragment_chat, true).build())
+    }
 
     fun lockOrientation() {
         requestedOrientation = currentOrientation
