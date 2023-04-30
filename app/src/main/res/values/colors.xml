@@ -45,11 +45,11 @@
     <color name="grey">#888888</color>
     <color name="dark_grey">#444444</color>
 
-    <color name="primary">@color/solarized_violet</color>
-    <color name="accent">@color/solarized_green</color>
+    <color name="primary">@color/solarized_base02</color>
+    <color name="accent">@color/solarized_blue</color>
     <color name="user_text_foreground">@color/solarized_base1</color>
     <color name="user_text_background">@color/solarized_base03</color>
     <color name="gpt_text_foreground">@color/solarized_base01</color>
     <color name="gpt_text_background">@color/solarized_base3</color>
-    <color name="button_normal">@color/solarized_green</color>
+    <color name="button_icon_foreground">@color/solarized_base2</color>
 </resources>

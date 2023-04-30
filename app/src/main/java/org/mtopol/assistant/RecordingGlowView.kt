@@ -55,7 +55,7 @@ class RecordingGlowView(context: Context, attrs: AttributeSet) : View(context, a
     }
 
     private val paint = Paint().apply {
-        color = context.getColorCompat(R.color.button_normal)
+        color = context.getColorCompat(R.color.accent)
         alpha = 0x66
         style = Paint.Style.STROKE
         isAntiAlias = true

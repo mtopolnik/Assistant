@@ -26,7 +26,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/gpt_3_5"
-            android:textColor="@color/white"
+            android:textColor="@color/button_icon_foreground"
             android:textSize="18dp" tools:ignore="SpUsage"
             android:fontFamily="monospace"
             android:textStyle="bold"

@@ -66,7 +66,7 @@
     <string name="action_edit_system_prompt">Sistemski prompt</string>
     <string name="title_edit_system_prompt">Uredi sistemski prompt</string>
     <string name="action_delete_openai_key">Poništi API ključ</string>
-    <string name="api_key_hint">Tvoj OpenAI API ključ</string>
+    <string name="api_key_hint">Vaš OpenAI API ključ</string>
     <string name="error_while_gpt_talking">Negdje je zapelo dok je Brbljavica pričala.</string>
     <string name="message_incorrect_api_key">Ne prolazi OpenAI API ključ. Poništi ga i upiši novi.</string>
     <string name="action_reset">Vrati na default</string>
