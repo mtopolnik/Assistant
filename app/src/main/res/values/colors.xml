@@ -16,7 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
  -->
 
-<resources xmlns:android="http://schemas.android.com/apk/res/android">
+<resources>
     <!-- Solarized Scheme -->
     <color name="solarized_base03">#002b36</color>
     <color name="solarized_base02">#073642</color>
@@ -45,8 +45,16 @@
     <color name="grey">#888888</color>
     <color name="dark_grey">#444444</color>
 
+    <!-- App Theme -->
     <color name="primary">@color/solarized_base02</color>
+    <color name="primary_variant">@color/solarized_base02</color>
+    <color name="on_primary">@color/solarized_base1</color>
     <color name="secondary">@color/solarized_blue</color>
+    <color name="secondary_variant">@color/solarized_blue</color>
+    <color name="on_secondary">@color/white</color>
+    <color name="status_bar">@color/solarized_violet</color>
+
+    <!-- Custom -->
     <color name="user_text_foreground">@color/solarized_base1</color>
     <color name="user_text_background">@color/solarized_base03</color>
     <color name="gpt_text_foreground">@color/solarized_base01</color>
