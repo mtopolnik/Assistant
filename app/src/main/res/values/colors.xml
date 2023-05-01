@@ -46,7 +46,7 @@
     <color name="dark_grey">#444444</color>
 
     <color name="primary">@color/solarized_base02</color>
-    <color name="accent">@color/solarized_blue</color>
+    <color name="secondary">@color/solarized_blue</color>
     <color name="user_text_foreground">@color/solarized_base1</color>
     <color name="user_text_background">@color/solarized_base03</color>
     <color name="gpt_text_foreground">@color/solarized_base01</color>

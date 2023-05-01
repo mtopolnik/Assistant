@@ -57,7 +57,7 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="bottom"
                 android:layout_marginTop="24dp"
-                android:backgroundTint="@color/accent"
+                android:backgroundTint="@color/secondary"
                 android:text="@string/action_save"
                 android:textColor="@color/white"
                 android:textSize="18sp"

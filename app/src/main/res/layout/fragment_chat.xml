@@ -115,7 +115,7 @@
                     android:src="@drawable/baseline_mic_28"
                     app:tint="@color/button_icon_foreground"
                     android:background="@drawable/rounded_button"
-                    android:backgroundTint="@color/accent"
+                    android:backgroundTint="@color/secondary"
                     android:contentDescription="@string/record"
                     />
             <ImageButton
@@ -129,7 +129,7 @@
                     app:tint="@color/button_icon_foreground"
                     android:paddingLeft="4dp"
                     android:background="@drawable/rounded_button"
-                    android:backgroundTint="@color/accent"
+                    android:backgroundTint="@color/secondary"
                     android:contentDescription="@string/send"
                     />
         </LinearLayout>
