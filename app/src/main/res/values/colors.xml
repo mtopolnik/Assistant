@@ -48,25 +48,21 @@
 
     <!-- App Theme, generated from Solarized Blue and Magenta -->
     <!-- on https://m3.material.io/theme-builder#/custom -->
-    <color name="primary">#00639b</color>
+    <color name="primary">#006FAE</color>
     <color name="on_primary">#ffffff</color>
-    <color name="primary_container">#cee5ff</color>
-    <color name="on_primary_container">#001d33</color>
     <color name="secondary">#5156a9</color>
     <color name="on_secondary">#ffffff</color>
-    <color name="secondary_container">#e0e0ff</color>
-    <color name="on_secondary_container">#060764</color>
-    <color name="background">#fcfcff</color>
-    <color name="on_background">#1a1c1e</color>
+    <color name="background">#fdfbff</color>
+    <color name="on_background">#001b3d</color>
     <color name="surface">@color/background</color>
     <color name="on_surface">@color/on_background</color>
 
     <!-- Custom -->
+    <color name="chat_background">@color/solarized_base2</color>
     <color name="app_bar">@color/primary</color>
     <color name="on_app_bar">@color/on_primary</color>
-    <color name="button_icon_foreground">@color/on_primary</color>
-    <color name="user_text_foreground">@color/on_secondary_container</color>
-    <color name="user_text_background">@color/secondary_container</color>
-    <color name="gpt_text_foreground">@color/on_primary_container</color>
-    <color name="gpt_text_background">@color/primary_container</color>
+    <color name="user_text_foreground">@color/on_surface</color>
+    <color name="user_text_background">@color/white</color>
+    <color name="gpt_text_foreground">@color/solarized_base02</color>
+    <color name="gpt_text_background">#BEE8FF</color>
 </resources>

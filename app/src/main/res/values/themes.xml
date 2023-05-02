@@ -24,6 +24,8 @@
         <item name="colorOnSecondary">@color/on_secondary</item>
         <item name="colorSurface">@color/surface</item>
         <item name="colorOnSurface">@color/on_surface</item>
+        <item name="android:colorBackground">@color/background</item>
+        <item name="colorOnBackground">@color/on_background</item>
         <item name="android:statusBarColor">@color/app_bar</item>
 
     </style>

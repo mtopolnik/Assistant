@@ -18,18 +18,22 @@
 <resources>
     <!-- App Theme, generated from Solarized Blue and Magenta -->
     <!-- on https://m3.material.io/theme-builder#/custom -->
-    <color name="primary">#97cbff</color>
-    <color name="on_primary">#003353</color>
-    <color name="primary_container">#004a76</color>
-    <color name="on_primary_container">#cee5ff</color>
-    <color name="secondary">#bfc2ff</color>
-    <color name="on_secondary">#212578</color>
-    <color name="secondary_container">#393d8f</color>
-    <color name="on_secondary_container">#e0e0ff</color>
-    <color name="background">#1a1c1e</color>
-    <color name="on_background">#e2e2e5</color>
+    <color name="primary">#268bd2</color>
+    <color name="on_primary">#ffffff</color>
+    <color name="secondary">#393d8f</color>
+    <color name="on_secondary">#e0e0ff</color>
+    <color name="background">#00111B</color>
+    <color name="on_background">#cde5ff</color>
+    <color name="surface">#002A43</color>
+    <color name="on_surface">#FBFBFB</color>
 
     <color name="app_bar">@color/surface</color>
     <color name="on_app_bar">@color/on_surface</color>
+
+    <color name="chat_background">@color/background</color>
+    <color name="user_text_foreground">@color/on_surface</color>
+    <color name="user_text_background">@color/surface</color>
+    <color name="gpt_text_foreground">@color/on_surface</color>
+    <color name="gpt_text_background">#004a76</color>
 
 </resources>
