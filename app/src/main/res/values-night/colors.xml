@@ -19,9 +19,9 @@
     <!-- App Theme, generated from Solarized Blue and Magenta -->
     <!-- on https://m3.material.io/theme-builder#/custom -->
     <color name="primary">#268bd2</color>
-    <color name="on_primary">#ffffff</color>
-    <color name="secondary">#393d8f</color>
-    <color name="on_secondary">#e0e0ff</color>
+    <color name="on_primary">#F3F3F3</color>
+    <color name="secondary">#858585</color>
+    <color name="on_secondary">#F3F3F3</color>
     <color name="background">#00111B</color>
     <color name="on_background">#cde5ff</color>
     <color name="surface">#002A43</color>
