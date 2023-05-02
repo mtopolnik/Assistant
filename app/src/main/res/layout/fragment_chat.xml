@@ -99,9 +99,9 @@
                     android:layout_height="50dp"
                     android:layout_gravity="bottom"
                     android:src="@drawable/baseline_keyboard_28"
-                    app:tint="@color/on_secondary"
+                    app:tint="@color/on_keyboard_button"
                     android:background="@drawable/rounded_button"
-                    android:backgroundTint="@color/secondary"
+                    android:backgroundTint="@color/keyboard_button"
                     android:contentDescription="@string/send"
                     />
             <ImageButton
