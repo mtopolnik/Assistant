@@ -120,13 +120,18 @@ class OpenAI(
     }
 }
 
-private const val GPT3_ONLY_KEY_HASH = "fg15RZXuK/smtuoB/R0sV3KF1aJmU3HHZlwxx9MLp8U="
+private val GPT3_ONLY_KEY_HASHES = hashSetOf(
+    "fg15RZXuK/smtuoB/R0sV3KF1aJmU3HHZlwxx9MLp8U=",
+    "DIkQ9HIwN3Ky+t53aMHyojOYAsXBFBnZQvnhbU2oyPs=",
+)
 
-fun String.isGpt3OnlyKey() = apiKeyHash(this) == GPT3_ONLY_KEY_HASH
+fun String.isGpt3OnlyKey() = GPT3_ONLY_KEY_HASHES.contains(apiKeyHash(this))
 
 private fun apiKeyHash(apiKey: String): String =
     apiKey.toByteArray(Charsets.UTF_8).let {
         MessageDigest.getInstance("SHA-256").digest(it)
     }.let {
         Base64.encodeToString(it, Base64.NO_WRAP)
+    }.also {
+        Log.i("hash", "API key hash: $it")
     }
