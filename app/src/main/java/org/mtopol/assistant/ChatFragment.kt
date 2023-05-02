@@ -113,6 +113,8 @@ private const val KEY_IS_GPT4 = "is_gpt4"
 
 private const val MAX_RECORDING_TIME_MILLIS = 60_000L
 
+private fun audioPathname(counter: Long) = File(appContext.cacheDir, "prompt-$counter.mp4").absolutePath
+
 class ChatFragmentModel(
     savedState: SavedStateHandle
 ) : ViewModel() {
@@ -153,12 +155,12 @@ class ChatFragment : Fragment(), MenuProvider {
     private val whitespaceRegex = """\s+""".toRegex()
     private val vmodel: ChatFragmentModel by viewModels()
     private lateinit var binding: FragmentChatBinding
-    private lateinit var audioPathname: String
     private lateinit var systemLanguages: List<String>
     private lateinit var languageIdentifier: LanguageIdentifier
     private var pixelDensity = 0f
 
-    private var _mediaRecorder: MediaRecorder? = null
+    private var recordedAudioCounter = 0L
+    private lateinit var mediaRecorder: MediaRecorder
 
     private val permissionRequest = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         if (it.isNotEmpty()) Log.i("", "User granted us the requested permissions")
@@ -220,7 +222,14 @@ class ChatFragment : Fragment(), MenuProvider {
         languageIdentifier = LanguageIdentification.getClient(
             LanguageIdentificationOptions.Builder().setConfidenceThreshold(0.2f).build()
         )
-        audioPathname = File(context.cacheDir, "prompt.mp4").absolutePath
+        mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            MediaRecorder(requireContext())
+        } else {
+            @Suppress("DEPRECATION")
+            MediaRecorder()
+        }
+        resetMediaRecorder()
+
         binding.root.doOnLayout {
             if (vmodel.recordingGlowJob != null) {
                 binding.showRecordingGlow()
@@ -238,13 +247,13 @@ class ChatFragment : Fragment(), MenuProvider {
         binding.buttonRecord.setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    vibrate(); startRecordingPrompt(); true
+                    vibrate()
+                    startRecordingPrompt()
+                    true
                 }
                 MotionEvent.ACTION_UP -> {
-                    if (_mediaRecorder != null) {
-                        vibrate()
-                        showRecordedPrompt()
-                    }
+                    vibrate()
+                    showRecordedPrompt()
                     true
                 }
                 else -> false
@@ -596,24 +605,10 @@ class ChatFragment : Fragment(), MenuProvider {
             permissionRequest.launch(arrayOf(permission.RECORD_AUDIO, permission.WRITE_EXTERNAL_STORAGE))
             return
         }
+        vmodel.handleResponseJob?.cancel()
         activity.lockOrientation()
         try {
-            val mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                MediaRecorder(requireContext())
-            } else {
-                @Suppress("DEPRECATION")
-                MediaRecorder()
-            }.also {
-                _mediaRecorder = it
-            }
-            mediaRecorder.apply {
-                setAudioSource(MediaRecorder.AudioSource.MIC)
-                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-                setOutputFile(audioPathname)
-                prepare()
-                start()
-            }
+            mediaRecorder.start()
             animateRecordingGlow()
         } catch (e: Exception) {
             Log.e("speech", "Voice recording error", e)
@@ -632,17 +627,29 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private suspend fun stopRecording(): Boolean {
+    private fun resetMediaRecorder() {
+        mediaRecorder.apply {
+            reset()
+            setOutputFile(audioPathname(recordedAudioCounter))
+            setAudioSource(MediaRecorder.AudioSource.MIC)
+            setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            prepare()
+        }
+    }
+
+    private suspend fun stopRecording(): String? {
         Log.i("recording", "stopRecording()")
-        val mediaRecorder = _mediaRecorder ?: return false
-        _mediaRecorder = null
+        val audioPathname = audioPathname(recordedAudioCounter++)
         return withContext(IO) {
             try {
-                mediaRecorder.stop(); true
+                mediaRecorder.stop()
+                audioPathname
             } catch (e: Exception) {
-                File(audioPathname).delete(); false
+                File(audioPathname).delete()
+                null
             } finally {
-                mediaRecorder.release()
+                resetMediaRecorder()
             }
         }
     }
@@ -656,12 +663,15 @@ class ChatFragment : Fragment(), MenuProvider {
                 showRecordedPrompt()
             }
             try {
+                val ourRecordedAudioCounter = recordedAudioCounter
                 var lastPeak = 0f
                 var lastPeakTime = 0L
                 var lastRecordingVolume = 0f
                 while (true) {
                     val frameTime = awaitFrame()
-                    val mediaRecorder = _mediaRecorder ?: break
+                    if (recordedAudioCounter != ourRecordedAudioCounter) {
+                        break
+                    }
                     val soundVolume = (log2(mediaRecorder.maxAmplitude.toDouble()) / 15).toFloat().coerceAtLeast(0f)
                     val decayingPeak = lastPeak * (1f - 2 * nanosToSeconds(frameTime - lastPeakTime))
                     lastRecordingVolume = if (decayingPeak > soundVolume) {
@@ -711,10 +721,7 @@ class ChatFragment : Fragment(), MenuProvider {
         binding.buttonRecord.setActive(false)
         vmodel.viewModelScope.launch {
             try {
-                val recordingSuccess = stopRecording()
-                if (!recordingSuccess) {
-                    return@launch
-                }
+                val audioPathname = stopRecording() ?: return@launch
                 val promptContext = appContext.mainPrefs.systemPrompt + " " +
                         vmodel.chatHistory.joinToString(" ") { it.prompt.toString() }
                 val transcription = openAi.value.getTranscription(promptContext, audioPathname)
