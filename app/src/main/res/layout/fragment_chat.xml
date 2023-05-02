@@ -39,15 +39,15 @@
                     android:id="@+id/appbar_layout"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
                     >
 
                 <androidx.appcompat.widget.Toolbar
                         android:id="@+id/toolbar"
                         android:layout_width="match_parent"
                         android:layout_height="?attr/actionBarSize"
-                        android:background="?attr/colorPrimary"
                         app:layout_scrollFlags="scroll|enterAlways"
+                        android:theme="@style/ActionBar"
+                        app:popupTheme="@style/PopupTheme"
                         />
 
             </com.google.android.material.appbar.AppBarLayout>
@@ -100,9 +100,9 @@
                     android:layout_height="50dp"
                     android:layout_gravity="bottom"
                     android:src="@drawable/baseline_keyboard_28"
-                    app:tint="@color/button_icon_foreground"
+                    app:tint="@color/on_secondary"
                     android:background="@drawable/rounded_button"
-                    android:backgroundTint="@color/solarized_base00"
+                    android:backgroundTint="@color/secondary"
                     android:contentDescription="@string/send"
                     />
             <ImageButton
@@ -113,9 +113,9 @@
                     android:layout_marginStart="8dp"
                     android:layout_gravity="bottom"
                     android:src="@drawable/baseline_mic_28"
-                    app:tint="@color/button_icon_foreground"
+                    app:tint="@color/on_primary"
                     android:background="@drawable/rounded_button"
-                    android:backgroundTint="@color/secondary"
+                    android:backgroundTint="@color/primary"
                     android:contentDescription="@string/record"
                     />
             <ImageButton
@@ -126,10 +126,10 @@
                     android:layout_gravity="bottom"
                     android:visibility="gone"
                     android:src="@drawable/baseline_send_28"
-                    app:tint="@color/button_icon_foreground"
+                    app:tint="@color/on_primary"
                     android:paddingLeft="4dp"
                     android:background="@drawable/rounded_button"
-                    android:backgroundTint="@color/secondary"
+                    android:backgroundTint="@color/primary"
                     android:contentDescription="@string/send"
                     />
         </LinearLayout>

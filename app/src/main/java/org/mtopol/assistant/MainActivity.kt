@@ -25,6 +25,7 @@ import android.util.Log
 import android.view.Surface.*
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.view.WindowCompat
 import androidx.navigation.NavController
 import androidx.navigation.NavOptions

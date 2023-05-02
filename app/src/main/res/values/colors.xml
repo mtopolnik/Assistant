@@ -34,6 +34,7 @@
     <color name="solarized_magenta">#d33682</color>
     <color name="solarized_violet">#6c71c4</color>
     <color name="solarized_blue">#268bd2</color>
+    <color name="solarized_blue_darker">#1B6598</color>
     <color name="solarized_cyan">#2aa198</color>
     <color name="solarized_green">#859900</color>
 
@@ -45,19 +46,27 @@
     <color name="grey">#888888</color>
     <color name="dark_grey">#444444</color>
 
-    <!-- App Theme -->
-    <color name="primary">@color/solarized_base02</color>
-    <color name="primary_variant">@color/solarized_base02</color>
-    <color name="on_primary">@color/solarized_base1</color>
-    <color name="secondary">@color/solarized_blue</color>
-    <color name="secondary_variant">@color/solarized_blue</color>
-    <color name="on_secondary">@color/white</color>
-    <color name="status_bar">@color/solarized_violet</color>
+    <!-- App Theme, generated from Solarized Blue and Magenta -->
+    <!-- on https://m3.material.io/theme-builder#/custom -->
+    <color name="primary">#00639b</color>
+    <color name="on_primary">#ffffff</color>
+    <color name="primary_container">#cee5ff</color>
+    <color name="on_primary_container">#001d33</color>
+    <color name="secondary">#5156a9</color>
+    <color name="on_secondary">#ffffff</color>
+    <color name="secondary_container">#e0e0ff</color>
+    <color name="on_secondary_container">#060764</color>
+    <color name="background">#fcfcff</color>
+    <color name="on_background">#1a1c1e</color>
+    <color name="surface">@color/background</color>
+    <color name="on_surface">@color/on_background</color>
 
     <!-- Custom -->
-    <color name="user_text_foreground">@color/solarized_base1</color>
-    <color name="user_text_background">@color/solarized_base03</color>
-    <color name="gpt_text_foreground">@color/solarized_base01</color>
-    <color name="gpt_text_background">@color/solarized_base3</color>
-    <color name="button_icon_foreground">@color/solarized_base2</color>
+    <color name="app_bar">@color/primary</color>
+    <color name="on_app_bar">@color/on_primary</color>
+    <color name="button_icon_foreground">@color/on_primary</color>
+    <color name="user_text_foreground">@color/on_secondary_container</color>
+    <color name="user_text_background">@color/secondary_container</color>
+    <color name="gpt_text_foreground">@color/on_primary_container</color>
+    <color name="gpt_text_background">@color/primary_container</color>
 </resources>

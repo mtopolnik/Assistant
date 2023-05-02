@@ -16,12 +16,20 @@
   -->
 
 <resources>
-    <color name="primary">@color/solarized_base02</color>
-    <color name="primary_variant">@color/solarized_base02</color>
-    <color name="on_primary">@color/solarized_base1</color>
-    <color name="secondary">@color/solarized_blue</color>
-    <color name="secondary_variant">@color/solarized_blue</color>
-    <color name="on_secondary">@color/white</color>
-    <color name="status_bar">@color/solarized_violet</color>
+    <!-- App Theme, generated from Solarized Blue and Magenta -->
+    <!-- on https://m3.material.io/theme-builder#/custom -->
+    <color name="primary">#97cbff</color>
+    <color name="on_primary">#003353</color>
+    <color name="primary_container">#004a76</color>
+    <color name="on_primary_container">#cee5ff</color>
+    <color name="secondary">#bfc2ff</color>
+    <color name="on_secondary">#212578</color>
+    <color name="secondary_container">#393d8f</color>
+    <color name="on_secondary_container">#e0e0ff</color>
+    <color name="background">#1a1c1e</color>
+    <color name="on_background">#e2e2e5</color>
+
+    <color name="app_bar">@color/surface</color>
+    <color name="on_app_bar">@color/on_surface</color>
 
 </resources>

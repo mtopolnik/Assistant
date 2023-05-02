@@ -19,12 +19,32 @@
 <resources>
     <style name="AppTheme" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/primary</item>
-        <item name="colorPrimaryVariant">@color/primary_variant</item>
         <item name="colorOnPrimary">@color/on_primary</item>
         <item name="colorSecondary">@color/secondary</item>
-        <item name="colorSecondaryVariant">@color/secondary_variant</item>
         <item name="colorOnSecondary">@color/on_secondary</item>
-        <!-- Set the status bar color -->
-        <item name="android:statusBarColor">@color/status_bar</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="colorOnSurface">@color/on_surface</item>
+        <item name="android:statusBarColor">@color/app_bar</item>
+
+    </style>
+
+    <!-- Referenced from the app bar in layout files -->
+    <style name="ActionBar" parent="AppTheme">
+        <item name="android:background">@color/app_bar</item>
+        <item name="textAppearanceTitleLarge">@style/ActionBarTitle</item>
+        <!-- Color of the overflow icon (three dots) -->
+        <item name="android:textColorSecondary">@color/on_app_bar</item>
+    </style>
+
+    <style name="ActionBarTitle" parent="TextAppearance.Widget.AppCompat.Toolbar.Title">
+        <item name="android:textSize">20sp</item>
+        <item name="android:textColor">@color/on_app_bar</item>
+    </style>
+
+    <style name="PopupTheme" parent="ThemeOverlay.AppCompat.DayNight">
+        <!-- Color of the overflow menu item text -->
+        <item name="android:textColorPrimary">@color/on_surface</item>
+        <!-- Color of the overflow menu background -->
+        <item name="android:background">@color/surface</item>
     </style>
 </resources>

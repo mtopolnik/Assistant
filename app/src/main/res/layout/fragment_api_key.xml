@@ -68,9 +68,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
-            android:backgroundTint="@color/secondary"
+            android:backgroundTint="@color/primary"
             android:text="@string/action_save"
-            android:textColor="@color/white"
+            android:textColor="@color/on_primary"
             android:textSize="18sp"
             />
 

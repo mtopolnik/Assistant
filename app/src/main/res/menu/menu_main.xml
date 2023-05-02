@@ -31,7 +31,7 @@
             android:id="@+id/action_speak_again"
             android:title="@string/action_speak_again"
             android:icon="@drawable/baseline_refresh_24"
-            app:iconTint="@color/icon_alpha_selector"
+            app:iconTint="@color/appbar_icon_color_selector"
             android:enabled="false"
             app:showAsAction="always" />
     <item
@@ -39,25 +39,25 @@
             android:title="@string/action_mute"
             android:icon="@drawable/baseline_volume_up_24"
             android:checkable="true"
-            app:iconTint="@color/icon_alpha_selector"
+            app:iconTint="@color/appbar_icon_color_selector"
             app:showAsAction="always" />
     <item
             android:id="@+id/action_undo"
             android:title="@string/action_undo"
             android:icon="@drawable/baseline_undo_24"
-            app:iconTint="@color/icon_alpha_selector"
+            app:iconTint="@color/appbar_icon_color_selector"
             app:showAsAction="always" />
     <item
             android:id="@+id/action_cancel"
             android:title="@string/action_cancel"
             android:icon="@drawable/baseline_cancel_24"
-            app:iconTint="@color/icon_alpha_selector"
+            app:iconTint="@color/appbar_icon_color_selector"
             app:showAsAction="always" />
     <item
             android:id="@+id/action_clear_chat_history"
             android:title="@string/clear_chat_history"
             android:icon="@drawable/baseline_delete_24"
-            app:iconTint="@color/icon_alpha_selector"
+            app:iconTint="@color/appbar_icon_color_selector"
             app:showAsAction="always" />
     <item
             android:id="@+id/action_about"

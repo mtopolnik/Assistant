@@ -55,11 +55,4 @@ class AboutDialogFragment : DialogFragment() {
             .setPositiveButton(android.R.string.ok) { _, _ -> }
             .create()
     }
-
-    override fun onStart() {
-        super.onStart()
-        (dialog as AlertDialog)
-            .getButton(DialogInterface.BUTTON_POSITIVE)
-            .setTextColor(requireContext().getColorCompat(R.color.white))
-    }
 }
