@@ -238,7 +238,8 @@ class ChatFragment : Fragment(), MenuProvider {
         binding.buttonRecord.setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    vibrate(); startRecordingPrompt(); true
+                    startRecordingPrompt()
+                    true
                 }
                 MotionEvent.ACTION_UP -> {
                     if (_mediaRecorder != null) {
@@ -596,6 +597,7 @@ class ChatFragment : Fragment(), MenuProvider {
             permissionRequest.launch(arrayOf(permission.RECORD_AUDIO, permission.WRITE_EXTERNAL_STORAGE))
             return
         }
+        vmodel.handleResponseJob?.cancel()
         activity.lockOrientation()
         try {
             val mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -614,6 +616,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 prepare()
                 start()
             }
+            vibrate()
             animateRecordingGlow()
         } catch (e: Exception) {
             Log.e("speech", "Voice recording error", e)
