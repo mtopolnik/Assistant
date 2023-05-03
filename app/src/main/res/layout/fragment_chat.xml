@@ -128,6 +128,7 @@
                     app:iconTint="@color/on_keyboard_button"
                     app:iconGravity="textEnd"
                     app:backgroundTint="@color/keyboard_button"
+                    android:textSize="18dp"
                     android:visibility="visible"
                     android:contentDescription="@string/listen_language"
                     />

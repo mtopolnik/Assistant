@@ -74,4 +74,5 @@
     <string name="demo_recognized_speech">Demo mode is on — this is a mock question.</string>
     <string name="close">Close</string>
     <string name="action_about">About</string>
+    <string name="listen_language">Voice recognition language</string>
 </resources>

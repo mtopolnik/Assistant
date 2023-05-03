@@ -42,15 +42,16 @@ import java.security.MessageDigest
 import kotlin.time.Duration.Companion.seconds
 import com.aallam.openai.client.OpenAI as OpenAIClient
 
-private const val DEMO_API_KEY = "demo"
+val openAi get() = openAiLazy.value
 
-lateinit var openAi: Lazy<OpenAI>
+private const val DEMO_API_KEY = "demo"
+private lateinit var openAiLazy: Lazy<OpenAI>
 
 fun resetOpenAi(context: Context): Lazy<OpenAI> {
-    if (::openAi.isInitialized) {
-        openAi.value.close()
+    if (::openAiLazy.isInitialized) {
+        openAiLazy.value.close()
     }
-    return lazy { OpenAI(context) }.also { openAi = it }
+    return lazy { OpenAI(context) }.also { openAiLazy = it }
 }
 
 @OptIn(BetaOpenAI::class)
@@ -86,16 +87,17 @@ class OpenAI(
             .filterNotNull()
     }
 
-    suspend fun getTranscription(promptContext: String, audioPathname: String): String {
-        Log.i("speech", "promptContext $promptContext")
+    suspend fun getTranscription(language: String?, prompt: String, audioPathname: String): String {
+        Log.i("speech", "Transcription language: $language")
         if (demoMode) {
             delay(2000)
             return mockRecognizedSpeech
         }
         return client.transcription(
             TranscriptionRequest(
+                language = language,
+                prompt = prompt,
                 audio = FileSource(audioPathname, File(audioPathname).source()),
-                prompt = promptContext,
                 model = ModelId("whisper-1"),
                 responseFormat = "text"
         )).text.replace("\n", "")

@@ -74,4 +74,5 @@
     <string name="demo_recognized_speech">Uključen je demo način rada — ovo je fejk pitanje.</string>
     <string name="close">Zatvori</string>
     <string name="action_about">O aplikaciji</string>
+    <string name="listen_language">Jezik na kojem pričaš</string>
 </resources>

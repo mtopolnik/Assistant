@@ -39,6 +39,7 @@ import android.speech.tts.UtteranceProgressListener
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuInflater
@@ -54,6 +55,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.PopupMenu
 import androidx.core.content.ContextCompat.checkSelfPermission
 import androidx.core.os.ConfigurationCompat
 import androidx.core.os.LocaleListCompat
@@ -71,6 +73,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.fragment.findNavController
 import com.aallam.openai.api.BetaOpenAI
 import com.aallam.openai.api.exception.OpenAIAPIException
+import com.google.android.material.button.MaterialButton
 import com.google.mlkit.nl.languageid.IdentifiedLanguage
 import com.google.mlkit.nl.languageid.LanguageIdentification
 import com.google.mlkit.nl.languageid.LanguageIdentificationOptions
@@ -107,6 +110,7 @@ import kotlin.coroutines.resume
 import kotlin.math.log2
 import kotlin.math.roundToLong
 
+private const val KEY_SPEECH_RECOG_LANGUAGE = "speech_recognition_language"
 private const val KEY_CHAT_HISTORY = "chat_history"
 private const val KEY_IS_MUTED = "is_muted"
 private const val KEY_IS_GPT4 = "is_gpt4"
@@ -132,6 +136,11 @@ class ChatFragmentModel(
         get() = _isGpt4LiveData.value!!
         set(value) { _isGpt4LiveData.value = value }
 
+    private val _speechRecogLanguage = savedState.getLiveData<String?>(KEY_SPEECH_RECOG_LANGUAGE, null)
+    var speechRecogLanguage: String?
+        get() = _speechRecogLanguage.value
+        set(value) { _speechRecogLanguage.value = value }
+
     val chatHistory = savedState.getLiveData<MutableList<PromptAndResponse>>(KEY_CHAT_HISTORY, mutableListOf()).value!!
     var handleResponseJob: Job? = null
     var recordingGlowJob: Job? = null
@@ -152,9 +161,9 @@ class ChatFragment : Fragment(), MenuProvider {
     private val punctuationRegex = """(?<=\D[.!]'?)\s+|(?<=\d[.!]'?)\s+(?=\p{Lu})|(?<=.[;?]'?)\s+|\n+""".toRegex()
     private val whitespaceRegex = """\s+""".toRegex()
     private val vmodel: ChatFragmentModel by viewModels()
+    private val inputLanguages = inputLanguages()
     private lateinit var binding: FragmentChatBinding
     private lateinit var audioPathname: String
-    private lateinit var systemLanguages: List<String>
     private lateinit var languageIdentifier: LanguageIdentifier
     private var pixelDensity = 0f
 
@@ -191,7 +200,7 @@ class ChatFragment : Fragment(), MenuProvider {
             }
         }
 
-        GlobalScope.launch(IO) { openAi.value }
+        GlobalScope.launch(IO) { openAi }
 
         var newestHistoryEditable: Editable? = null
         var newestHistoryMessagePair: PromptAndResponse? = null
@@ -213,10 +222,6 @@ class ChatFragment : Fragment(), MenuProvider {
         }
 
         pixelDensity = context.resources.displayMetrics.density
-        systemLanguages = run {
-            val localeList: LocaleListCompat = ConfigurationCompat.getLocales(context.resources.configuration)
-            (0 until localeList.size()).map { localeList.get(it)!!.language }
-        }
         languageIdentifier = LanguageIdentification.getClient(
             LanguageIdentificationOptions.Builder().setConfidenceThreshold(0.2f).build()
         )
@@ -247,6 +252,14 @@ class ChatFragment : Fragment(), MenuProvider {
                         showRecordedPrompt()
                     }
                     true
+                }
+                else -> false
+            }
+        }
+        binding.buttonLanguage.setOnTouchListener { _, event ->
+            when (event.action) {
+                MotionEvent.ACTION_UP -> {
+                    showLanguageMenu(); true
                 }
                 else -> false
             }
@@ -427,7 +440,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 vmodel.autoscrollEnabled = true
                 scrollToBottom()
                 val sentenceFlow: Flow<String> = channelFlow {
-                    openAi.value.chatCompletions(vmodel.chatHistory, vmodel.isGpt4)
+                    openAi.chatCompletions(vmodel.chatHistory, vmodel.isGpt4)
                         .onEach { token ->
                             val replyEditable = vmodel.replyEditable!!
                             replyEditable.append(token)
@@ -683,6 +696,7 @@ class ChatFragment : Fragment(), MenuProvider {
                         vmodel.withFragment { it.binding.recordingGlow.setVolume(anim.animatedValue as Float) }
                     }
                 }
+
                 val low = 0.125f
                 val high = 0.25f
                 ValueAnimator.ofFloat(lastRecordingVolume, high).apply {
@@ -721,7 +735,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 }
                 val promptContext = appContext.mainPrefs.systemPrompt + " " +
                         vmodel.chatHistory.joinToString(" ") { it.prompt.toString() }
-                val transcription = openAi.value.getTranscription(promptContext, audioPathname)
+                val transcription = openAi.getTranscription(vmodel.speechRecogLanguage, promptContext, audioPathname)
                 if (transcription.isEmpty()) {
                     return@launch
                 }
@@ -772,6 +786,7 @@ class ChatFragment : Fragment(), MenuProvider {
         binding.apply {
             buttonKeyboard.visibility = GONE
             buttonRecord.visibility = GONE
+            buttonLanguage.visibility = GONE
             buttonSend.visibility = VISIBLE
             edittextPrompt.apply {
                 visibility = VISIBLE
@@ -789,6 +804,7 @@ class ChatFragment : Fragment(), MenuProvider {
             binding.apply {
                 buttonKeyboard.visibility = VISIBLE
                 buttonRecord.visibility = VISIBLE
+                buttonLanguage.visibility = VISIBLE
                 buttonSend.visibility = GONE
                 edittextPrompt.apply {
                     visibility = GONE
@@ -867,11 +883,18 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
+    private fun inputLanguages(): List<Locale> {
+        val localeList: LocaleListCompat = ConfigurationCompat.getLocales(appContext.resources.configuration)
+        return (0 until localeList.size()).map { localeList.get(it)!! }
+    }
+
     private suspend fun identifyLanguage(text: String, previousLanguageTag: String): String {
+        fun isInputLanguage(tag: String) = inputLanguages.firstOrNull { it.language == tag } != null
+
         val languagesWithConfidence = languageIdentifier.identifyPossibleLanguages(text).await()
         val languagesWithAdjustedConfidence = languagesWithConfidence
             .map { lang ->
-                if (systemLanguages.contains(lang.languageTag)) {
+                if (isInputLanguage(lang.languageTag)) {
                     IdentifiedLanguage(lang.languageTag, (lang.confidence + 0.2f))
                 } else lang
             }
@@ -891,11 +914,41 @@ class ChatFragment : Fragment(), MenuProvider {
             topLang.languageTag != UNDETERMINED_LANGUAGE_TAG && topLang.confidence >= 0.8 -> langTags.first()
             else ->
                 previousLanguageTag.takeIf { it != UNDETERMINED_LANGUAGE_TAG }
-                    ?: langTags.firstOrNull { systemLanguages.contains(it) }
-                    ?: systemLanguages.first()
+                    ?: langTags.firstOrNull { isInputLanguage(it) }
+                    ?: inputLanguages.first().language
         }.also {
             Log.i("speech", "Chosen language: $it")
         }
+    }
+
+    private fun showLanguageMenu() {
+        val autoItemid = 1
+        val itemIdOffset = 2
+        val pop = PopupMenu(requireContext(), binding.buttonLanguage.parent as View, Gravity.END)
+        pop.menu.add(Menu.NONE, autoItemid, Menu.NONE, "Auto").itemId
+        val inputLanguages = inputLanguages
+        for ((i, language) in inputLanguages.withIndex()) {
+            pop.menu.add(Menu.NONE, i + itemIdOffset, Menu.NONE, language.displayLanguage)
+        }
+        pop.setOnMenuItemClickListener { item ->
+            if (item.itemId == autoItemid) {
+                vmodel.speechRecogLanguage = null
+                (binding.buttonLanguage as MaterialButton).apply {
+                    setIconResource(R.drawable.baseline_record_voice_over_28)
+                    text = ""
+                }
+            }
+            else {
+                val selectedLocale = inputLanguages[item.itemId - itemIdOffset]
+                vmodel.speechRecogLanguage = selectedLocale.language
+                (binding.buttonLanguage as MaterialButton).apply {
+                    icon = null
+                    text = selectedLocale.language.uppercase()
+                }
+            }
+            true
+        }
+        pop.show()
     }
 
     private fun vibrate() {
