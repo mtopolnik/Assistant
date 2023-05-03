@@ -49,7 +49,7 @@ import android.view.View.*
 import android.view.ViewGroup
 import android.view.animation.LinearInterpolator
 import android.view.inputmethod.InputMethodManager
-import android.widget.ImageButton
+import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -338,7 +338,8 @@ class ChatFragment : Fragment(), MenuProvider {
 
                     } finally {
                         vmodel.handleResponseJob = null
-                        vmodel.withFragment { it.activity?.invalidateOptionsMenu() }                    }
+                        vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
+                    }
                 }
                 activity?.invalidateOptionsMenu()
                 true
@@ -628,7 +629,7 @@ class ChatFragment : Fragment(), MenuProvider {
             stopRecordingGlowAnimation()
             lifecycleScope.launch {
                 stopRecording()
-                vmodel.withFragment { it.binding.buttonRecord.setActive(true) }
+                vmodel.withFragment { it.binding.buttonRecord.isEnabled = true }
             }
         } finally {
             activity.unlockOrientation()
@@ -711,7 +712,7 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun showRecordedPrompt() {
-        binding.buttonRecord.setActive(false)
+        binding.buttonRecord.isEnabled = false
         vmodel.viewModelScope.launch {
             try {
                 val recordingSuccess = stopRecording()
@@ -745,25 +746,26 @@ class ChatFragment : Fragment(), MenuProvider {
                     }
                 }
             } finally {
-                vmodel.withFragment { it.binding.buttonRecord.setActive(true) }
+                vmodel.withFragment {
+                    it.binding.buttonRecord.isEnabled = true
+                }
                 stopRecordingGlowAnimation()
             }
         }
     }
 
-    private fun ImageButton.onClickWithVibrate(pointerUpAction: () -> Unit) {
+    private fun Button.onClickWithVibrate(pointerUpAction: () -> Unit) {
         setOnTouchListener { _, event ->
             when (event.action) {
-                MotionEvent.ACTION_DOWN -> { vibrate(); true }
-                MotionEvent.ACTION_UP -> { pointerUpAction(); true }
+                MotionEvent.ACTION_DOWN -> {
+                    vibrate(); true
+                }
+                MotionEvent.ACTION_UP -> {
+                    pointerUpAction(); true
+                }
                 else -> false
             }
         }
-    }
-
-    private fun ImageButton.setActive(newActive: Boolean) {
-        imageAlpha = if (newActive) 255 else 128
-        isEnabled = newActive
     }
 
     private fun switchToTyping() {
