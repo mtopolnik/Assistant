@@ -46,7 +46,7 @@
                         android:layout_height="?attr/actionBarSize"
                         app:layout_scrollFlags="scroll|enterAlways"
                         android:theme="@style/ActionBar"
-                        app:popupTheme="@style/PopupTheme"
+                        app:popupTheme="@style/OverflowPopupTheme"
                         />
 
             </com.google.android.material.appbar.AppBarLayout>

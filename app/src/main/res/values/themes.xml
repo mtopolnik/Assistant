@@ -29,7 +29,6 @@
         <item name="android:statusBarColor">@color/app_bar</item>
 
     </style>
-
     <!-- Referenced from the app bar in layout files -->
     <style name="ActionBar" parent="AppTheme">
         <item name="android:background">@color/app_bar</item>
@@ -43,10 +42,8 @@
         <item name="android:textColor">@color/on_app_bar</item>
     </style>
 
-    <style name="PopupTheme" parent="ThemeOverlay.AppCompat.DayNight">
-        <!-- Color of the overflow menu item text -->
-        <item name="android:textColorPrimary">@color/on_surface</item>
-        <!-- Color of the overflow menu background -->
-        <item name="android:background">@color/surface</item>
+    <!-- Fixes a bug where the overflow menu item background is different from its container -->
+    <style name="OverflowPopupTheme" parent="Widget.Material3.PopupMenu.Overflow">
+        <item name="android:background">#00000000</item>
     </style>
 </resources>
