@@ -75,6 +75,7 @@
                 app:layout_anchor="@id/scrollview_chat"
                 app:layout_anchorGravity="bottom"
                 android:layout_gravity="bottom"
+                android:gravity="center"
                 android:padding="8dp"
                 >
 
@@ -83,7 +84,6 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:layout_gravity="bottom"
                     android:visibility="gone"
                     android:hint="@string/prompt_hint"
                     android:autofillHints=""
