@@ -128,13 +128,11 @@ class ChatFragmentModel(
 
     private val _isMutedLiveData = savedState.getLiveData(KEY_IS_MUTED, false)
     var isMuted: Boolean
-        get() = _isMutedLiveData.value!!
-        set(value) { _isMutedLiveData.value = value }
+        get() = _isMutedLiveData.value!!; set(value) { _isMutedLiveData.value = value }
 
     private val _isGpt4LiveData = savedState.getLiveData(KEY_IS_GPT4, false)
     var isGpt4: Boolean
-        get() = _isGpt4LiveData.value!!
-        set(value) { _isGpt4LiveData.value = value }
+        get() = _isGpt4LiveData.value!!; set(value) { _isGpt4LiveData.value = value }
 
     private val _speechRecogLanguage = savedState.getLiveData<String?>(KEY_SPEECH_RECOG_LANGUAGE, null)
     var speechRecogLanguage: String?
@@ -142,6 +140,7 @@ class ChatFragmentModel(
         set(value) { _speechRecogLanguage.value = value }
 
     val chatHistory = savedState.getLiveData<MutableList<PromptAndResponse>>(KEY_CHAT_HISTORY, mutableListOf()).value!!
+
     var handleResponseJob: Job? = null
     var recordingGlowJob: Job? = null
     var autoscrollEnabled: Boolean = true
@@ -264,6 +263,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 else -> false
             }
         }
+        updateLanguageButton()
         binding.buttonKeyboard.onClickWithVibrate {
             switchToTyping()
             (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
@@ -928,27 +928,34 @@ class ChatFragment : Fragment(), MenuProvider {
         pop.menu.add(Menu.NONE, autoItemid, Menu.NONE, "Auto").itemId
         val inputLanguages = inputLanguages
         for ((i, language) in inputLanguages.withIndex()) {
-            pop.menu.add(Menu.NONE, i + itemIdOffset, Menu.NONE, language.displayLanguage)
+            pop.menu.add(Menu.NONE, i + itemIdOffset, Menu.NONE, language.displayLanguage.capitalizeFirstLetter())
         }
         pop.setOnMenuItemClickListener { item ->
-            if (item.itemId == autoItemid) {
-                vmodel.speechRecogLanguage = null
-                (binding.buttonLanguage as MaterialButton).apply {
-                    setIconResource(R.drawable.baseline_record_voice_over_28)
-                    text = ""
-                }
-            }
-            else {
-                val selectedLocale = inputLanguages[item.itemId - itemIdOffset]
-                vmodel.speechRecogLanguage = selectedLocale.language
-                (binding.buttonLanguage as MaterialButton).apply {
-                    icon = null
-                    text = selectedLocale.language.uppercase()
-                }
-            }
+            vmodel.speechRecogLanguage =
+                if (item.itemId == autoItemid) null
+                else inputLanguages[item.itemId - itemIdOffset].language
+            updateLanguageButton()
             true
         }
         pop.show()
+    }
+
+    private fun updateLanguageButton() {
+        val language = vmodel.speechRecogLanguage
+        val languageButton = binding.buttonLanguage as MaterialButton
+        if (language == null) {
+            languageButton.apply {
+                setIconResource(R.drawable.baseline_record_voice_over_28)
+                text = ""
+            }
+        }
+        else {
+            languageButton.apply {
+                icon = null
+                text = language.uppercase()
+            }
+        }
+
     }
 
     private fun vibrate() {
@@ -1001,6 +1008,9 @@ class ChatFragment : Fragment(), MenuProvider {
         val lastMatch = punctuationRegex.findAll(this).lastOrNull() ?: return ""
         return substring(0, lastMatch.range.last + 1)
     }
+
+    private fun String.capitalizeFirstLetter() =
+        replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
 }
 
 class UtteranceContinuationListener<T>(
