@@ -110,10 +110,7 @@ import kotlin.coroutines.resume
 import kotlin.math.log2
 import kotlin.math.roundToLong
 
-private const val KEY_SPEECH_RECOG_LANGUAGE = "speech_recognition_language"
 private const val KEY_CHAT_HISTORY = "chat_history"
-private const val KEY_IS_MUTED = "is_muted"
-private const val KEY_IS_GPT4 = "is_gpt4"
 
 private const val MAX_RECORDING_TIME_MILLIS = 60_000L
 
@@ -125,19 +122,6 @@ class ChatFragmentModel(
     fun withFragment(task: (ChatFragment) -> Unit) {
         withFragmentLiveData.value = task
     }
-
-    private val _isMutedLiveData = savedState.getLiveData(KEY_IS_MUTED, false)
-    var isMuted: Boolean
-        get() = _isMutedLiveData.value!!; set(value) { _isMutedLiveData.value = value }
-
-    private val _isGpt4LiveData = savedState.getLiveData(KEY_IS_GPT4, false)
-    var isGpt4: Boolean
-        get() = _isGpt4LiveData.value!!; set(value) { _isGpt4LiveData.value = value }
-
-    private val _speechRecogLanguage = savedState.getLiveData<String?>(KEY_SPEECH_RECOG_LANGUAGE, null)
-    var speechRecogLanguage: String?
-        get() = _speechRecogLanguage.value
-        set(value) { _speechRecogLanguage.value = value }
 
     val chatHistory = savedState.getLiveData<MutableList<PromptAndResponse>>(KEY_CHAT_HISTORY, mutableListOf()).value!!
 
@@ -309,17 +293,17 @@ class ChatFragment : Fragment(), MenuProvider {
         updateMuteItem(menu.findItem(R.id.action_sound_toggle))
 
         fun TextView.updateText() {
-            text = getString(if (vmodel.isGpt4) R.string.gpt_4 else R.string.gpt_3_5)
+            text = getString(if (appContext.mainPrefs.isGpt4) R.string.gpt_4 else R.string.gpt_3_5)
         }
         if (requireContext().mainPrefs.openaiApiKey.isGpt3OnlyKey()) {
-            vmodel.isGpt4 = false
+            appContext.mainPrefs.applyUpdate { setIsGpt4(false) }
         } else {
             menu.findItem(R.id.action_gpt_toggle).apply {
                 isVisible = true
             }.actionView!!.findViewById<TextView>(R.id.textview_gpt_toggle).apply {
                 updateText()
                 setOnClickListener {
-                    vmodel.isGpt4 = !vmodel.isGpt4
+                    appContext.mainPrefs.applyUpdate { setIsGpt4(!appContext.mainPrefs.isGpt4) }
                     updateText()
                 }
             }
@@ -332,12 +316,12 @@ class ChatFragment : Fragment(), MenuProvider {
         val hasHistory = vmodel.chatHistory.isNotEmpty()
         menu.findItem(R.id.action_cancel).isVisible = responding
         menu.findItem(R.id.action_undo).isVisible = !responding
-        menu.findItem(R.id.action_speak_again).isEnabled = !vmodel.isMuted && !responding && hasHistory
+        menu.findItem(R.id.action_speak_again).isEnabled = !appContext.mainPrefs.isMuted && !responding && hasHistory
     }
 
     private fun updateMuteItem(item: MenuItem) {
-        item.isChecked = vmodel.isMuted
-        item.setIcon(if (vmodel.isMuted) R.drawable.baseline_volume_off_24 else R.drawable.baseline_volume_up_24)
+        item.isChecked = appContext.mainPrefs.isMuted
+        item.setIcon(if (item.isChecked) R.drawable.baseline_volume_off_24 else R.drawable.baseline_volume_up_24)
     }
 
     override fun onMenuItemSelected(item: MenuItem): Boolean {
@@ -358,7 +342,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 true
             }
             R.id.action_sound_toggle -> {
-                vmodel.isMuted = !vmodel.isMuted
+                appContext.mainPrefs.applyUpdate { setIsMuted(!appContext.mainPrefs.isMuted) }
                 updateMuteItem(item)
                 updateMediaPlayerVolume()
                 activity?.invalidateOptionsMenu()
@@ -440,7 +424,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 vmodel.autoscrollEnabled = true
                 scrollToBottom()
                 val sentenceFlow: Flow<String> = channelFlow {
-                    openAi.chatCompletions(vmodel.chatHistory, vmodel.isGpt4)
+                    openAi.chatCompletions(vmodel.chatHistory, appContext.mainPrefs.isGpt4)
                         .onEach { token ->
                             val replyEditable = vmodel.replyEditable!!
                             replyEditable.append(token)
@@ -733,9 +717,10 @@ class ChatFragment : Fragment(), MenuProvider {
                 if (!recordingSuccess) {
                     return@launch
                 }
-                val promptContext = appContext.mainPrefs.systemPrompt + " " +
+                val prefs = appContext.mainPrefs
+                val promptContext = prefs.systemPrompt + " " +
                         vmodel.chatHistory.joinToString(" ") { it.prompt.toString() }
-                val transcription = openAi.getTranscription(vmodel.speechRecogLanguage, promptContext, audioPathname)
+                val transcription = openAi.getTranscription(prefs.speechRecogLanguage, promptContext, audioPathname)
                 if (transcription.isEmpty()) {
                     return@launch
                 }
@@ -932,9 +917,11 @@ class ChatFragment : Fragment(), MenuProvider {
                 "${locale.language.uppercase()} (${locale.displayLanguage.capitalizeFirstLetter()})")
         }
         pop.setOnMenuItemClickListener { item ->
-            vmodel.speechRecogLanguage =
-                if (item.itemId == autoItemId) null
-                else inputLocales[item.itemId - itemIdOffset].language
+            appContext.mainPrefs.applyUpdate {
+                setSpeechRecogLanguage(
+                    if (item.itemId == autoItemId) null
+                    else inputLocales[item.itemId - itemIdOffset].language)
+            }
             updateLanguageButton()
             true
         }
@@ -942,7 +929,7 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun updateLanguageButton() {
-        val language = vmodel.speechRecogLanguage
+        val language = appContext.mainPrefs.speechRecogLanguage
         val languageButton = binding.buttonLanguage as MaterialButton
         if (language == null) {
             languageButton.apply {
@@ -988,7 +975,7 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun updateMediaPlayerVolume() {
-        val volume = if (vmodel.isMuted) 0f else 1f
+        val volume = if (appContext.mainPrefs.isMuted) 0f else 1f
         vmodel.mediaPlayer?.setVolume(volume, volume)
     }
 

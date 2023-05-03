@@ -23,8 +23,11 @@ import android.content.SharedPreferences
 import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceManager
 
-const val KEY_OPENAI_API_KEY = "openai_api_key"
-const val KEY_SYSTEM_PROMPT = "system_prompt"
+private const val KEY_OPENAI_API_KEY = "openai_api_key"
+private const val KEY_SYSTEM_PROMPT = "system_prompt"
+private const val KEY_SPEECH_RECOG_LANGUAGE = "speech_recognition_language"
+private const val KEY_IS_MUTED = "is_muted"
+private const val KEY_IS_GPT4 = "is_gpt4"
 
 lateinit var appContext: Context
 
@@ -59,3 +62,18 @@ val SharedPreferences.systemPrompt: String get() = getString(KEY_SYSTEM_PROMPT,
 
 fun SharedPreferences.Editor.setSystemPrompt(systemPrompt: String?): SharedPreferences.Editor =
     putString(KEY_SYSTEM_PROMPT, systemPrompt)
+
+val SharedPreferences.speechRecogLanguage: String? get() = getString(KEY_SPEECH_RECOG_LANGUAGE, null)
+
+fun SharedPreferences.Editor.setSpeechRecogLanguage(language: String?): SharedPreferences.Editor =
+    putString(KEY_SPEECH_RECOG_LANGUAGE, language)
+
+val SharedPreferences.isMuted: Boolean get() = getBoolean(KEY_IS_MUTED, false)
+
+fun SharedPreferences.Editor.setIsMuted(value: Boolean): SharedPreferences.Editor =
+    putBoolean(KEY_IS_MUTED, value)
+
+val SharedPreferences.isGpt4: Boolean get() = getBoolean(KEY_IS_GPT4, false)
+
+fun SharedPreferences.Editor.setIsGpt4(value: Boolean): SharedPreferences.Editor =
+    putBoolean(KEY_IS_GPT4, value)
