@@ -160,7 +160,7 @@ class ChatFragment : Fragment(), MenuProvider {
     private val punctuationRegex = """(?<=\D[.!]'?)\s+|(?<=\d[.!]'?)\s+(?=\p{Lu})|(?<=.[;?]'?)\s+|\n+""".toRegex()
     private val whitespaceRegex = """\s+""".toRegex()
     private val vmodel: ChatFragmentModel by viewModels()
-    private val inputLanguages = inputLanguages()
+    private val inputLocales = inputLocales()
     private lateinit var binding: FragmentChatBinding
     private lateinit var audioPathname: String
     private lateinit var languageIdentifier: LanguageIdentifier
@@ -883,13 +883,13 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun inputLanguages(): List<Locale> {
+    private fun inputLocales(): List<Locale> {
         val localeList: LocaleListCompat = ConfigurationCompat.getLocales(appContext.resources.configuration)
         return (0 until localeList.size()).map { localeList.get(it)!! }
     }
 
     private suspend fun identifyLanguage(text: String, previousLanguageTag: String): String {
-        fun isInputLanguage(tag: String) = inputLanguages.firstOrNull { it.language == tag } != null
+        fun isInputLanguage(tag: String) = inputLocales.firstOrNull { it.language == tag } != null
 
         val languagesWithConfidence = languageIdentifier.identifyPossibleLanguages(text).await()
         val languagesWithAdjustedConfidence = languagesWithConfidence
@@ -915,25 +915,26 @@ class ChatFragment : Fragment(), MenuProvider {
             else ->
                 previousLanguageTag.takeIf { it != UNDETERMINED_LANGUAGE_TAG }
                     ?: langTags.firstOrNull { isInputLanguage(it) }
-                    ?: inputLanguages.first().language
+                    ?: inputLocales.first().language
         }.also {
             Log.i("speech", "Chosen language: $it")
         }
     }
 
     private fun showLanguageMenu() {
-        val autoItemid = 1
-        val itemIdOffset = 2
-        val pop = PopupMenu(requireContext(), binding.buttonLanguage.parent as View, Gravity.END)
-        pop.menu.add(Menu.NONE, autoItemid, Menu.NONE, "Auto").itemId
-        val inputLanguages = inputLanguages
-        for ((i, language) in inputLanguages.withIndex()) {
-            pop.menu.add(Menu.NONE, i + itemIdOffset, Menu.NONE, language.displayLanguage.capitalizeFirstLetter())
+        val autoItemId = Menu.FIRST
+        val itemIdOffset = autoItemId + 1
+        val pop = PopupMenu(requireContext(), binding.buttonLanguage, Gravity.END)
+        pop.menu.add(Menu.NONE, autoItemId, Menu.NONE, "Auto").itemId
+        val inputLocales = inputLocales
+        for ((i, locale) in inputLocales.withIndex()) {
+            pop.menu.add(Menu.NONE, i + itemIdOffset, Menu.NONE,
+                "${locale.language.uppercase()} (${locale.displayLanguage.capitalizeFirstLetter()})")
         }
         pop.setOnMenuItemClickListener { item ->
             vmodel.speechRecogLanguage =
-                if (item.itemId == autoItemid) null
-                else inputLanguages[item.itemId - itemIdOffset].language
+                if (item.itemId == autoItemId) null
+                else inputLocales[item.itemId - itemIdOffset].language
             updateLanguageButton()
             true
         }
