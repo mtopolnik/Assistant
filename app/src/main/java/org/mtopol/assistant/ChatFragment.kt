@@ -257,7 +257,7 @@ class ChatFragment : Fragment(), MenuProvider {
         }
         binding.buttonLanguage.setOnTouchListener { _, event ->
             when (event.action) {
-                MotionEvent.ACTION_UP -> {
+                MotionEvent.ACTION_DOWN -> {
                     showLanguageMenu(); true
                 }
                 else -> false
