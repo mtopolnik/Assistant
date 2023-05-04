@@ -44,7 +44,7 @@
     <color name="white_semitransparent">#80FFFFFF</color>
     <color name="light_grey">#AAAAAA</color>
     <color name="grey">#888888</color>
-    <color name="dark_grey">#444444</color>
+    <color name="dark_grey">#404040</color>
 
     <!-- App Theme, generated from Solarized Blue and Magenta -->
     <!-- on https://m3.material.io/theme-builder#/custom -->
