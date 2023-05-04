@@ -367,6 +367,10 @@ class ChatFragment : Fragment(), MenuProvider {
                 findNavController().navigate(R.id.fragment_system_prompt)
                 true
             }
+            R.id.action_play_store -> {
+                requireContext().visitOnPlayStore()
+                true
+            }
             R.id.action_delete_openai_key -> {
                 val activity = requireActivity() as MainActivity
                 activity.mainPrefs.applyUpdate {

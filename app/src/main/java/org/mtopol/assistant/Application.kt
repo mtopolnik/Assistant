@@ -17,9 +17,13 @@
 
 package org.mtopol.assistant
 
+import android.annotation.SuppressLint
 import android.app.Application
+import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
+import android.net.Uri
 import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceManager
 
@@ -79,3 +83,28 @@ val SharedPreferences.isGpt4: Boolean get() = getBoolean(KEY_IS_GPT4, false)
 
 fun SharedPreferences.Editor.setIsGpt4(value: Boolean): SharedPreferences.Editor =
     putBoolean(KEY_IS_GPT4, value)
+
+@SuppressLint("QueryPermissionsNeeded") // Play Store is visible automatically
+fun Context.visitOnPlayStore() {
+    val rateIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName"))
+    @Suppress("DEPRECATION") // The new variant just adds more flags in a Long
+    packageManager.queryIntentActivities(rateIntent, 0)
+        .map { it.activityInfo }
+        .find { it.applicationInfo.packageName == "com.android.vending" }
+        ?.also {
+            rateIntent.component = ComponentName(it.applicationInfo.packageName, it.name)
+            rateIntent.addFlags(
+                // don't open Play Store in the stack of our activity
+                Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
+                        // make sure Play Store opens our app page, whatever it was doing before
+                        or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            )
+            startActivity(rateIntent)
+        }
+    // Play Store app not installed, open in web browser
+        ?: startActivity(
+            Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("https://play.google.com/store/apps/details?id=$packageName"))
+        )
+}

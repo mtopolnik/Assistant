@@ -75,4 +75,5 @@
     <string name="close">Close</string>
     <string name="action_about">About</string>
     <string name="listen_language">Voice recognition language</string>
+    <string name="action_play_store">See on Play Store</string>
 </resources>
