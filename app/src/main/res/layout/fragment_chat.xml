@@ -67,15 +67,13 @@
 
         </androidx.coordinatorlayout.widget.CoordinatorLayout>
 
-        <LinearLayout
+        <androidx.constraintlayout.widget.ConstraintLayout
                 android:id="@+id/prompt_section"
-                android:orientation="horizontal"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:layout_anchor="@id/scrollview_chat"
                 app:layout_anchorGravity="bottom"
                 android:layout_gravity="bottom"
-                android:gravity="center"
                 android:padding="8dp"
                 >
 
@@ -83,7 +81,10 @@
                     android:id="@+id/edittext_prompt"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintEnd_toStartOf="@id/button_send"
+                    app:layout_constraintWidth_default="spread"
                     android:visibility="gone"
                     android:hint="@string/prompt_hint"
                     android:autofillHints=""
@@ -92,11 +93,29 @@
                     android:imeOptions="actionDone|flagNavigateNext"
                     android:maxLines="7"
                     />
+            <Button
+                    android:id="@+id/button_send"
+                    android:layout_width="58dp"
+                    android:layout_height="58dp"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    style="?attr/materialIconButtonFilledStyle"
+                    app:icon="@drawable/baseline_send_28"
+                    app:iconSize="28dp"
+                    app:iconTint="@color/on_primary"
+                    app:iconPadding="4dp"
+                    app:iconGravity="textEnd"
+                    app:backgroundTint="@color/primary"
+                    android:visibility="gone"
+                    android:contentDescription="@string/send"
+                    />
 
             <Button
                     android:id="@+id/button_keyboard"
                     android:layout_width="58dp"
                     android:layout_height="58dp"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
                     style="?attr/materialIconButtonFilledStyle"
                     app:icon="@drawable/baseline_keyboard_28"
                     app:iconSize="28dp"
@@ -107,9 +126,12 @@
                     />
             <Button
                     android:id="@+id/button_record"
-                    android:layout_width="58dp"
+                    android:layout_width="0dp"
                     android:layout_height="58dp"
-                    android:layout_weight="1"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintStart_toEndOf="@id/button_keyboard"
+                    app:layout_constraintEnd_toStartOf="@id/button_language"
+                    app:layout_constraintWidth_default="spread"
                     style="?attr/materialIconButtonFilledStyle"
                     app:icon="@drawable/baseline_mic_28"
                     app:iconSize="28dp"
@@ -122,6 +144,8 @@
                     android:id="@+id/button_language"
                     android:layout_width="58dp"
                     android:layout_height="58dp"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"
                     style="?attr/materialIconButtonFilledStyle"
                     app:icon="@drawable/baseline_record_voice_over_28"
                     app:iconSize="28dp"
@@ -132,21 +156,7 @@
                     android:visibility="visible"
                     android:contentDescription="@string/listen_language"
                     />
-            <Button
-                    android:id="@+id/button_send"
-                    android:layout_width="58dp"
-                    android:layout_height="58dp"
-                    style="?attr/materialIconButtonFilledStyle"
-                    app:icon="@drawable/baseline_send_28"
-                    app:iconSize="28dp"
-                    app:iconTint="@color/on_primary"
-                    app:iconPadding="4dp"
-                    app:iconGravity="textEnd"
-                    app:backgroundTint="@color/primary"
-                    android:visibility="gone"
-                    android:contentDescription="@string/send"
-                    />
-        </LinearLayout>
+        </androidx.constraintlayout.widget.ConstraintLayout>
     </LinearLayout>
 
     <org.mtopol.assistant.RecordingGlowView
