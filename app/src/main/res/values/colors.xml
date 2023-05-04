@@ -66,6 +66,8 @@
     <color name="chat_background">@color/solarized_base2</color>
     <color name="user_text_foreground">@color/solarized_base02</color>
     <color name="user_text_background">#BEE8FF</color>
+    <color name="user_text_border">#bbbbbb</color>
     <color name="gpt_text_foreground">@color/on_surface</color>
     <color name="gpt_text_background">@color/white</color>
+    <color name="gpt_text_border">#bbbbbb</color>
 </resources>

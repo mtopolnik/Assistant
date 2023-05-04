@@ -28,7 +28,6 @@ private const val MIN_GLOW_RADIUS_DP = 25
 private const val MAX_GROW_DP = 150
 
 class RecordingGlowView(context: Context, attrs: AttributeSet) : View(context, attrs) {
-    private val pixelDensity = context.resources.displayMetrics.density
 
     private var centerX: Float = 0f
     private var centerY: Float = 0f

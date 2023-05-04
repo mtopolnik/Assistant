@@ -25,7 +25,8 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Context.VIBRATOR_SERVICE
 import android.content.pm.PackageManager.PERMISSION_GRANTED
-import android.content.res.ColorStateList
+import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.LayerDrawable
 import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.os.Build
@@ -148,7 +149,6 @@ class ChatFragment : Fragment(), MenuProvider {
     private lateinit var binding: FragmentChatBinding
     private lateinit var audioPathname: String
     private lateinit var languageIdentifier: LanguageIdentifier
-    private var pixelDensity = 0f
 
     private var _mediaRecorder: MediaRecorder? = null
 
@@ -204,7 +204,6 @@ class ChatFragment : Fragment(), MenuProvider {
             windowInsets
         }
 
-        pixelDensity = context.resources.displayMetrics.density
         languageIdentifier = LanguageIdentification.getClient(
             LanguageIdentificationOptions.Builder().setConfidenceThreshold(0.2f).build()
         )
@@ -833,18 +832,24 @@ class ChatFragment : Fragment(), MenuProvider {
         val context = requireContext()
         val chatView = binding.viewChat
 
-        fun addMessageView(textColor: Int, backgroundColor: Int, text: CharSequence): Editable {
+        fun addMessageView(textColor: Int, backgroundFill: Int, backgroundBorder: Int, text: CharSequence): Editable {
             val messageView = LayoutInflater.from(requireContext())
                 .inflate(R.layout.chat_message_item, chatView, false) as TextView
             messageView.setTextColor(context.getColorCompat(textColor))
-            messageView.backgroundTintList = ColorStateList.valueOf(context.getColorCompat(backgroundColor))
+            (messageView.background as LayerDrawable).apply {
+                findDrawableByLayerId(R.id.background_fill).setTint(context.getColorCompat(backgroundFill))
+                (findDrawableByLayerId(R.id.background_border) as GradientDrawable)
+                    .setStroke(pixelDensity.toInt(), context.getColorCompat(backgroundBorder))
+            }
             messageView.text = text
             chatView.addView(messageView)
             return messageView.editableText
         }
 
-        addMessageView(R.color.user_text_foreground, R.color.user_text_background, promptAndResponse.prompt)
-        return addMessageView(R.color.gpt_text_foreground, R.color.gpt_text_background, promptAndResponse.response)
+        addMessageView(R.color.user_text_foreground, R.color.user_text_background, R.color.user_text_border,
+            promptAndResponse.prompt)
+        return addMessageView(R.color.gpt_text_foreground, R.color.gpt_text_background, R.color.gpt_text_border,
+            promptAndResponse.response)
     }
 
     private fun clearChat() {

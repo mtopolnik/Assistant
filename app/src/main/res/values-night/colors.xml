@@ -35,7 +35,9 @@
     <color name="on_keyboard_button">#F3F3F3</color>
     <color name="user_text_foreground">@color/on_surface</color>
     <color name="user_text_background">@color/dark_grey</color>
+    <color name="user_text_border">#666666</color>
     <color name="gpt_text_foreground">@color/on_surface</color>
     <color name="gpt_text_background">#004a76</color>
+    <color name="gpt_text_border">#286A8F</color>
 
 </resources>

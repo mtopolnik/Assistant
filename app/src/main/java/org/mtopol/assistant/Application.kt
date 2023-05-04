@@ -38,6 +38,8 @@ class ChatApplication : Application() {
     }
 }
 
+val pixelDensity get() = appContext.resources.displayMetrics.density
+
 fun Context.getColorCompat(id: Int) = ContextCompat.getColor(this, id)
 
 val Context.mainPrefs: SharedPreferences get() = PreferenceManager.getDefaultSharedPreferences(this)

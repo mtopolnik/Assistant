@@ -44,6 +44,6 @@
 
     <!-- Fixes a bug where the overflow menu item background is different from its container -->
     <style name="OverflowPopupTheme" parent="Widget.Material3.PopupMenu.Overflow">
-        <item name="android:background">#00000000</item>
+        <item name="android:background">@android:color/transparent</item>
     </style>
 </resources>
