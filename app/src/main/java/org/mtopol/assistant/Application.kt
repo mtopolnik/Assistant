@@ -25,7 +25,9 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
 import androidx.core.content.ContextCompat
+import androidx.core.os.LocaleListCompat
 import androidx.preference.PreferenceManager
+import java.util.*
 
 private const val KEY_OPENAI_API_KEY = "openai_api_key"
 private const val KEY_SYSTEM_PROMPT = "system_prompt"
@@ -41,6 +43,14 @@ class ChatApplication : Application() {
         appContext = applicationContext
     }
 }
+
+fun systemLocales(): List<Locale> {
+    val localeList: LocaleListCompat = LocaleListCompat.getDefault()
+    return (0 until localeList.size()).map { localeList.get(it)!! }
+}
+
+fun String.capitalizeFirstLetter() =
+    replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
 
 val pixelDensity get() = appContext.resources.displayMetrics.density
 

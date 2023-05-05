@@ -34,7 +34,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
 import okio.source
 import java.io.File
 import java.io.IOException
@@ -87,7 +89,24 @@ class OpenAI(
             .filterNotNull()
     }
 
-    suspend fun getTranscription(language: String?, prompt: String, audioPathname: String): String {
+    fun translation(targetLanguage: String, text: String, useGpt4: Boolean): Flow<String> {
+        if (demoMode) {
+            return flowOf("Demo mode is on. You asked to translate this:\n$text")
+        }
+        val systemPrompt = "You are a translator. Translate everything the user says into $targetLanguage."
+        val chatCompletionRequest = ChatCompletionRequest(
+            model = ModelId(if (useGpt4) "gpt-4" else "gpt-3.5-turbo"),
+            messages = listOf(
+                ChatMessage(ChatRole.System, systemPrompt),
+                ChatMessage(ChatRole.User, text)
+            )
+        )
+        return client.chatCompletions(chatCompletionRequest)
+            .map { chunk -> chunk.choices[0].delta?.content }
+            .filterNotNull()
+    }
+
+    suspend fun transcription(language: String?, prompt: String, audioPathname: String): String {
         Log.i("speech", "Transcription language: $language, prompt context:\n$prompt")
         if (demoMode) {
             delay(2000)

@@ -18,6 +18,8 @@
 package org.mtopol.assistant
 
 import android.os.Bundle
+import android.util.Log
+import android.view.Gravity
 import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.Menu
@@ -25,15 +27,17 @@ import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
-import android.widget.EditText
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.widget.Toolbar
+import androidx.appcompat.widget.PopupMenu
 import androidx.core.view.MenuProvider
 import androidx.core.widget.addTextChangedListener
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
-import org.mtopol.assistant.databinding.FragmentChatBinding
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.launch
 import org.mtopol.assistant.databinding.FragmentSystemPromptBinding
+import java.util.*
 
 class SystemPromptFragment : Fragment(), MenuProvider {
 
@@ -56,6 +60,33 @@ class SystemPromptFragment : Fragment(), MenuProvider {
             setText(requireContext().mainPrefs.systemPrompt)
             addTextChangedListener {
                 didResetPrompt = false
+            }
+        }
+        binding.buttonTranslate.setOnClickListener {
+            createTranslationMenu().apply {
+                setOnMenuItemClickListener { item ->
+                    binding.buttonSaveSystemPrompt.isEnabled = false
+                    binding.buttonTranslate.isEnabled = false
+                    viewLifecycleOwner.lifecycleScope.launch {
+                        try {
+                            openAi.translation(
+                                item.title.toString(), edittextPrompt.text.toString(), appContext.mainPrefs.isGpt4
+                            )
+                                .onStart { edittextPrompt.editableText.clear() }
+                                .collect { edittextPrompt.editableText.append(it) }
+                        } catch (e: Exception) {
+                            Log.e("translation", "Error in translation", e)
+                            Toast.makeText(appContext,
+                                getString(R.string.translation_error), Toast.LENGTH_SHORT)
+                                .show()
+                        } finally {
+                            binding.buttonSaveSystemPrompt.isEnabled = true
+                            binding.buttonTranslate.isEnabled = true
+                        }
+                    }
+                    true
+                }
+                show()
             }
         }
         binding.buttonSaveSystemPrompt.setOnClickListener {
@@ -85,5 +116,18 @@ class SystemPromptFragment : Fragment(), MenuProvider {
             }
         }
         return false
+    }
+
+    private fun createTranslationMenu(): PopupMenu {
+        val autoItemId = Menu.FIRST
+        val itemIdOffset = autoItemId + 1
+        val pop = PopupMenu(requireContext(), binding.buttonTranslate, Gravity.START)
+        val systemLocales = systemLocales()
+        for ((i, locale) in systemLocales.withIndex()) {
+            pop.menu.add(Menu.NONE, i + itemIdOffset, Menu.NONE,
+                locale.getDisplayLanguage(Locale.ENGLISH).capitalizeFirstLetter()
+            )
+        }
+        return pop
     }
 }

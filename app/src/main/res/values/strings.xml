@@ -69,6 +69,7 @@
     <string name="action_delete_openai_key">Delete API Key</string>
     <string name="api_key_hint">Your OpenAI API key</string>
     <string name="error_while_gpt_talking">Something went wrong while Pete was talking</string>
+    <string name="translation_error">Something went wrong while translating</string>
     <string name="message_incorrect_api_key">Incorrect OpenAI API key. Delete it and enter a new one.</string>
     <string name="action_reset">Reset to Default</string>
     <string name="action_speak_again">Speak Again</string>
@@ -77,4 +78,5 @@
     <string name="action_about">About</string>
     <string name="listen_language">Voice recognition language</string>
     <string name="action_play_store">See on Play Store</string>
+    <string name="action_translate">Translate</string>
 </resources>

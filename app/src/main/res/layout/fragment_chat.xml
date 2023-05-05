@@ -135,7 +135,7 @@
                     style="?attr/materialIconButtonFilledStyle"
                     app:icon="@drawable/baseline_mic_28"
                     app:iconSize="28dp"
-                    app:iconTint="@color/record_button_color_selector"
+                    app:iconTint="@color/primary_button_color_selector"
                     app:iconGravity="textEnd"
                     app:backgroundTint="@color/primary"
                     android:contentDescription="@string/record"

@@ -58,7 +58,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.PopupMenu
 import androidx.core.content.ContextCompat.checkSelfPermission
-import androidx.core.os.ConfigurationCompat
 import androidx.core.os.LocaleListCompat
 import androidx.core.view.MenuProvider
 import androidx.core.view.ViewCompat
@@ -722,7 +721,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 }
                 val prefs = appContext.mainPrefs
                 val promptContext = vmodel.chatHistory.joinToString("\n\n") { it.prompt.toString() }
-                val transcription = openAi.getTranscription(prefs.speechRecogLanguage, promptContext, audioPathname)
+                val transcription = openAi.transcription(prefs.speechRecogLanguage, promptContext, audioPathname)
                 if (transcription.isEmpty()) {
                     return@launch
                 }
@@ -876,11 +875,6 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun systemLocales(): List<Locale> {
-        val localeList: LocaleListCompat = LocaleListCompat.getDefault()
-        return (0 until localeList.size()).map { localeList.get(it)!! }
-    }
-
     private suspend fun identifyLanguage(text: String, previousLanguageTag: String): String {
 
         fun isUserLanguage(tag: String) = systemLocales.firstOrNull { it.language == tag } != null
@@ -1007,9 +1001,6 @@ class ChatFragment : Fragment(), MenuProvider {
         val lastMatch = punctuationRegex.findAll(this).lastOrNull() ?: return ""
         return substring(0, lastMatch.range.last + 1)
     }
-
-    private fun String.capitalizeFirstLetter() =
-        replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
 }
 
 class UtteranceContinuationListener<T>(
