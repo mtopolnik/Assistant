@@ -18,7 +18,7 @@
 
 <resources xmlns:tools="http://schemas.android.com/tools">
     <string name="title_enter_api_key">We Need Your OpenAI API key</string>
-    <string name="enter_apikey_explanation">Chatty Assistant needs your OpenAI key to work.
+    <string name="enter_apikey_explanation">Good Guy Pete needs your OpenAI key to work.
         In order to obtain it, visit
         \nhttps://platform.openai.com
         \nand create an account. Then create an API key at
@@ -26,17 +26,18 @@
         \n
         \nYou can also type in \"demo\" and enter the demo mode.
         \n
-        \nChatty Assistant will use your API key strictly to access OpenAI API
+        \nGood Guy Pete will use your API key strictly to access OpenAI API
         when you enter a prompt. Your key will be stored as a standard Android
         application preference and as such may get backed up to your Google account
         so that it is available on your other devices.
         \n
-        \nChatty Assistant is an open-source application, available at
+        \nGood Guy Pete is an open-source application, available at
         \nhttps://github.com/mtopolnik/Assistant
         \nwhere you can review and inspect its usage of your API key.
     </string>
-    <string name="system_prompt_default">Your name is Chatty. You live in a smartphone.
-        Your answers are short and entertaining.
+    <string name="system_prompt_default">Your name is Pete. You live in a smartphone.
+        If I ask you a question and you don\'t know the answer, you say you don\'t know. Your
+        replies are concise, unless I ask for a longer answer.
     </string>
     <string name="demo_response" tools:ignore="Typos">Demo mode is on — this is a mock response.
         \n
@@ -50,7 +51,7 @@
         Version %1$s
         \n© 2023 Marko Topolnik
     </string>
-    <string name="app_name">Chatty Assistant</string>
+    <string name="app_name">Good Guy Pete</string>
     <string name="action_settings">Settings</string>
     <string name="record">Record Voice</string>
     <string name="send">Send</string>
@@ -67,7 +68,7 @@
     <string name="title_edit_system_prompt">Edit System Prompt</string>
     <string name="action_delete_openai_key">Delete API Key</string>
     <string name="api_key_hint">Your OpenAI API key</string>
-    <string name="error_while_gpt_talking">Something went wrong while Chatty was talking</string>
+    <string name="error_while_gpt_talking">Something went wrong while Pete was talking</string>
     <string name="message_incorrect_api_key">Incorrect OpenAI API key. Delete it and enter a new one.</string>
     <string name="action_reset">Reset to Default</string>
     <string name="action_speak_again">Speak Again</string>
