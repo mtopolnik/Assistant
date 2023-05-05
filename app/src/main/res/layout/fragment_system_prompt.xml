@@ -18,6 +18,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        xmlns:app="http://schemas.android.com/apk/res-auto"
         android:orientation="vertical">
 
     <androidx.appcompat.widget.Toolbar
@@ -49,17 +50,22 @@
                     android:importantForAutofill="no"
                     />
         </ScrollView>
-        <LinearLayout
+        <androidx.constraintlayout.widget.ConstraintLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal">
+                android:layout_marginTop="24dp"
+                app:layout_anchorGravity="bottom"
+                app:layout_anchor="@id/edittext_system_prompt"
+                android:layout_gravity="bottom"
+                >
 
             <Button
                     android:id="@+id/button_translate"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_gravity="bottom"
-                    android:layout_marginTop="24dp"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintEnd_toStartOf="@id/button_save_system_prompt"
                     style="?android:attr/buttonBarButtonStyle"
                     android:backgroundTint="@color/secondary"
                     android:text="@string/action_translate"
@@ -71,14 +77,16 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:layout_gravity="bottom"
-                    android:layout_marginTop="24dp"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintStart_toEndOf="@id/button_translate"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintWidth_default="spread"
                     style="?android:attr/buttonBarButtonStyle"
                     android:backgroundTint="@color/primary"
                     android:text="@string/action_save"
                     android:textColor="@color/primary_button_color_selector"
                     android:textSize="18sp"
                     />
-        </LinearLayout>
+        </androidx.constraintlayout.widget.ConstraintLayout>
     </LinearLayout>
 </LinearLayout>
