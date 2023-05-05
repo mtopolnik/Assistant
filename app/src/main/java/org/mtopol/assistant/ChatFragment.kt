@@ -721,8 +721,7 @@ class ChatFragment : Fragment(), MenuProvider {
                     return@launch
                 }
                 val prefs = appContext.mainPrefs
-                val promptContext = prefs.systemPrompt + " " +
-                        vmodel.chatHistory.joinToString(" ") { it.prompt.toString() }
+                val promptContext = vmodel.chatHistory.joinToString("\n\n") { it.prompt.toString() }
                 val transcription = openAi.getTranscription(prefs.speechRecogLanguage, promptContext, audioPathname)
                 if (transcription.isEmpty()) {
                     return@launch

@@ -88,7 +88,7 @@ class OpenAI(
     }
 
     suspend fun getTranscription(language: String?, prompt: String, audioPathname: String): String {
-        Log.i("speech", "Transcription language: $language")
+        Log.i("speech", "Transcription language: $language, prompt context:\n$prompt")
         if (demoMode) {
             delay(2000)
             return mockRecognizedSpeech
