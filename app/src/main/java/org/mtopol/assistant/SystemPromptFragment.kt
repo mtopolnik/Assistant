@@ -20,7 +20,6 @@ package org.mtopol.assistant
 import android.os.Bundle
 import android.util.Log
 import android.view.Gravity
-import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuInflater
@@ -31,9 +30,11 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.PopupMenu
 import androidx.core.view.MenuProvider
-import androidx.core.widget.addTextChangedListener
+import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import org.mtopol.assistant.databinding.FragmentSystemPromptBinding
@@ -41,9 +42,11 @@ import java.util.*
 
 class SystemPromptFragment : Fragment(), MenuProvider {
 
+    private val defaultSystemPrompt = appContext.getString(R.string.system_prompt_default)
+
     private lateinit var binding: FragmentSystemPromptBinding
 
-    private var didResetPrompt = false
+    private var _translationJob: Job? = null
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         binding = FragmentSystemPromptBinding.inflate(inflater, container, false)
@@ -58,22 +61,21 @@ class SystemPromptFragment : Fragment(), MenuProvider {
         val edittextPrompt = binding.edittextSystemPrompt
         edittextPrompt.apply {
             setText(requireContext().mainPrefs.systemPrompt)
-            addTextChangedListener {
-                didResetPrompt = false
-            }
         }
         binding.buttonTranslate.setOnClickListener {
             createTranslationMenu().apply {
                 setOnMenuItemClickListener { item ->
                     binding.buttonSaveSystemPrompt.isEnabled = false
                     binding.buttonTranslate.isEnabled = false
-                    viewLifecycleOwner.lifecycleScope.launch {
+                    _translationJob = viewLifecycleOwner.lifecycleScope.launch {
                         try {
                             openAi.translation(
                                 item.title.toString(), edittextPrompt.text.toString(), appContext.mainPrefs.isGpt4
                             )
                                 .onStart { edittextPrompt.editableText.clear() }
                                 .collect { edittextPrompt.editableText.append(it) }
+                        } catch (e: CancellationException) {
+                            throw e
                         } catch (e: Exception) {
                             Log.e("translation", "Error in translation", e)
                             Toast.makeText(appContext,
@@ -82,6 +84,7 @@ class SystemPromptFragment : Fragment(), MenuProvider {
                         } finally {
                             binding.buttonSaveSystemPrompt.isEnabled = true
                             binding.buttonTranslate.isEnabled = true
+                            _translationJob = null
                         }
                     }
                     true
@@ -91,9 +94,7 @@ class SystemPromptFragment : Fragment(), MenuProvider {
         }
         binding.buttonSaveSystemPrompt.setOnClickListener {
             requireContext().mainPrefs.applyUpdate {
-                setSystemPrompt(
-                    if (didResetPrompt) null else edittextPrompt.text.toString()
-                )
+                setSystemPrompt(edittextPrompt.text.toString().takeIf { it != defaultSystemPrompt })
             }
             findNavController().popBackStack()
         }
@@ -106,9 +107,17 @@ class SystemPromptFragment : Fragment(), MenuProvider {
 
     override fun onMenuItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
+            R.id.action_undo -> {
+                viewLifecycleOwner.lifecycleScope.launch {
+                    _translationJob?.apply { cancel(); join() }
+                    binding.edittextSystemPrompt.setText(appContext.mainPrefs.systemPrompt)
+                }
+            }
             R.id.action_reset -> {
-                binding.edittextSystemPrompt.setText(appContext.getString(R.string.system_prompt_default))
-                didResetPrompt = true
+                viewLifecycleOwner.lifecycleScope.launch {
+                    _translationJob?.apply { cancel(); join() }
+                    binding.edittextSystemPrompt.setText(defaultSystemPrompt)
+                }
             }
             android.R.id.home -> {
                 findNavController().popBackStack()

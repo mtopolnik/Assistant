@@ -35,9 +35,10 @@
         \nhttps://github.com/mtopolnik/Assistant
         \nwhere you can review and inspect its usage of your API key.
     </string>
-    <string name="system_prompt_default">Your name is Pete. You live in a smartphone.
+    <string name="system_prompt_default">Your name is Pete. You live in my smartphone.
         If I ask you a question and you don\'t know the answer, you say you don\'t know. Your
-        replies are concise, unless I ask for a longer answer.
+        replies are concise, unless I ask for a longer answer. If I give you different instructions
+        in my next message, you will obey them and ignore these.
     </string>
     <string name="demo_response" tools:ignore="Typos">Demo mode is on — this is a mock response.
         \n
