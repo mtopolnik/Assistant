@@ -51,14 +51,17 @@ import android.view.View.*
 import android.view.ViewGroup
 import android.view.animation.LinearInterpolator
 import android.view.inputmethod.InputMethodManager
+import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.ListView
+import android.widget.SearchView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.PopupMenu
 import androidx.core.content.ContextCompat.checkSelfPermission
-import androidx.core.os.LocaleListCompat
 import androidx.core.view.MenuProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -144,7 +147,7 @@ class ChatFragment : Fragment(), MenuProvider {
     private val punctuationRegex = """(?<=\D[.!]'?)\s+|(?<=\d[.!]'?)\s+(?=\p{Lu})|(?<=.[;?]'?)\s+|\n+""".toRegex()
     private val whitespaceRegex = """\s+""".toRegex()
     private val vmodel: ChatFragmentModel by viewModels()
-    private val systemLocales = systemLocales()
+    private val systemLocales = systemLocales().toMutableList()
     private lateinit var binding: FragmentChatBinding
     private lateinit var audioPathname: String
     private lateinit var languageIdentifier: LanguageIdentifier
@@ -330,7 +333,6 @@ class ChatFragment : Fragment(), MenuProvider {
                     try {
                         previousResponseJob?.join()
                         speakLastResponse()
-
                     } finally {
                         vmodel.handleResponseJob = null
                         vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
@@ -911,17 +913,24 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun showLanguageMenu() {
-        val autoItemId = Menu.FIRST
-        val itemIdOffset = autoItemId + 1
+        val addItemId = Menu.FIRST
+        val autoItemId = Menu.FIRST + 1
+        val itemIdOffset = Menu.FIRST + 2
         val pop = PopupMenu(requireContext(), binding.buttonLanguage, Gravity.END)
-        pop.menu.add(Menu.NONE, autoItemId, Menu.NONE, "Auto").itemId
+        pop.menu.add(Menu.NONE, addItemId, Menu.NONE, "Edit Languages")
+        pop.menu.add(Menu.NONE, autoItemId, Menu.NONE, "Auto")
         val systemLocales = systemLocales
         val defaultLocale = systemLocales.first()
         for ((i, locale) in systemLocales.withIndex()) {
             pop.menu.add(Menu.NONE, i + itemIdOffset, Menu.NONE,
-                "${locale.language.uppercase()} (${locale.getDisplayLanguage(defaultLocale).capitalizeFirstLetter()})")
+                "${locale.language.uppercase()} ${locale.getDisplayLanguage(defaultLocale).capitalizeFirstLetter()}"
+            )
         }
         pop.setOnMenuItemClickListener { item ->
+            if (item.itemId == addItemId) {
+                findNavController().navigate(R.id.fragment_add_remove_languages)
+                return@setOnMenuItemClickListener true
+            }
             appContext.mainPrefs.applyUpdate {
                 setSpeechRecogLanguage(
                     if (item.itemId == autoItemId) null
@@ -948,7 +957,6 @@ class ChatFragment : Fragment(), MenuProvider {
                 text = language.uppercase()
             }
         }
-
     }
 
     private fun vibrate() {

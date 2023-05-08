@@ -80,4 +80,8 @@
     <string name="listen_language">Jezik na kojem pričaš</string>
     <string name="action_play_store">Pokaži na Trgovini Play</string>
     <string name="action_translate">Prevedi</string>
+    <string name="title_edit_languages">Dodaj/ukloni jezik</string>
+    <string name="search_languages">Potraži jezik</string>
+    <string name="add_language">Dodaj jezik</string>
+    <string name="drag_to_reorder">Povuci da premjestiš</string>
 </resources>

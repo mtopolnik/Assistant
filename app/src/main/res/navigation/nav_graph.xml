@@ -40,4 +40,10 @@
             android:label="System Prompt Fragment"
             />
 
+    <fragment
+            android:id="@+id/fragment_add_remove_languages"
+            android:name="org.mtopol.assistant.AddRemoveLanguagesFragment"
+            android:label="Add/Remove Languages Fragment"
+            />
+
 </navigation>

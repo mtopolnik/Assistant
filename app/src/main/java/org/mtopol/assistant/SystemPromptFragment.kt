@@ -50,13 +50,14 @@ class SystemPromptFragment : Fragment(), MenuProvider {
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         binding = FragmentSystemPromptBinding.inflate(inflater, container, false)
-        val activity = requireActivity() as AppCompatActivity
-        activity.setSupportActionBar(binding.toolbar)
-        activity.supportActionBar?.apply {
-            setDisplayHomeAsUpEnabled(true)
-            setTitle(R.string.title_edit_system_prompt)
+        (requireActivity() as AppCompatActivity).apply {
+            setSupportActionBar(binding.toolbar)
+            supportActionBar?.apply {
+                setDisplayHomeAsUpEnabled(true)
+                setTitle(R.string.title_edit_system_prompt)
+            }
+            addMenuProvider(this@SystemPromptFragment, viewLifecycleOwner)
         }
-        activity.addMenuProvider(this, viewLifecycleOwner)
 
         val edittextPrompt = binding.edittextSystemPrompt
         edittextPrompt.apply {
