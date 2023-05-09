@@ -65,7 +65,6 @@ class SystemPromptFragment : Fragment(), MenuProvider {
         binding.buttonTranslate.setOnClickListener {
             createTranslationMenu().apply {
                 setOnMenuItemClickListener { item ->
-                    binding.buttonSaveSystemPrompt.isEnabled = false
                     binding.buttonTranslate.isEnabled = false
                     _translationJob = viewLifecycleOwner.lifecycleScope.launch {
                         try {
@@ -82,7 +81,6 @@ class SystemPromptFragment : Fragment(), MenuProvider {
                                 getString(R.string.translation_error), Toast.LENGTH_SHORT)
                                 .show()
                         } finally {
-                            binding.buttonSaveSystemPrompt.isEnabled = true
                             binding.buttonTranslate.isEnabled = true
                             _translationJob = null
                         }
@@ -91,12 +89,6 @@ class SystemPromptFragment : Fragment(), MenuProvider {
                 }
                 show()
             }
-        }
-        binding.buttonSaveSystemPrompt.setOnClickListener {
-            requireContext().mainPrefs.applyUpdate {
-                setSystemPrompt(edittextPrompt.text.toString().takeIf { it != defaultSystemPrompt })
-            }
-            findNavController().popBackStack()
         }
         return binding.root
     }
@@ -126,6 +118,13 @@ class SystemPromptFragment : Fragment(), MenuProvider {
                 true
             }
             else -> false
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        requireContext().mainPrefs.applyUpdate {
+            setSystemPrompt(binding.edittextSystemPrompt.text.toString().takeIf { it != defaultSystemPrompt })
         }
     }
 

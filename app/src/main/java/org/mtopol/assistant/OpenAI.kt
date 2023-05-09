@@ -93,7 +93,8 @@ class OpenAI(
         if (demoMode) {
             return flowOf("Demo mode is on. You asked to translate this:\n$text")
         }
-        val systemPrompt = "You are a translator. Translate everything the user says into $targetLanguage."
+        val systemPrompt = "You are a translator." +
+                " I will write in a language of my choice, and you will translate it to $targetLanguage."
         val chatCompletionRequest = ChatCompletionRequest(
             model = ModelId(if (useGpt4) "gpt-4" else "gpt-3.5-turbo"),
             messages = listOf(

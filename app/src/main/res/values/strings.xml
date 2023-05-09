@@ -79,7 +79,7 @@
     <string name="action_about">About</string>
     <string name="listen_language">Voice recognition language</string>
     <string name="action_play_store">See on Play Store</string>
-    <string name="action_translate">Translate</string>
+    <string name="action_translate">Translate to…</string>
     <string name="title_edit_languages">Add/Remove Languages</string>
     <string name="item_add_remove">Add/Remove</string>
     <string name="search_languages">Search languages</string>
