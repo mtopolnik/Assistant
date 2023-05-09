@@ -835,7 +835,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
         fun addMessageView(textColor: Int, backgroundFill: Int, backgroundBorder: Int, text: CharSequence): Editable {
             val messageView = LayoutInflater.from(requireContext())
-                .inflate(R.layout.chat_message_item, chatView, false) as TextView
+                .inflate(R.layout.menuitem_chat_message, chatView, false) as TextView
             messageView.setTextColor(context.getColorCompat(textColor))
             (messageView.background as LayerDrawable).apply {
                 findDrawableByLayerId(R.id.background_fill).setTint(context.getColorCompat(backgroundFill))

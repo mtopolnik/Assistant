@@ -19,7 +19,6 @@ package org.mtopol.assistant
 
 import android.annotation.SuppressLint
 import android.os.Bundle
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuInflater
@@ -185,7 +184,7 @@ class LangRecyclerViewAdapter : RecyclerView.Adapter<LangRecyclerViewAdapter.Lan
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): LanguageViewHolder {
-        val view = LayoutInflater.from(parent.context).inflate(R.layout.language_item, parent, false)
+        val view = LayoutInflater.from(parent.context).inflate(R.layout.menuitem_language, parent, false)
         return LanguageViewHolder(view)
     }
 

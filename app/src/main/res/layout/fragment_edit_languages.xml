@@ -37,7 +37,7 @@
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
-            tools:listitem="@layout/language_item" />
+            tools:listitem="@layout/menuitem_language" />
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/fab_add_language"
