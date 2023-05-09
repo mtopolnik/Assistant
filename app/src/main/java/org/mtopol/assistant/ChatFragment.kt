@@ -112,6 +112,7 @@ import kotlin.math.roundToLong
 private const val KEY_CHAT_HISTORY = "chat_history"
 
 private const val MAX_RECORDING_TIME_MILLIS = 60_000L
+private const val STOP_RECORDING_DELAY_MILLIS = 400L
 
 class ChatFragmentModel(
     savedState: SavedStateHandle
@@ -228,8 +229,11 @@ class ChatFragment : Fragment(), MenuProvider {
                 }
                 MotionEvent.ACTION_UP -> {
                     if (_mediaRecorder != null) {
-                        vibrate()
-                        showRecordedPrompt()
+                        lifecycleScope.launch {
+                            delay(STOP_RECORDING_DELAY_MILLIS)
+                            vibrate()
+                            showRecordedPrompt()
+                        }
                     }
                     true
                 }
