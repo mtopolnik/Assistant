@@ -67,7 +67,7 @@
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintEnd_toStartOf="@id/button_save_system_prompt"
                     style="?android:attr/buttonBarButtonStyle"
-                    android:backgroundTint="@color/secondary"
+                    android:backgroundTint="?attr/colorSecondary"
                     android:text="@string/action_translate"
                     android:textColor="@color/secondary_button_color_selector"
                     android:textSize="18sp"

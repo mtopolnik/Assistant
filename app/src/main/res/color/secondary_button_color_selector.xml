@@ -17,6 +17,6 @@
   -->
 
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:state_enabled="false" android:alpha="0.5" android:color="@color/on_secondary" />
-    <item android:alpha="1.0" android:color="@color/on_secondary" />
+    <item android:state_enabled="false" android:alpha="0.5" android:color="?attr/colorOnSecondary" />
+    <item android:alpha="1.0" android:color="?attr/colorOnSecondary" />
 </selector>

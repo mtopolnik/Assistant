@@ -32,7 +32,7 @@
             android:paddingTop="10dp"
             android:paddingBottom="10dp"
             android:paddingStart="40dp"
-            app:tint="@color/on_background"
+            app:tint="?attr/editTextColor"
             android:contentDescription="@string/drag_to_reorder"
             tools:ignore="RtlSymmetry" />
 

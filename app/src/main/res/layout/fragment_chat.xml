@@ -102,10 +102,10 @@
                     style="?attr/materialIconButtonFilledStyle"
                     app:icon="@drawable/baseline_send_28"
                     app:iconSize="28dp"
-                    app:iconTint="@color/on_primary"
+                    app:iconTint="?attr/colorOnPrimary"
                     app:iconPadding="4dp"
                     app:iconGravity="textEnd"
-                    app:backgroundTint="@color/primary"
+                    app:backgroundTint="?attr/colorPrimary"
                     android:visibility="gone"
                     android:contentDescription="@string/send"
                     />
@@ -137,7 +137,7 @@
                     app:iconSize="28dp"
                     app:iconTint="@color/primary_button_color_selector"
                     app:iconGravity="textEnd"
-                    app:backgroundTint="@color/primary"
+                    app:backgroundTint="?attr/colorPrimary"
                     android:contentDescription="@string/record"
                     />
             <Button

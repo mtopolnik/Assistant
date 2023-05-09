@@ -47,8 +47,8 @@
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             android:src="@android:drawable/ic_input_add"
-            app:tint="@color/on_secondary"
-            app:backgroundTint="@color/secondary"
+            app:tint="?attr/colorOnSecondary"
+            app:backgroundTint="?attr/colorSecondary"
             app:maxImageSize="28dp"
             android:contentDescription="@string/add_language"
             />
