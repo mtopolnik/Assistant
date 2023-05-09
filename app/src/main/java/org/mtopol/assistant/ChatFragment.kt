@@ -914,7 +914,7 @@ class ChatFragment : Fragment(), MenuProvider {
         val autoItemId = Menu.FIRST + 1
         val itemIdOffset = Menu.FIRST + 2
         val pop = PopupMenu(requireContext(), binding.buttonLanguage, Gravity.END)
-        pop.menu.add(Menu.NONE, addItemId, Menu.NONE, "Edit Languages")
+        pop.menu.add(Menu.NONE, addItemId, Menu.NONE, getString(R.string.item_add_remove))
         pop.menu.add(Menu.NONE, autoItemId, Menu.NONE, "Auto")
         for ((i, language) in userLanguages.withIndex()) {
             pop.menu.add(Menu.NONE, i + itemIdOffset, Menu.NONE,
