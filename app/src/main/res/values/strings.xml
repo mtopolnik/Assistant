@@ -81,7 +81,7 @@
     <string name="action_play_store">See on Play Store</string>
     <string name="action_translate">Translate to…</string>
     <string name="title_edit_languages">Add/Remove Languages</string>
-    <string name="item_add_remove">Add/Remove</string>
+    <string name="item_add_remove">Add/Remove…</string>
     <string name="search_languages">Search languages</string>
     <string name="add_language">Add language</string>
     <string name="drag_to_reorder">Drag to reorder</string>
