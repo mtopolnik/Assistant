@@ -32,6 +32,7 @@ import java.util.*
 private const val KEY_OPENAI_API_KEY = "openai_api_key"
 private const val KEY_SYSTEM_PROMPT = "system_prompt"
 private const val KEY_SPEECH_RECOG_LANGUAGE = "speech_recognition_language"
+private const val KEY_LANGUAGES = "languages"
 private const val KEY_IS_MUTED = "is_muted"
 private const val KEY_IS_GPT4 = "is_gpt4"
 
@@ -44,13 +45,45 @@ class ChatApplication : Application() {
     }
 }
 
-fun systemLocales(): List<Locale> {
+@SuppressLint("QueryPermissionsNeeded") // Play Store is visible automatically
+fun Context.visitOnPlayStore() {
+    val rateIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName"))
+    @Suppress("DEPRECATION") // The new variant just adds more flags in a Long
+    packageManager.queryIntentActivities(rateIntent, 0)
+        .map { it.activityInfo }
+        .find { it.applicationInfo.packageName == "com.android.vending" }
+        ?.also {
+            rateIntent.component = ComponentName(it.applicationInfo.packageName, it.name)
+            rateIntent.addFlags(
+                // don't open Play Store in the stack of our activity
+                Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
+                        // make sure Play Store opens our app page, whatever it was doing before
+                        or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            )
+            startActivity(rateIntent)
+        }
+    // Play Store app not installed, open in web browser
+        ?: startActivity(
+            Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("https://play.google.com/store/apps/details?id=$packageName"))
+        )
+}
+
+// Locale.getDefault() gives the locale used to localize the app
+// LocaleListCompat.getDefault().get(0) gives the default locale configured on system level
+fun defaultLocale() = LocaleListCompat.getDefault().get(0)!!
+
+fun systemLanguages(): List<String> {
     val localeList: LocaleListCompat = LocaleListCompat.getDefault()
-    return (0 until localeList.size()).map { localeList.get(it)!! }
+    return (0 until localeList.size()).map { localeList.get(it)!!.language }
 }
 
 fun String.capitalizeFirstLetter() =
     replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+
+fun String.toDisplayLanguage() =
+    Locale.forLanguageTag(this).getDisplayLanguage(defaultLocale()).capitalizeFirstLetter()
 
 val pixelDensity get() = appContext.resources.displayMetrics.density
 
@@ -94,27 +127,20 @@ val SharedPreferences.isGpt4: Boolean get() = getBoolean(KEY_IS_GPT4, false)
 fun SharedPreferences.Editor.setIsGpt4(value: Boolean): SharedPreferences.Editor =
     putBoolean(KEY_IS_GPT4, value)
 
-@SuppressLint("QueryPermissionsNeeded") // Play Store is visible automatically
-fun Context.visitOnPlayStore() {
-    val rateIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName"))
-    @Suppress("DEPRECATION") // The new variant just adds more flags in a Long
-    packageManager.queryIntentActivities(rateIntent, 0)
-        .map { it.activityInfo }
-        .find { it.applicationInfo.packageName == "com.android.vending" }
-        ?.also {
-            rateIntent.component = ComponentName(it.applicationInfo.packageName, it.name)
-            rateIntent.addFlags(
-                // don't open Play Store in the stack of our activity
-                Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
-                        // make sure Play Store opens our app page, whatever it was doing before
-                        or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            )
-            startActivity(rateIntent)
+fun SharedPreferences.configuredLanguages(): List<String> =
+    getStringSet(KEY_LANGUAGES, null)?.let {
+        it.map { str ->
+            val parts = str.split(" ")
+            Pair(parts[0].toInt(), parts[1])
         }
-    // Play Store app not installed, open in web browser
-        ?: startActivity(
-            Intent(
-                Intent.ACTION_VIEW,
-                Uri.parse("https://play.google.com/store/apps/details?id=$packageName"))
-        )
+            .sortedBy { (index, _) -> index }
+            .map { (_, language) -> language }
+    } ?: systemLanguages()
+fun SharedPreferences.Editor.setConfiguredLanguages(languages: List<String>?): SharedPreferences.Editor {
+    if (languages != null && languages.isEmpty()) {
+        throw IllegalArgumentException("Can't configure empty list of locales")
+    }
+    return putStringSet(KEY_LANGUAGES, languages?.toStringSet())
 }
+
+private fun List<String>.toStringSet(): Set<String> = mapIndexed { i, language -> "$i $language" }.toSet()

@@ -19,6 +19,7 @@ package org.mtopol.assistant
 
 import android.annotation.SuppressLint
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuInflater
@@ -34,38 +35,40 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
+import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.ItemTouchHelper.*
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.google.android.material.floatingactionbutton.FloatingActionButton
 import org.mtopol.assistant.databinding.FragmentEditLanguagesBinding
 import org.mtopol.assistant.databinding.LanguageDialogBinding
 import java.util.*
 
 class AddRemoveLanguagesFragment : Fragment(), MenuProvider {
 
+    private val configuredLanguages = appContext.mainPrefs.configuredLanguages()
+
     private lateinit var recyclerViewAdapter: LangRecyclerViewAdapter
+    private lateinit var binding: FragmentEditLanguagesBinding
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
-        val binding = FragmentEditLanguagesBinding.inflate(inflater, container, false)
-        (requireActivity() as AppCompatActivity).apply {
-            setSupportActionBar(binding.toolbar)
-            supportActionBar?.apply {
+        binding = FragmentEditLanguagesBinding.inflate(inflater, container, false)
+        (requireActivity() as AppCompatActivity).also {activity ->
+            activity.setSupportActionBar(binding.toolbar)
+            activity.supportActionBar?.apply {
                 setDisplayHomeAsUpEnabled(true)
                 setTitle(R.string.title_edit_languages)
             }
-            addMenuProvider(this@AddRemoveLanguagesFragment, viewLifecycleOwner)
+            activity.addMenuProvider(this, viewLifecycleOwner)
         }
         return binding.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        recyclerViewAdapter = LangRecyclerViewAdapter(mutableListOf())
-
-        view.findViewById<RecyclerView>(R.id.languages_recycler_view).apply {
+        recyclerViewAdapter = LangRecyclerViewAdapter().apply { setLanguages(configuredLanguages) }
+        binding.recyclerviewLanguages.apply {
             layoutManager = LinearLayoutManager(context)
             adapter = recyclerViewAdapter
             addItemDecoration(DividerItemDecoration(context, DividerItemDecoration.VERTICAL))
@@ -74,9 +77,37 @@ class AddRemoveLanguagesFragment : Fragment(), MenuProvider {
             touchHelper.attachToRecyclerView(this)
             recyclerViewAdapter.itemTouchHelper = touchHelper
         }
+        binding.fabAddLanguage.setOnClickListener { showLanguageSelectionDialog() }
+    }
 
-        view.findViewById<FloatingActionButton>(R.id.fab_add_language).setOnClickListener {
-            showLanguageSelectionDialog()
+    override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
+        menuInflater.inflate(R.menu.menu_edit_languages, menu)
+    }
+
+    override fun onMenuItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.action_reset -> {
+                recyclerViewAdapter.setLanguages(systemLanguages())
+                true
+            }
+            android.R.id.home -> {
+                findNavController().popBackStack()
+                true
+            }
+            else -> false
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        val prefs = appContext.mainPrefs
+        prefs.applyUpdate {
+            setConfiguredLanguages(recyclerViewAdapter.languages().takeIf { it != systemLanguages() })
+        }
+        val configuredLanguages = prefs.configuredLanguages()
+        val chosenLanguage = prefs.speechRecogLanguage
+        if (!configuredLanguages.contains(chosenLanguage)) {
+            prefs.applyUpdate { setSpeechRecogLanguage(configuredLanguages.first()) }
         }
     }
 
@@ -95,11 +126,11 @@ class AddRemoveLanguagesFragment : Fragment(), MenuProvider {
                 return false
             }
         })
+        binding.viewSearch.requestFocus()
         val addLanguageDialog = AlertDialog.Builder(requireContext()).setView(binding.root).create()
         binding.listviewLanguages.setOnItemClickListener { _, _, position, _ ->
             adapter.getItem(position)?.also {
-                recyclerViewAdapter.addLanguage(it)
-
+                recyclerViewAdapter.addLanguageItem(it)
             }
             addLanguageDialog.dismiss()
         }
@@ -108,46 +139,47 @@ class AddRemoveLanguagesFragment : Fragment(), MenuProvider {
 
     private fun availableLanguages(): List<LanguageItem> {
         val languages = mutableSetOf<LanguageItem>()
-        val defaultLocale = systemLocales().first()
-        val languagesInUse = recyclerViewAdapter.languages().map { it.languageId }.toSet()
+        val languagesInUse = recyclerViewAdapter.languages().toSet()
         for (locale in Locale.getAvailableLocales()) {
-            val languageId = locale.language
-            if (languageId.isNotEmpty() && !languagesInUse.contains(languageId)) {
-                languages.add(LanguageItem(languageId, locale.getDisplayLanguage(defaultLocale)))
+            if (locale.language.isNotEmpty() && !languagesInUse.contains(locale.language)) {
+                languages.add(LanguageItem(locale.language))
             }
         }
         return languages.sortedBy { it.label }
     }
-
-    override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
-    }
-
-    override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
-        return true
-    }
 }
 
-class LanguageItem(val languageId: String, displayLanguage: String) {
-    val label = displayLanguage.capitalizeFirstLetter()
+class LanguageItem(val language: String) {
+    val label = language.toDisplayLanguage()
 
     override fun equals(other: Any?) = this === other ||
             this.javaClass == other?.javaClass &&
-            this.languageId == (other as LanguageItem).languageId
-    override fun hashCode(): Int = languageId.hashCode()
+            this.language == (other as LanguageItem).language
+    override fun hashCode(): Int = language.hashCode()
     override fun toString() = label
 }
 
-class LangRecyclerViewAdapter(private val languages: MutableList<LanguageItem>) :
-    RecyclerView.Adapter<LangRecyclerViewAdapter.LanguageViewHolder>() {
+class LangRecyclerViewAdapter : RecyclerView.Adapter<LangRecyclerViewAdapter.LanguageViewHolder>() {
+    private val languages = mutableListOf<LanguageItem>()
 
     inner class LanguageViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val dragHandle: ImageView = view.findViewById(R.id.drag_handle)
         val languageText: TextView = view.findViewById(R.id.textview_language)
     }
 
-    fun languages(): List<LanguageItem> = languages
+    @SuppressLint("NotifyDataSetChanged")
+    fun setLanguages(newLanguages: List<String>) {
+        if (newLanguages.isEmpty()) {
+            throw IllegalArgumentException("Can't set to empty locale list")
+        }
+        languages.clear()
+        languages.addAll(newLanguages.map { LanguageItem(it) })
+        notifyDataSetChanged()
+    }
 
-    fun addLanguage(language: LanguageItem) {
+    fun languages(): List<String> = languages.map { it.language }
+
+    fun addLanguageItem(language: LanguageItem) {
         languages.add(language)
         notifyItemInserted(languages.size - 1)
     }
@@ -202,7 +234,7 @@ class SimpleItemTouchHelperCallback(private val adapter: LangRecyclerViewAdapter
         adapter.onItemDismiss(viewHolder.adapterPosition)
     }
 
-    override fun isItemViewSwipeEnabled() = true
+    override fun isItemViewSwipeEnabled() = adapter.itemCount > 1
 
     override fun isLongPressDragEnabled() = true
 }

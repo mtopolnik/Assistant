@@ -64,7 +64,7 @@
     <string name="action_mute">Ugasi zvuk</string>
     <string name="action_cancel">Prestani odgovarati</string>
     <string name="action_save">Spremi</string>
-    <string name="action_undo">Vrati na prethodni prompt</string>
+    <string name="action_undo">Vrati na prethodno</string>
     <string name="action_edit_system_prompt">Sistemski prompt</string>
     <string name="title_edit_system_prompt">Uredi sistemski prompt</string>
     <string name="action_delete_openai_key">Poništi API ključ</string>

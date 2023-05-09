@@ -38,7 +38,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import org.mtopol.assistant.databinding.FragmentSystemPromptBinding
-import java.util.*
 
 class SystemPromptFragment : Fragment(), MenuProvider {
 
@@ -107,36 +106,35 @@ class SystemPromptFragment : Fragment(), MenuProvider {
     }
 
     override fun onMenuItemSelected(item: MenuItem): Boolean {
-        when (item.itemId) {
+        return when (item.itemId) {
             R.id.action_undo -> {
                 viewLifecycleOwner.lifecycleScope.launch {
                     _translationJob?.apply { cancel(); join() }
                     binding.edittextSystemPrompt.setText(appContext.mainPrefs.systemPrompt)
                 }
+                true
             }
             R.id.action_reset -> {
                 viewLifecycleOwner.lifecycleScope.launch {
                     _translationJob?.apply { cancel(); join() }
                     binding.edittextSystemPrompt.setText(defaultSystemPrompt)
                 }
+                true
             }
             android.R.id.home -> {
                 findNavController().popBackStack()
-                return true
+                true
             }
+            else -> false
         }
-        return false
     }
 
     private fun createTranslationMenu(): PopupMenu {
         val autoItemId = Menu.FIRST
         val itemIdOffset = autoItemId + 1
         val pop = PopupMenu(requireContext(), binding.buttonTranslate, Gravity.START)
-        val systemLocales = systemLocales()
-        for ((i, locale) in systemLocales.withIndex()) {
-            pop.menu.add(Menu.NONE, i + itemIdOffset, Menu.NONE,
-                locale.getDisplayLanguage(Locale.ENGLISH).capitalizeFirstLetter()
-            )
+        for ((i, language) in appContext.mainPrefs.configuredLanguages().withIndex()) {
+            pop.menu.add(Menu.NONE, i + itemIdOffset, Menu.NONE, language.toDisplayLanguage())
         }
         return pop
     }

@@ -24,7 +24,9 @@
             android:id="@+id/view_search"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:queryHint="@string/search_languages" />
+            android:iconifiedByDefault="false"
+            android:queryHint="@string/search_languages"
+            />
 
     <ListView
             android:id="@+id/listview_languages"

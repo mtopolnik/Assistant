@@ -51,14 +51,10 @@ import android.view.View.*
 import android.view.ViewGroup
 import android.view.animation.LinearInterpolator
 import android.view.inputmethod.InputMethodManager
-import android.widget.ArrayAdapter
 import android.widget.Button
-import android.widget.ListView
-import android.widget.SearchView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.PopupMenu
 import androidx.core.content.ContextCompat.checkSelfPermission
@@ -147,7 +143,7 @@ class ChatFragment : Fragment(), MenuProvider {
     private val punctuationRegex = """(?<=\D[.!]'?)\s+|(?<=\d[.!]'?)\s+(?=\p{Lu})|(?<=.[;?]'?)\s+|\n+""".toRegex()
     private val whitespaceRegex = """\s+""".toRegex()
     private val vmodel: ChatFragmentModel by viewModels()
-    private val systemLocales = systemLocales().toMutableList()
+    private lateinit var userLanguages: List<String>
     private lateinit var binding: FragmentChatBinding
     private lateinit var audioPathname: String
     private lateinit var languageIdentifier: LanguageIdentifier
@@ -388,6 +384,7 @@ class ChatFragment : Fragment(), MenuProvider {
     override fun onResume() {
         super.onResume()
         Log.i("lifecycle", "onResume")
+        userLanguages = appContext.mainPrefs.configuredLanguages()
     }
 
     override fun onPause() {
@@ -879,7 +876,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private suspend fun identifyLanguage(text: String, previousLanguageTag: String): String {
 
-        fun isUserLanguage(tag: String) = systemLocales.firstOrNull { it.language == tag } != null
+        fun isUserLanguage(language: String) = userLanguages.firstOrNull { it == language } != null
 
         val languagesWithConfidence = languageIdentifier.identifyPossibleLanguages(text).await()
         val languagesWithAdjustedConfidence = languagesWithConfidence
@@ -906,7 +903,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 previousLanguageTag.takeIf { it != UNDETERMINED_LANGUAGE_TAG }
                     ?: langTags.firstOrNull { isUserLanguage(it) }
                     ?: appContext.mainPrefs.speechRecogLanguage
-                    ?: systemLocales.first().language
+                    ?: userLanguages.first()
         }.also {
             Log.i("speech", "Chosen language: $it")
         }
@@ -919,11 +916,9 @@ class ChatFragment : Fragment(), MenuProvider {
         val pop = PopupMenu(requireContext(), binding.buttonLanguage, Gravity.END)
         pop.menu.add(Menu.NONE, addItemId, Menu.NONE, "Edit Languages")
         pop.menu.add(Menu.NONE, autoItemId, Menu.NONE, "Auto")
-        val systemLocales = systemLocales
-        val defaultLocale = systemLocales.first()
-        for ((i, locale) in systemLocales.withIndex()) {
+        for ((i, language) in userLanguages.withIndex()) {
             pop.menu.add(Menu.NONE, i + itemIdOffset, Menu.NONE,
-                "${locale.language.uppercase()} ${locale.getDisplayLanguage(defaultLocale).capitalizeFirstLetter()}"
+                "${language.uppercase()} - ${language.toDisplayLanguage()}"
             )
         }
         pop.setOnMenuItemClickListener { item ->
@@ -934,7 +929,7 @@ class ChatFragment : Fragment(), MenuProvider {
             appContext.mainPrefs.applyUpdate {
                 setSpeechRecogLanguage(
                     if (item.itemId == autoItemId) null
-                    else systemLocales[item.itemId - itemIdOffset].language)
+                    else userLanguages[item.itemId - itemIdOffset])
             }
             updateLanguageButton()
             true

@@ -64,7 +64,7 @@
     <string name="action_mute">Mute Sound</string>
     <string name="action_cancel">Stop Responding</string>
     <string name="action_save">Save</string>
-    <string name="action_undo">Undo Last Prompt</string>
+    <string name="action_undo">Undo</string>
     <string name="action_edit_system_prompt">Edit System Prompt</string>
     <string name="title_edit_system_prompt">Edit System Prompt</string>
     <string name="action_delete_openai_key">Delete API Key</string>
