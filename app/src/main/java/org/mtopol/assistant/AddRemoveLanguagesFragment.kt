@@ -105,7 +105,7 @@ class AddRemoveLanguagesFragment : Fragment(), MenuProvider {
         }
         val configuredLanguages = prefs.configuredLanguages()
         val chosenLanguage = prefs.speechRecogLanguage
-        if (!configuredLanguages.contains(chosenLanguage)) {
+        if (chosenLanguage != null && !configuredLanguages.contains(chosenLanguage)) {
             prefs.applyUpdate { setSpeechRecogLanguage(configuredLanguages.first()) }
         }
     }
