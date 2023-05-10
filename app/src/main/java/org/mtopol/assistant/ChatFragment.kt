@@ -146,7 +146,7 @@ class ChatFragmentModel(
 class ChatFragment : Fragment(), MenuProvider {
 
     @Suppress("RegExpUnnecessaryNonCapturingGroup")
-    private val punctuationRegex = """(?<=\D[.!]'?)\s+|(?<=\d[.!]'?)\s+(?=\p{Lu})|(?<=.[;?]'?)\s+|\n+""".toRegex()
+    private val punctuationRegex = """(?<=\D[.!]['"]?)\s+|(?<=\d[.!]'?)\s+(?=\p{Lu})|(?<=.[;?]'?)\s+|\n+""".toRegex()
     private val whitespaceRegex = """\s+""".toRegex()
     private val vmodel: ChatFragmentModel by viewModels()
     private lateinit var userLanguages: List<String>
@@ -473,6 +473,7 @@ class ChatFragment : Fragment(), MenuProvider {
                             replyEditable.append(token)
                             val fullSentences = replyEditable
                                 .substring(lastSpokenPos, replyEditable.length)
+                                .replace(""" ?[()] ?""".toRegex(), ", ")
                                 .dropLastIncompleteSentence()
                             fullSentences.takeIf { it.isNotBlank() }?.also {
                                 Log.i("speech", "full sentences: $it")
