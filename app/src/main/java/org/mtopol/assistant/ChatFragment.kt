@@ -52,6 +52,8 @@ import android.view.ViewGroup
 import android.view.animation.LinearInterpolator
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
+import android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+import android.widget.PopupWindow
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -62,6 +64,7 @@ import androidx.core.view.MenuProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.doOnLayout
+import androidx.core.view.postDelayed
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.MutableLiveData
@@ -114,7 +117,7 @@ private const val KEY_CHAT_HISTORY = "chat_history"
 private const val MAX_RECORDING_TIME_MILLIS = 60_000L
 private const val STOP_RECORDING_DELAY_MILLIS = 300L
 private const val MIN_HOLD_RECORD_BUTTON_MILLIS = 400L
-
+private const val RECORD_HINT_DURATION_MILLIS = 3_000L
 
 class ChatFragmentModel(
     savedState: SavedStateHandle
@@ -224,31 +227,57 @@ class ChatFragment : Fragment(), MenuProvider {
                 scrollToBottom()
             }
         }
-        binding.buttonRecord.setOnTouchListener { _, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    recordButtonPressTime = System.currentTimeMillis()
-                    startRecordingPrompt()
-                    true
+        val recordButton = binding.buttonRecord
+        recordButton.setOnTouchListener(object : OnTouchListener {
+            private val hintView = inflater.inflate(R.layout.record_button_hint, null).also { hintView ->
+                MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED).also {
+                    hintView.measure(it, it)
                 }
-                MotionEvent.ACTION_UP -> {
-                    if (System.currentTimeMillis() - recordButtonPressTime < MIN_HOLD_RECORD_BUTTON_MILLIS) {
-                        stopRecordingGlowAnimation()
-                        vmodel.viewModelScope.launch {
-                            stopRecording()
-                        }
-                    } else if (_mediaRecorder != null) {
-                        lifecycleScope.launch {
-                            delay(STOP_RECORDING_DELAY_MILLIS)
-                            vibrate()
-                            showRecordedPrompt()
-                        }
-                    }
-                    true
-                }
-                else -> false
             }
-        }
+            private val hintWindow = PopupWindow(hintView, WRAP_CONTENT, WRAP_CONTENT).apply {
+                animationStyle = android.R.style.Animation_Toast
+            }
+
+            override fun onTouch(view: View?, event: MotionEvent): Boolean {
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        recordButtonPressTime = System.currentTimeMillis()
+                        startRecordingPrompt()
+                        return true
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        if (System.currentTimeMillis() - recordButtonPressTime < MIN_HOLD_RECORD_BUTTON_MILLIS) {
+                            stopRecordingGlowAnimation()
+                            vmodel.viewModelScope.launch {
+                                stopRecording()
+                            }
+                            if (hintWindow.isShowing) {
+                                return true
+                            }
+                            hintWindow.showAsDropDown(
+                                recordButton,
+                                ((recordButton.width - hintView.measuredWidth) / 2).coerceAtLeast(0),
+                                -(recordButton.height + hintView.measuredHeight)
+                            )
+                            recordButton.postDelayed(RECORD_HINT_DURATION_MILLIS) {
+                                hintWindow.dismiss()
+                            }
+                            return true
+                        }
+                        hintWindow.dismiss()
+                        if (_mediaRecorder != null) {
+                            lifecycleScope.launch {
+                                delay(STOP_RECORDING_DELAY_MILLIS)
+                                vibrate()
+                                showRecordedPrompt()
+                            }
+                        }
+                        return true
+                    }
+                }
+                return false
+            }
+        })
         binding.buttonLanguage.setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
