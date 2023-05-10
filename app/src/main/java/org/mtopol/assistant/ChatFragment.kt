@@ -112,7 +112,9 @@ import kotlin.math.roundToLong
 private const val KEY_CHAT_HISTORY = "chat_history"
 
 private const val MAX_RECORDING_TIME_MILLIS = 60_000L
-private const val STOP_RECORDING_DELAY_MILLIS = 400L
+private const val STOP_RECORDING_DELAY_MILLIS = 300L
+private const val MIN_HOLD_RECORD_BUTTON_MILLIS = 400L
+
 
 class ChatFragmentModel(
     savedState: SavedStateHandle
@@ -149,6 +151,7 @@ class ChatFragment : Fragment(), MenuProvider {
     private lateinit var audioPathname: String
     private lateinit var languageIdentifier: LanguageIdentifier
 
+    private var recordButtonPressTime= 0L
     private var _mediaRecorder: MediaRecorder? = null
 
     private val permissionRequest = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -224,11 +227,17 @@ class ChatFragment : Fragment(), MenuProvider {
         binding.buttonRecord.setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
+                    recordButtonPressTime = System.currentTimeMillis()
                     startRecordingPrompt()
                     true
                 }
                 MotionEvent.ACTION_UP -> {
-                    if (_mediaRecorder != null) {
+                    if (System.currentTimeMillis() - recordButtonPressTime < MIN_HOLD_RECORD_BUTTON_MILLIS) {
+                        stopRecordingGlowAnimation()
+                        vmodel.viewModelScope.launch {
+                            stopRecording()
+                        }
+                    } else if (_mediaRecorder != null) {
                         lifecycleScope.launch {
                             delay(STOP_RECORDING_DELAY_MILLIS)
                             vibrate()
@@ -394,8 +403,8 @@ class ChatFragment : Fragment(), MenuProvider {
     override fun onPause() {
         super.onPause()
         Log.i("lifecycle", "onPause")
-        runBlocking { stopRecording() }
         stopRecordingGlowAnimation()
+        runBlocking { stopRecording() }
     }
 
     private suspend fun undoLastPrompt() {
