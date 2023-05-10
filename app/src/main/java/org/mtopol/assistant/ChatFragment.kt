@@ -251,12 +251,14 @@ class ChatFragment : Fragment(), MenuProvider {
                             return true
                         }
                         hintWindow.dismiss()
-                        if (_mediaRecorder != null) {
-                            lifecycleScope.launch {
-                                delay(STOP_RECORDING_DELAY_MILLIS)
-                                vibrate()
-                                showRecordedPrompt()
-                            }
+                        if (_mediaRecorder == null) {
+                            return true
+                        }
+                        binding.buttonRecord.isEnabled = false
+                        lifecycleScope.launch {
+                            delay(STOP_RECORDING_DELAY_MILLIS)
+                            vibrate()
+                            showRecordedPrompt()
                         }
                         return true
                     }
