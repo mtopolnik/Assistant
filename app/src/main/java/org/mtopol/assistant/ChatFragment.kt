@@ -93,6 +93,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -146,7 +147,8 @@ class ChatFragmentModel(
 class ChatFragment : Fragment(), MenuProvider {
 
     @Suppress("RegExpUnnecessaryNonCapturingGroup")
-    private val punctuationRegex = """(?<=\D[.!]['"]?)\s+|(?<=\d[.!]'?)\s+(?=\p{Lu})|(?<=.[;?]'?)\s+|\n+""".toRegex()
+    private val sentenceDelimiterRegex = """(?<=\D[.!]['"]?)\s+|(?<=\d[.!]'?)\s+(?=\p{Lu})|(?<=.[;?]'?)\s+|\n+""".toRegex()
+    private val speechImprovementRegex = """ ?[()] ?""".toRegex()
     private val whitespaceRegex = """\s+""".toRegex()
     private val vmodel: ChatFragmentModel by viewModels()
     private lateinit var userLanguages: List<String>
@@ -479,7 +481,6 @@ class ChatFragment : Fragment(), MenuProvider {
                             replyEditable.append(token)
                             val fullSentences = replyEditable
                                 .substring(lastSpokenPos, replyEditable.length)
-                                .replace(""" ?[()] ?""".toRegex(), ", ")
                                 .dropLastIncompleteSentence()
                             fullSentences.takeIf { it.isNotBlank() }?.also {
                                 Log.i("speech", "full sentences: $it")
@@ -532,6 +533,7 @@ class ChatFragment : Fragment(), MenuProvider {
                     var nextUtteranceId = 0L
                     var previousLanguageTag = UNDETERMINED_LANGUAGE_TAG
                     sentenceFlow
+                        .map { it.replace(speechImprovementRegex, ", ") }
                         .onEach { sentence ->
                             Log.i("speech", "Speak: $sentence")
                             previousLanguageTag = identifyLanguage(sentence, previousLanguageTag)
@@ -1050,7 +1052,7 @@ class ChatFragment : Fragment(), MenuProvider {
     private fun wordCount(text: String) = text.trim().split(whitespaceRegex).size
 
     private fun String.dropLastIncompleteSentence(): String {
-        val lastMatch = punctuationRegex.findAll(this).lastOrNull() ?: return ""
+        val lastMatch = sentenceDelimiterRegex.findAll(this).lastOrNull() ?: return ""
         return substring(0, lastMatch.range.last + 1)
     }
 }
