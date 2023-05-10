@@ -247,21 +247,7 @@ class ChatFragment : Fragment(), MenuProvider {
                     }
                     MotionEvent.ACTION_UP -> {
                         if (System.currentTimeMillis() - recordButtonPressTime < MIN_HOLD_RECORD_BUTTON_MILLIS) {
-                            stopRecordingGlowAnimation()
-                            vmodel.viewModelScope.launch {
-                                stopRecording()
-                            }
-                            if (hintWindow.isShowing) {
-                                return true
-                            }
-                            hintWindow.showAsDropDown(
-                                recordButton,
-                                ((recordButton.width - hintView.measuredWidth) / 2).coerceAtLeast(0),
-                                -(recordButton.height + hintView.measuredHeight)
-                            )
-                            recordButton.postDelayed(RECORD_HINT_DURATION_MILLIS) {
-                                hintWindow.dismiss()
-                            }
+                            showRecordingHint()
                             return true
                         }
                         hintWindow.dismiss()
@@ -276,6 +262,24 @@ class ChatFragment : Fragment(), MenuProvider {
                     }
                 }
                 return false
+            }
+
+            private fun showRecordingHint() {
+                stopRecordingGlowAnimation()
+                vmodel.viewModelScope.launch {
+                    stopRecording()
+                }
+                if (hintWindow.isShowing) {
+                    return
+                }
+                hintWindow.showAsDropDown(
+                    recordButton,
+                    ((recordButton.width - hintView.measuredWidth) / 2).coerceAtLeast(0),
+                    -(recordButton.height + hintView.measuredHeight)
+                )
+                recordButton.postDelayed(RECORD_HINT_DURATION_MILLIS) {
+                    hintWindow.dismiss()
+                }
             }
         })
         binding.buttonLanguage.setOnTouchListener { _, event ->
