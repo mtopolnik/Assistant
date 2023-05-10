@@ -20,7 +20,7 @@
         android:layout_height="wrap_content"
         android:background="@drawable/chat_entry_fill"
         android:backgroundTint="?attr/colorSecondary"
-        android:alpha="0.7"
+        android:alpha="0.8"
         android:padding="10dp">
 
     <TextView
