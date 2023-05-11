@@ -120,6 +120,12 @@ private const val STOP_RECORDING_DELAY_MILLIS = 300L
 private const val MIN_HOLD_RECORD_BUTTON_MILLIS = 400L
 private const val RECORD_HINT_DURATION_MILLIS = 3_000L
 
+@Suppress("RegExpUnnecessaryNonCapturingGroup")
+private val sentenceDelimiterRegex = """(?<=\D[.!]['"]?)\s+|(?<=\d[.!]'?)\s+(?=\p{Lu})|(?<=.[;?]'?)\s+|\n+""".toRegex()
+private val speechImprovementRegex = """ ?[()] ?""".toRegex()
+private val whitespaceRegex = """\s+""".toRegex()
+private val markdownRemovalRegex = """`+""".toRegex()
+
 class ChatFragmentModel(
     savedState: SavedStateHandle
 ) : ViewModel() {
@@ -146,10 +152,6 @@ class ChatFragmentModel(
 @SuppressLint("ClickableViewAccessibility")
 class ChatFragment : Fragment(), MenuProvider {
 
-    @Suppress("RegExpUnnecessaryNonCapturingGroup")
-    private val sentenceDelimiterRegex = """(?<=\D[.!]['"]?)\s+|(?<=\d[.!]'?)\s+(?=\p{Lu})|(?<=.[;?]'?)\s+|\n+""".toRegex()
-    private val speechImprovementRegex = """ ?[()] ?""".toRegex()
-    private val whitespaceRegex = """\s+""".toRegex()
     private val vmodel: ChatFragmentModel by viewModels()
     private lateinit var userLanguages: List<String>
     private lateinit var binding: FragmentChatBinding
@@ -534,6 +536,7 @@ class ChatFragment : Fragment(), MenuProvider {
                     var previousLanguageTag = UNDETERMINED_LANGUAGE_TAG
                     sentenceFlow
                         .map { it.replace(speechImprovementRegex, ", ") }
+                        .map { it.replace(markdownRemovalRegex, "") }
                         .onEach { sentence ->
                             Log.i("speech", "Speak: $sentence")
                             previousLanguageTag = identifyLanguage(sentence, previousLanguageTag)
@@ -777,9 +780,6 @@ class ChatFragment : Fragment(), MenuProvider {
                 }
                 vmodel.withFragment {
                     sendPromptAndReceiveResponse(transcription)
-//                    it.binding.edittextPrompt.editableText.apply {
-//                        replace(0, length, transcription)
-//                    }
                 }
             } catch (e: CancellationException) {
                 throw e
