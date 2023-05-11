@@ -776,9 +776,10 @@ class ChatFragment : Fragment(), MenuProvider {
                     return@launch
                 }
                 vmodel.withFragment {
-                    it.binding.edittextPrompt.editableText.apply {
-                        replace(0, length, transcription)
-                    }
+                    sendPromptAndReceiveResponse(transcription)
+//                    it.binding.edittextPrompt.editableText.apply {
+//                        replace(0, length, transcription)
+//                    }
                 }
             } catch (e: CancellationException) {
                 throw e
