@@ -63,7 +63,7 @@ class OpenAI(
     private val client = OpenAIClient(
         OpenAIConfig(
             token = context.mainPrefs.openaiApiKey,
-            timeout = Timeout(connect = 5.seconds, socket = 5.seconds, request = 180.seconds),
+            timeout = Timeout(connect = 4.seconds, socket = 4.seconds, request = 180.seconds),
             retry = RetryStrategy(0, 2.0, 2.seconds),
         )
     )
