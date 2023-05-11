@@ -76,7 +76,7 @@ class OpenAI(
     @Throws(IOException::class)
     fun chatCompletions(history: List<PromptAndResponse>, useGpt4: Boolean): Flow<String> {
         if (demoMode) {
-            return mockResponse.split("(?<= )".toRegex()).asFlow().map { delay(100); it}
+            return mockResponse.toCharArray().asList().chunked(4).asFlow().map { delay(120); it.joinToString("") }
         }
         val gptModel = if (useGpt4) "gpt-4" else "gpt-3.5-turbo"
         Log.i("gpt", "Model: $gptModel")
