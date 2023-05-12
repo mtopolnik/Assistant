@@ -892,7 +892,7 @@ class ChatFragment : Fragment(), MenuProvider {
             (messageView.background as LayerDrawable).apply {
                 findDrawableByLayerId(R.id.background_fill).setTint(context.getColorCompat(backgroundFill))
                 (findDrawableByLayerId(R.id.background_border) as GradientDrawable)
-                    .setStroke(pixelDensity.toInt(), context.getColorCompat(backgroundBorder))
+                    .setStroke(1.dp, context.getColorCompat(backgroundBorder))
             }
             messageView.text = text
             chatView.addView(messageView)

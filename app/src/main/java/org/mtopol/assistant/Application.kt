@@ -85,7 +85,11 @@ fun String.capitalizeFirstLetter() =
 fun String.toDisplayLanguage() =
     Locale.forLanguageTag(this).getDisplayLanguage(defaultLocale()).capitalizeFirstLetter()
 
-val pixelDensity get() = appContext.resources.displayMetrics.density
+val pixelDensity: Float get() = appContext.resources.displayMetrics.density
+
+val Int.dp: Int get() = toFloat().dp.toInt()
+
+val Float.dp: Float get() = pixelDensity * this
 
 fun Context.getColorCompat(id: Int) = ContextCompat.getColor(this, id)
 
