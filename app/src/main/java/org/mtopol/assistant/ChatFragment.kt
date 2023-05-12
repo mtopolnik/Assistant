@@ -533,14 +533,12 @@ class ChatFragment : Fragment(), MenuProvider {
                 val voiceFileFlow: Flow<File> = channelFlow {
                     val tts = newTextToSpeech()
                     var nextUtteranceId = 0L
-                    var previousLanguageTag = UNDETERMINED_LANGUAGE_TAG
                     sentenceFlow
                         .map { it.replace(speechImprovementRegex, ", ") }
                         .map { it.replace(markdownRemovalRegex, "") }
                         .onEach { sentence ->
                             Log.i("speech", "Speak: $sentence")
-                            previousLanguageTag = identifyLanguage(sentence, previousLanguageTag)
-                            tts.setSpokenLanguage(previousLanguageTag)
+                            tts.setSpokenLanguage(identifyLanguage(sentence))
                             channel.send(tts.speakToFile(sentence, nextUtteranceId++))
                         }
                         .onCompletion {
@@ -630,7 +628,7 @@ class ChatFragment : Fragment(), MenuProvider {
         val utteranceId = "speak_again"
         val tts = newTextToSpeech()
         try {
-            tts.setSpokenLanguage(identifyLanguage(response, UNDETERMINED_LANGUAGE_TAG))
+            tts.setSpokenLanguage(identifyLanguage(response))
             suspendCancellableCoroutine { continuation ->
                 tts.setOnUtteranceProgressListener(UtteranceContinuationListener(utteranceId, continuation, Unit))
                 if (tts.speak(response, TextToSpeech.QUEUE_FLUSH, null, utteranceId) == TextToSpeech.ERROR) {
@@ -926,7 +924,7 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private suspend fun identifyLanguage(text: String, previousLanguageTag: String): String {
+    private suspend fun identifyLanguage(text: String): String {
 
         fun isUserLanguage(language: String) = userLanguages.firstOrNull { it == language } != null
 
