@@ -116,7 +116,7 @@ class OpenAI(
         return client.transcription(
             TranscriptionRequest(
                 language = language,
-                prompt = prompt,
+                prompt = prompt.takeIf { language == null },
                 audio = FileSource(audioPathname, File(audioPathname).source()),
                 model = ModelId("whisper-1"),
                 responseFormat = "text"
