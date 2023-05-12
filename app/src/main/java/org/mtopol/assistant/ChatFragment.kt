@@ -137,8 +137,10 @@ class ChatFragmentModel(
 
     val chatHistory = savedState.getLiveData<MutableList<PromptAndResponse>>(KEY_CHAT_HISTORY, mutableListOf()).value!!
 
-    var handleResponseJob: Job? = null
     var recordingGlowJob: Job? = null
+    var transcriptionJob: Job? = null
+    var handleResponseJob: Job? = null
+    var isResponding: Boolean = false
     var autoscrollEnabled: Boolean = true
     var replyEditable: Editable? = null
     var mediaPlayer: MediaPlayer? = null
@@ -158,7 +160,7 @@ class ChatFragment : Fragment(), MenuProvider {
     private lateinit var audioPathname: String
     private lateinit var languageIdentifier: LanguageIdentifier
 
-    private var recordButtonPressTime= 0L
+    private var recordButtonPressTime = 0L
     private var _mediaRecorder: MediaRecorder? = null
 
     private val permissionRequest = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -260,9 +262,13 @@ class ChatFragment : Fragment(), MenuProvider {
                         }
                         binding.buttonRecord.isEnabled = false
                         lifecycleScope.launch {
-                            delay(STOP_RECORDING_DELAY_MILLIS)
-                            vibrate()
-                            showRecordedPrompt()
+                            try {
+                                delay(STOP_RECORDING_DELAY_MILLIS)
+                                vibrate()
+                            } finally {
+                                binding.buttonRecord.isEnabled = true
+                            }
+                            transcribeAndSendPrompt()
                         }
                         return true
                     }
@@ -271,7 +277,7 @@ class ChatFragment : Fragment(), MenuProvider {
             }
 
             private fun showRecordingHint() {
-                stopRecordingGlowAnimation()
+                vmodel.recordingGlowJob?.cancel()
                 vmodel.viewModelScope.launch {
                     stopRecording()
                 }
@@ -361,7 +367,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
     override fun onPrepareMenu(menu: Menu) {
         Log.i("lifecycle", "onPrepareMenu")
-        val responding = vmodel.handleResponseJob != null
+        val responding = vmodel.isResponding
         val hasHistory = vmodel.chatHistory.isNotEmpty()
         menu.findItem(R.id.action_cancel).isVisible = responding
         menu.findItem(R.id.action_undo).isVisible = !responding
@@ -382,7 +388,6 @@ class ChatFragment : Fragment(), MenuProvider {
                         previousResponseJob?.join()
                         speakLastResponse()
                     } finally {
-                        vmodel.handleResponseJob = null
                         vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
                     }
                 }
@@ -442,7 +447,7 @@ class ChatFragment : Fragment(), MenuProvider {
     override fun onPause() {
         super.onPause()
         Log.i("lifecycle", "onPause")
-        stopRecordingGlowAnimation()
+        vmodel.recordingGlowJob?.cancel()
         runBlocking { stopRecording() }
     }
 
@@ -469,6 +474,8 @@ class ChatFragment : Fragment(), MenuProvider {
         vmodel.handleResponseJob = vmodel.viewModelScope.launch {
             try {
                 previousResponseJob?.join()
+                vmodel.isResponding = true
+                vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
                 val promptAndResponse = PromptAndResponse(prompt, "")
                 vmodel.chatHistory.add(promptAndResponse)
                 val editable = addPromptAndResponseToView(promptAndResponse)
@@ -501,8 +508,10 @@ class ChatFragment : Fragment(), MenuProvider {
                                     is OpenAIAPIException -> {
                                         Log.e("lifecycle", "OpenAI error in chatCompletions flow", e)
                                         if ((e.message ?: "").endsWith("does not exist")) {
-                                            Toast.makeText(appContext,
-                                                getString(R.string.gpt4_unavailable), Toast.LENGTH_SHORT)
+                                            Toast.makeText(
+                                                appContext,
+                                                getString(R.string.gpt4_unavailable), Toast.LENGTH_SHORT
+                                            )
                                                 .show()
                                         } else {
                                             showApiErrorToast(e)
@@ -510,8 +519,10 @@ class ChatFragment : Fragment(), MenuProvider {
                                     }
                                     else -> {
                                         Log.e("lifecycle", "Error in chatCompletions flow", e)
-                                        Toast.makeText(appContext,
-                                            getString(R.string.error_while_gpt_talking), Toast.LENGTH_SHORT)
+                                        Toast.makeText(
+                                            appContext,
+                                            getString(R.string.error_while_gpt_talking), Toast.LENGTH_SHORT
+                                        )
                                             .show()
                                     }
                                 }
@@ -576,11 +587,10 @@ class ChatFragment : Fragment(), MenuProvider {
             } catch (e: Exception) {
                 Log.e("lifecycle", "Error in receiveResponseJob", e)
             } finally {
-                vmodel.handleResponseJob = null
+                vmodel.isResponding = false
                 vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
             }
         }
-        activity?.invalidateOptionsMenu()
     }
 
     private suspend fun MediaPlayer.play(file: File) {
@@ -648,6 +658,7 @@ class ChatFragment : Fragment(), MenuProvider {
             permissionRequest.launch(arrayOf(permission.RECORD_AUDIO, permission.WRITE_EXTERNAL_STORAGE))
             return
         }
+        vmodel.transcriptionJob?.cancel()
         vmodel.handleResponseJob?.cancel()
         activity.lockOrientation()
         try {
@@ -676,7 +687,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 "Something went wrong while we were recording your voice",
                 Toast.LENGTH_SHORT
             ).show()
-            stopRecordingGlowAnimation()
+            vmodel.recordingGlowJob?.cancel()
             lifecycleScope.launch {
                 stopRecording()
                 vmodel.withFragment { it.binding.buttonRecord.isEnabled = true }
@@ -703,11 +714,13 @@ class ChatFragment : Fragment(), MenuProvider {
 
     @SuppressLint("Recycle")
     private fun animateRecordingGlow() {
+        val previousRecordingGlowJob = vmodel.recordingGlowJob?.apply { cancel() }
         vmodel.recordingGlowJob = vmodel.viewModelScope.launch {
+            previousRecordingGlowJob?.join()
             vmodel.withFragment { it.binding.showRecordingGlow() }
             launch {
                 delay(MAX_RECORDING_TIME_MILLIS)
-                showRecordedPrompt()
+                transcribeAndSendPrompt()
             }
             try {
                 var lastPeak = 0f
@@ -762,10 +775,12 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun showRecordedPrompt() {
-        binding.buttonRecord.isEnabled = false
-        vmodel.viewModelScope.launch {
+    private fun transcribeAndSendPrompt() {
+        val recordingGlowJob = vmodel.recordingGlowJob
+        val previousTranscriptionJob = vmodel.transcriptionJob?.apply { cancel() }
+        vmodel.transcriptionJob = vmodel.viewModelScope.launch {
             try {
+                previousTranscriptionJob?.join()
                 val recordingSuccess = stopRecording()
                 if (!recordingSuccess) {
                     return@launch
@@ -795,10 +810,7 @@ class ChatFragment : Fragment(), MenuProvider {
                     }
                 }
             } finally {
-                vmodel.withFragment {
-                    it.binding.buttonRecord.isEnabled = true
-                }
-                stopRecordingGlowAnimation()
+                recordingGlowJob?.cancel()
             }
         }
     }
@@ -856,13 +868,6 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun stopRecordingGlowAnimation() {
-        vmodel.apply {
-            recordingGlowJob?.cancel()
-            recordingGlowJob = null
-        }
-    }
-
     private suspend fun ValueAnimator.run() {
         withContext(Main) {
             suspendCancellableCoroutine { cont ->
@@ -897,10 +902,14 @@ class ChatFragment : Fragment(), MenuProvider {
             return messageView.editableText
         }
 
-        addMessageView(R.color.user_text_foreground, R.color.user_text_background, R.color.user_text_border,
-            promptAndResponse.prompt)
-        return addMessageView(R.color.gpt_text_foreground, R.color.gpt_text_background, R.color.gpt_text_border,
-            promptAndResponse.response)
+        addMessageView(
+            R.color.user_text_foreground, R.color.user_text_background, R.color.user_text_border,
+            promptAndResponse.prompt
+        )
+        return addMessageView(
+            R.color.gpt_text_foreground, R.color.gpt_text_background, R.color.gpt_text_border,
+            promptAndResponse.response
+        )
     }
 
     private fun clearChat() {
@@ -965,7 +974,8 @@ class ChatFragment : Fragment(), MenuProvider {
         pop.menu.add(Menu.NONE, addItemId, Menu.NONE, getString(R.string.item_add_remove))
         pop.menu.add(Menu.NONE, autoItemId, Menu.NONE, "Auto")
         for ((i, language) in userLanguages.withIndex()) {
-            pop.menu.add(Menu.NONE, i + itemIdOffset, Menu.NONE,
+            pop.menu.add(
+                Menu.NONE, i + itemIdOffset, Menu.NONE,
                 "${language.uppercase()} - ${language.toDisplayLanguage()}"
             )
         }
@@ -977,7 +987,8 @@ class ChatFragment : Fragment(), MenuProvider {
             appContext.mainPrefs.applyUpdate {
                 setSpeechRecogLanguage(
                     if (item.itemId == autoItemId) null
-                    else userLanguages[item.itemId - itemIdOffset])
+                    else userLanguages[item.itemId - itemIdOffset]
+                )
             }
             updateLanguageButton()
             true
@@ -993,8 +1004,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 setIconResource(R.drawable.baseline_record_voice_over_28)
                 text = ""
             }
-        }
-        else {
+        } else {
             languageButton.apply {
                 icon = null
                 text = language.uppercase()
