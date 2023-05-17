@@ -957,7 +957,7 @@ class ChatFragment : Fragment(), MenuProvider {
         val topLang = languagesWithAdjustedConfidence.first()
         val langTags = languagesWithAdjustedConfidence.map { it.languageTag }
         return when {
-            topLang.languageTag != UNDETERMINED_LANGUAGE_TAG && topLang.confidence >= 0.8 -> langTags.first()
+            topLang.languageTag != UNDETERMINED_LANGUAGE_TAG && topLang.confidence >= 0.8 -> topLang.languageTag
             else -> langTags.firstOrNull { isUserLanguage(it) }
                 ?: appContext.mainPrefs.speechRecogLanguage
                 ?: userLanguages.first()
