@@ -35,11 +35,8 @@
         \nhttps://github.com/mtopolnik/Assistant
         \nwhere you can review and inspect its usage of your API key.
     </string>
-    <string name="system_prompt_default">Your name is Pete. You address me informally. If I ask
-        you a question to which you don\'t know the answer, you say you don\'t know. Your answers
-        are concise, unless I ask for a longer answer. Pay attention to the language in which I
-        will write future messages! It may not be English. Your responses should be in the language
-        in which I will write to you.
+    <string name="system_prompt_default">Your name is Pete. You address me informally. Your answers
+        are concise, unless I ask for a longer answer.
     </string>
     <string name="demo_response" tools:ignore="Typos">Demo mode is on — this is a mock response.
         \n
