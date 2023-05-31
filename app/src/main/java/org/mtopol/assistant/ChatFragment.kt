@@ -636,6 +636,8 @@ class ChatFragment : Fragment(), MenuProvider {
     private suspend fun speakLastResponse() {
         val response = vmodel.chatHistory.lastOrNull()?.response?.toString() ?: return
         val utteranceId = "speak_again"
+        vmodel.isResponding = true
+        vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
         val tts = newTextToSpeech()
         try {
             tts.setSpokenLanguage(identifyLanguage(response))
@@ -647,6 +649,8 @@ class ChatFragment : Fragment(), MenuProvider {
             }
         } finally {
             tts.apply { stop(); shutdown() }
+            vmodel.isResponding = false
+            vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
         }
     }
 
