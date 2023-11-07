@@ -452,18 +452,23 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private suspend fun undoLastPrompt() {
-        if (vmodel.chatHistory.isEmpty()) {
+        val promptBox = binding.edittextPrompt
+        if (promptBox.text.isNotEmpty()) {
+            promptBox.editableText.clear()
             return
         }
         vmodel.handleResponseJob?.apply {
             cancel()
             join()
         }
+        if (vmodel.chatHistory.isEmpty()) {
+            return
+        }
         binding.viewChat.apply {
             repeat(2) { removeViewAt(childCount - 1) }
         }
         val prompt = vmodel.chatHistory.removeLast().prompt
-        binding.edittextPrompt.editableText.apply {
+        promptBox.editableText.apply {
             replace(0, length, prompt)
         }
     }
