@@ -11,9 +11,9 @@ android {
     defaultConfig {
         applicationId "org.mtopol.assistant"
         minSdk 26
-        versionCode 25
-        versionName "1.9.4"
         targetSdk 34
+        versionCode 27
+        versionName "1.10.0"
         resConfigs("en", "hr")
     }
 
