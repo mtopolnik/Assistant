@@ -46,7 +46,10 @@ import com.aallam.openai.client.OpenAI as OpenAIClient
 
 val openAi get() = openAiLazy.value
 
+private const val GPT_3 = "gpt-3.5-turbo"
+private const val GPT_4 = "gpt-4-1106-preview"
 private const val DEMO_API_KEY = "demo"
+
 private lateinit var openAiLazy: Lazy<OpenAI>
 
 fun resetOpenAi(context: Context): Lazy<OpenAI> {
@@ -55,6 +58,7 @@ fun resetOpenAi(context: Context): Lazy<OpenAI> {
     }
     return lazy { OpenAI(context) }.also { openAiLazy = it }
 }
+
 
 @OptIn(BetaOpenAI::class)
 class OpenAI(
@@ -78,7 +82,7 @@ class OpenAI(
         if (demoMode) {
             return mockResponse.toCharArray().asList().chunked(4).asFlow().map { delay(120); it.joinToString("") }
         }
-        val gptModel = if (useGpt4) "gpt-4" else "gpt-3.5-turbo"
+        val gptModel = if (useGpt4) GPT_4 else GPT_3
         Log.i("gpt", "Model: $gptModel")
         val chatCompletionRequest = ChatCompletionRequest(
             model = ModelId(gptModel),
@@ -96,7 +100,7 @@ class OpenAI(
         val systemPrompt = "You are a translator." +
                 " I will write in a language of my choice, and you will translate it to $targetLanguage."
         val chatCompletionRequest = ChatCompletionRequest(
-            model = ModelId(if (useGpt4) "gpt-4" else "gpt-3.5-turbo"),
+            model = ModelId(if (useGpt4) GPT_4 else GPT_3),
             messages = listOf(
                 ChatMessage(ChatRole.System, systemPrompt),
                 ChatMessage(ChatRole.User, text)
