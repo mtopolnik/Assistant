@@ -17,23 +17,32 @@
 
 package org.mtopol.assistant
 
+import android.content.Intent
 import android.content.pm.ActivityInfo.*
 import android.content.res.Configuration.ORIENTATION_PORTRAIT
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.Surface.*
-import androidx.activity.OnBackPressedCallback
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.view.WindowCompat
-import androidx.navigation.NavController
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
 import androidx.navigation.NavOptions
 import androidx.navigation.fragment.NavHostFragment
-import androidx.navigation.fragment.findNavController
 import org.mtopol.assistant.databinding.ActivityMainBinding
 
+
+class SharedImageViewModel : ViewModel() {
+    val imgUriLiveData = MutableLiveData<Uri>()
+}
+
 class MainActivity : AppCompatActivity() {
+
+    private val sharedImageViewModel: SharedImageViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         Log.i("lifecycle", "onCreate MainActivity")
@@ -41,18 +50,25 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(ActivityMainBinding.inflate(layoutInflater).root)
         resetOpenAi(this)
-        if (savedInstanceState != null) {
+        if (mainPrefs.openaiApiKey.isBlank()) {
+            if (savedInstanceState == null) {
+                navigateToApiKeyFragment()
+            }
             return
         }
-        // Continue here only on the first time since app startup.
-        if (mainPrefs.openaiApiKey.isBlank()) {
-            navigateToApiKeyFragment()
-        }
+        // This point reached only when API key is present
+        handleImageIntent(intent)
     }
 
     override fun onDestroy() {
         super.onDestroy()
         Log.i("lifecycle", "onDestroy MainActivity")
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        Log.i("lifecycle", "onNewIntent MainActivity")
+        handleImageIntent(intent)
     }
 
     private val navController get() =
@@ -96,4 +112,22 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun handleImageIntent(intent: Intent?) {
+        val action = intent?.action ?: return
+        val type = intent.type ?: return
+        if (action != Intent.ACTION_SEND || !type.startsWith("image/")) {
+            return
+        }
+
+        val imageUri: Uri? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra(Intent.EXTRA_STREAM)
+        }
+        if (imageUri != null) {
+            sharedImageViewModel.imgUriLiveData.value = imageUri
+            navController.popBackStack(R.id.fragment_chat, false)
+        }
+    }
 }

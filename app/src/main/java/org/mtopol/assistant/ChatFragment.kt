@@ -52,6 +52,7 @@ import android.view.ViewGroup
 import android.view.animation.LinearInterpolator
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
+import android.widget.ImageView
 import android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
 import android.widget.PopupWindow
 import android.widget.TextView
@@ -66,6 +67,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.doOnLayout
 import androidx.core.view.postDelayed
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.SavedStateHandle
@@ -73,7 +75,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.fragment.findNavController
-import com.aallam.openai.api.BetaOpenAI
 import com.aallam.openai.api.exception.OpenAIAPIException
 import com.google.android.material.button.MaterialButton
 import com.google.mlkit.nl.languageid.IdentifiedLanguage
@@ -150,11 +151,11 @@ class ChatFragmentModel(
     }
 }
 
-@OptIn(BetaOpenAI::class)
 @SuppressLint("ClickableViewAccessibility")
 class ChatFragment : Fragment(), MenuProvider {
 
     private val vmodel: ChatFragmentModel by viewModels()
+    private val sharedImageViewModel: SharedImageViewModel by activityViewModels()
     private lateinit var userLanguages: List<String>
     private lateinit var binding: FragmentChatBinding
     private lateinit var audioPathname: String
@@ -186,6 +187,12 @@ class ChatFragment : Fragment(), MenuProvider {
         Log.i("lifecycle", "onCreateView ChatFragment")
         binding = FragmentChatBinding.inflate(inflater, container, false)
         vmodel.withFragmentLiveData.observe(viewLifecycleOwner) { it.invoke(this) }
+        sharedImageViewModel.imgUriLiveData.observe(viewLifecycleOwner) { imageUri ->
+            val imgView = LayoutInflater.from(requireContext())
+                .inflate(R.layout.chat_entry_image, binding.viewChat, false) as ImageView
+            imgView.setImageURI(imageUri)
+            binding.viewChat.addView(imgView)
+        }
         val context: Context = (requireActivity() as AppCompatActivity).also { activity ->
             activity.addMenuProvider(this, viewLifecycleOwner)
             activity.setSupportActionBar(binding.toolbar)
@@ -440,13 +447,13 @@ class ChatFragment : Fragment(), MenuProvider {
 
     override fun onResume() {
         super.onResume()
-        Log.i("lifecycle", "onResume")
+        Log.i("lifecycle", "onResume ChatFragment")
         userLanguages = appContext.mainPrefs.configuredLanguages()
     }
 
     override fun onPause() {
         super.onPause()
-        Log.i("lifecycle", "onPause")
+        Log.i("lifecycle", "onPause ChatFragment")
         vmodel.recordingGlowJob?.cancel()
         runBlocking { stopRecording() }
     }
@@ -899,7 +906,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
         fun addMessageView(textColor: Int, backgroundFill: Int, backgroundBorder: Int, text: CharSequence): Editable {
             val messageView = LayoutInflater.from(requireContext())
-                .inflate(R.layout.edittext_chat_message, chatView, false) as TextView
+                .inflate(R.layout.chat_entry_text, chatView, false) as TextView
             messageView.setTextColor(context.getColorCompat(textColor))
             (messageView.background as LayerDrawable).apply {
                 findDrawableByLayerId(R.id.background_fill).setTint(context.getColorCompat(backgroundFill))
