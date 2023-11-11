@@ -76,6 +76,7 @@ val openAi get() = openAiLazy.value
 private const val OPENAI_URL = "https://api.openai.com/v1/"
 private const val GPT_3 = "gpt-3.5-turbo"
 private const val GPT_4 = "gpt-4-1106-preview"
+private const val GPT_4_VISION = "gpt-4-vision-preview"
 private const val DEMO_API_KEY = "demo"
 
 private lateinit var openAiLazy: Lazy<OpenAI>
@@ -105,7 +106,8 @@ class OpenAI(
         Log.i("gpt", "Model: $gptModel")
         val chatCompletionRequest = ChatCompletionRequest(
             model = gptModel,
-            messages = systemPrompt() + history.toDto().dropLast(1)
+            messages = systemPrompt() + history.toDto().dropLast(1),
+            max_tokens = 4096
         )
         return chatCompletions(chatCompletionRequest)
     }
@@ -245,7 +247,7 @@ private fun createHttpClient(apiKey: String): HttpClient {
             json(jsonLenient)
         }
         install(Logging) {
-            level = LogLevel.HEADERS
+            level = LogLevel.ALL
             logger = Logger.ANDROID
         }
         defaultRequest {
@@ -278,7 +280,8 @@ private fun FormBuilder.appendFile(key: String, pathname: String) {
 @Serializable
 class ChatCompletionRequest(
     val model: String,
-    val messages: List<ChatMessage>
+    val messages: List<ChatMessage>,
+    val max_tokens: Int? = null
 )
 
 @Serializable
