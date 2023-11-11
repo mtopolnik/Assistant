@@ -61,6 +61,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -104,9 +105,11 @@ class OpenAI(
         }
         val gptModel = if (useGpt4) GPT_4 else GPT_3
         Log.i("gpt", "Model: $gptModel")
+        val chatHistory = history.toDto().dropLast(1)
+        val promptMessage = chatHistory.last()
         val chatCompletionRequest = ChatCompletionRequest(
             model = gptModel,
-            messages = systemPrompt() + history.toDto().dropLast(1),
+            messages = systemPrompt() + chatHistory,
             max_tokens = 4096
         )
         return chatCompletions(chatCompletionRequest)
@@ -181,8 +184,8 @@ class OpenAI(
 
     private fun List<PromptAndResponse>.toDto() = flatMap {
         listOf(
-            ChatMessage(role = "user", content = it.prompt.toString()),
-            ChatMessage(role = "assistant", content = it.response.toString()),
+            ChatMessage("user", it.prompt.toString()),
+            ChatMessage("assistant", it.response.toString()),
         )
     }
 }
@@ -287,7 +290,26 @@ class ChatCompletionRequest(
 @Serializable
 class ChatMessage(
     val role: String,
-    val content: String? = null
+    val content: List<ContentPart> = listOf()
+)
+
+fun ChatMessage(role: String, content: String): ChatMessage = ChatMessage(role, listOf(ContentPart.Text(content)))
+
+@Serializable
+sealed class ContentPart {
+    @Serializable
+    @SerialName("text")
+    class Text(val text: String) : ContentPart()
+
+    @Serializable
+    @SerialName("image_url")
+    class Image(val image_url: ImageUrl) : ContentPart()
+}
+
+@Serializable
+class ImageUrl(
+    val url: String,
+    val detail: String? = null
 )
 
 @Serializable
