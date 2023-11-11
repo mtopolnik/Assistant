@@ -20,32 +20,60 @@ package org.mtopol.assistant
 import android.content.Context
 import android.util.Base64
 import android.util.Log
-import com.aallam.openai.api.BetaOpenAI
-import com.aallam.openai.api.audio.TranscriptionRequest
-import com.aallam.openai.api.chat.ChatCompletionRequest
-import com.aallam.openai.api.chat.ChatMessage
-import com.aallam.openai.api.chat.ChatRole
-import com.aallam.openai.api.file.FileSource
-import com.aallam.openai.api.http.Timeout
-import com.aallam.openai.api.model.ModelId
-import com.aallam.openai.client.OpenAIConfig
-import com.aallam.openai.client.RetryStrategy
+import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.plugins.HttpRequestRetry
+import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.auth.Auth
+import io.ktor.client.plugins.auth.providers.BearerTokens
+import io.ktor.client.plugins.auth.providers.bearer
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.defaultRequest
+import io.ktor.client.plugins.logging.ANDROID
+import io.ktor.client.plugins.logging.LogLevel
+import io.ktor.client.plugins.logging.Logger
+import io.ktor.client.plugins.logging.Logging
+import io.ktor.client.request.HttpRequestBuilder
+import io.ktor.client.request.accept
+import io.ktor.client.request.forms.FormBuilder
+import io.ktor.client.request.forms.append
+import io.ktor.client.request.forms.formData
+import io.ktor.client.request.forms.submitFormWithBinaryData
+import io.ktor.client.request.headers
+import io.ktor.client.request.setBody
+import io.ktor.client.request.url
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.HttpStatement
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
+import io.ktor.http.contentType
+import io.ktor.serialization.kotlinx.json.json
+import io.ktor.util.reflect.typeInfo
+import io.ktor.utils.io.ByteReadChannel
+import io.ktor.utils.io.core.writeFully
+import io.ktor.utils.io.readUTF8Line
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.toList
-import okio.source
-import java.io.File
-import java.io.IOException
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.jsonObject
+import java.io.FileInputStream
 import java.security.MessageDigest
-import kotlin.time.Duration.Companion.seconds
-import com.aallam.openai.client.OpenAI as OpenAIClient
 
 val openAi get() = openAiLazy.value
 
+private const val OPENAI_URL = "https://api.openai.com/v1/"
 private const val GPT_3 = "gpt-3.5-turbo"
 private const val GPT_4 = "gpt-4-1106-preview"
 private const val DEMO_API_KEY = "demo"
@@ -59,25 +87,16 @@ fun resetOpenAi(context: Context): Lazy<OpenAI> {
     return lazy { OpenAI(context) }.also { openAiLazy = it }
 }
 
-
-@OptIn(BetaOpenAI::class)
 class OpenAI(
     private val context: Context
 ) {
-    private val client = OpenAIClient(
-        OpenAIConfig(
-            token = context.mainPrefs.openaiApiKey,
-            timeout = Timeout(connect = 4.seconds, socket = 4.seconds, request = 180.seconds),
-            retry = RetryStrategy(0, 2.0, 2.seconds),
-        )
-    )
+    private val httpClient = createHttpClient(context.mainPrefs.openaiApiKey)
 
     private val demoMode = context.mainPrefs.openaiApiKey.trim().lowercase() == DEMO_API_KEY
 
     private val mockRecognizedSpeech = context.getString(R.string.demo_recognized_speech)
     private val mockResponse = context.getString(R.string.demo_response)
 
-    @Throws(IOException::class)
     fun chatCompletions(history: List<PromptAndResponse>, useGpt4: Boolean): Flow<String> {
         if (demoMode) {
             return mockResponse.toCharArray().asList().chunked(4).asFlow().map { delay(120); it.joinToString("") }
@@ -85,12 +104,10 @@ class OpenAI(
         val gptModel = if (useGpt4) GPT_4 else GPT_3
         Log.i("gpt", "Model: $gptModel")
         val chatCompletionRequest = ChatCompletionRequest(
-            model = ModelId(gptModel),
+            model = gptModel,
             messages = systemPrompt() + history.toDto().dropLast(1)
         )
-        return client.chatCompletions(chatCompletionRequest)
-            .map { chunk -> chunk.choices[0].delta?.content }
-            .filterNotNull()
+        return chatCompletions(chatCompletionRequest)
     }
 
     fun translation(targetLanguage: String, text: String, useGpt4: Boolean): Flow<String> {
@@ -100,14 +117,31 @@ class OpenAI(
         val systemPrompt = "You are a translator." +
                 " I will write in a language of my choice, and you will translate it to $targetLanguage."
         val chatCompletionRequest = ChatCompletionRequest(
-            model = ModelId(if (useGpt4) GPT_4 else GPT_3),
+            model = if (useGpt4) GPT_4 else GPT_3,
             messages = listOf(
-                ChatMessage(ChatRole.System, systemPrompt),
-                ChatMessage(ChatRole.User, text)
+                ChatMessage("system", systemPrompt),
+                ChatMessage("user", text)
             )
         )
-        return client.chatCompletions(chatCompletionRequest)
-            .map { chunk -> chunk.choices[0].delta?.content }
+        return chatCompletions(chatCompletionRequest)
+    }
+
+    private fun chatCompletions(request: ChatCompletionRequest): Flow<String> {
+        return flow<ChatCompletionChunk> {
+            val builder = HttpRequestBuilder().apply {
+                method = HttpMethod.Post
+                url(path = "chat/completions")
+                setBody(streamRequestOf(request))
+                contentType(ContentType.Application.Json)
+                accept(ContentType.Text.EventStream)
+                headers {
+                    append(HttpHeaders.CacheControl, "no-cache")
+                    append(HttpHeaders.Connection, "keep-alive")
+                }
+            }
+            HttpStatement(builder, httpClient).execute { streamEventsFrom(it) }
+        }
+            .map { chunk -> chunk.choices[0].delta.content }
             .filterNotNull()
     }
 
@@ -117,31 +151,36 @@ class OpenAI(
             delay(2000)
             return mockRecognizedSpeech
         }
-        return client.transcription(
-            TranscriptionRequest(
-                language = language,
-                prompt = prompt.takeIf { language == null },
-                audio = FileSource(audioPathname, File(audioPathname).source()),
-                model = ModelId("whisper-1"),
-                responseFormat = "text"
-        )).text.replace("\n", "")
+        val response = httpClient.submitFormWithBinaryData(
+            url = "audio/transcriptions",
+            formData = formData {
+                append("model", "whisper-1")
+                if (language != null) {
+                    append("language", language)
+                } else {
+                    append("prompt", prompt)
+                }
+                append("response_format", "text")
+                appendFile("file", audioPathname)
+            })
+        return response.body<String>(typeInfo<String>()).replace("\n", "")
     }
 
     fun close() {
-        client.close()
+        httpClient.close()
     }
 
     private fun systemPrompt(): List<ChatMessage> {
         return context.mainPrefs.systemPrompt
             .takeIf { it.isNotBlank() }
-            ?.let { listOf(ChatMessage(ChatRole.System, it)) }
+            ?.let { listOf(ChatMessage("system", it)) }
             ?: emptyList()
     }
 
     private fun List<PromptAndResponse>.toDto() = flatMap {
         listOf(
-            ChatMessage(role = ChatRole.User, content = it.prompt.toString()),
-            ChatMessage(role = ChatRole.Assistant, content = it.response.toString()),
+            ChatMessage(role = "user", content = it.prompt.toString()),
+            ChatMessage(role = "assistant", content = it.response.toString()),
         )
     }
 }
@@ -161,3 +200,104 @@ private fun apiKeyHash(apiKey: String): String =
     }.also {
         Log.i("hash", "API key hash: $it")
     }
+
+private const val DATA_LINE_PREFIX = "data:"
+private const val DONE_TOKEN = "$DATA_LINE_PREFIX [DONE]"
+
+private inline fun <reified T> streamRequestOf(serializable: T): JsonElement =
+    jsonLenient.encodeToJsonElement(serializable).jsonObject.toMutableMap()
+        .also { it += "stream" to JsonPrimitive(true) }
+        .let { JsonObject(it) }
+
+private suspend inline fun <reified T> FlowCollector<T>.streamEventsFrom(response: HttpResponse) {
+    val channel: ByteReadChannel = response.body()
+    while (!channel.isClosedForRead) {
+        val line = channel.readUTF8Line() ?: continue
+        val value: T = when {
+            line.startsWith(DONE_TOKEN) -> break
+            line.startsWith(DATA_LINE_PREFIX) -> jsonLenient.decodeFromString(line.removePrefix(DATA_LINE_PREFIX))
+            else -> continue
+        }
+        emit(value)
+    }
+}
+
+private fun createHttpClient(apiKey: String): HttpClient {
+    return HttpClient {
+        install(Auth) {
+            bearer {
+                loadTokens {
+                    BearerTokens(accessToken = apiKey, refreshToken = "")
+                }
+            }
+        }
+        install(HttpTimeout) {
+            connectTimeoutMillis = 4000
+            requestTimeoutMillis = 4000
+            socketTimeoutMillis = 180_000
+        }
+        install(HttpRequestRetry) {
+            retryIf { _, response -> response.status.value == 429 } // == Too Many Requests
+            maxRetries = 2
+            exponentialDelay(2.0, 2000)
+        }
+        install(ContentNegotiation) {
+            json(jsonLenient)
+        }
+        install(Logging) {
+            level = LogLevel.HEADERS
+            logger = Logger.ANDROID
+        }
+        defaultRequest {
+            url(OPENAI_URL)
+        }
+        expectSuccess = true
+    }
+}
+
+private val jsonLenient = Json {
+    isLenient = true
+    ignoreUnknownKeys = true
+}
+
+private fun FormBuilder.appendFile(key: String, pathname: String) {
+    append(key, pathname, ContentType.Application.OctetStream) {
+        FileInputStream(pathname).use { inputStream ->
+            val buffer = ByteArray(8192)
+            while (true) {
+                val count = inputStream.read(buffer)
+                if (count == -1) {
+                    break
+                }
+                writeFully(buffer, 0, count)
+            }
+        }
+    }
+}
+
+@Serializable
+class ChatCompletionRequest(
+    val model: String,
+    val messages: List<ChatMessage>
+)
+
+@Serializable
+class ChatMessage(
+    val role: String,
+    val content: String? = null
+)
+
+@Serializable
+class ChatCompletionChunk(
+    val choices: List<ChatChunk>,
+)
+
+@Serializable
+class ChatChunk(
+    val delta: ChatDelta,
+)
+
+@Serializable
+class ChatDelta(
+    val content: String? = null
+)

@@ -75,13 +75,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.fragment.findNavController
-import com.aallam.openai.api.exception.OpenAIAPIException
 import com.google.android.material.button.MaterialButton
 import com.google.mlkit.nl.languageid.IdentifiedLanguage
 import com.google.mlkit.nl.languageid.LanguageIdentification
 import com.google.mlkit.nl.languageid.LanguageIdentificationOptions
 import com.google.mlkit.nl.languageid.LanguageIdentifier
 import com.google.mlkit.nl.languageid.LanguageIdentifier.UNDETERMINED_LANGUAGE_TAG
+import io.ktor.client.plugins.ClientRequestException
 import io.ktor.utils.io.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -517,9 +517,9 @@ class ChatFragment : Fragment(), MenuProvider {
                             exception?.also { e ->
                                 when (e) {
                                     is CancellationException -> {}
-                                    is OpenAIAPIException -> {
+                                    is ClientRequestException -> {
                                         Log.e("lifecycle", "OpenAI error in chatCompletions flow", e)
-                                        if ((e.message ?: "").endsWith("does not exist")) {
+                                        if ((e.message ?: "").contains("` does not exist\"")) {
                                             Toast.makeText(
                                                 appContext,
                                                 getString(R.string.gpt4_unavailable), Toast.LENGTH_SHORT
@@ -815,7 +815,7 @@ class ChatFragment : Fragment(), MenuProvider {
             } catch (e: Exception) {
                 Log.e("speech", "Text-to-speech error", e)
                 vmodel.withFragment {
-                    if (e is OpenAIAPIException) {
+                    if (e is ClientRequestException) {
                         showApiErrorToast(e)
                     } else {
                         Toast.makeText(
@@ -1061,10 +1061,10 @@ class ChatFragment : Fragment(), MenuProvider {
         vmodel.mediaPlayer?.setVolume(volume, volume)
     }
 
-    private fun showApiErrorToast(e: OpenAIAPIException) {
+    private fun showApiErrorToast(e: ClientRequestException) {
         Toast.makeText(
             requireActivity(),
-            if (e.statusCode == 401) getString(R.string.message_incorrect_api_key)
+            if (e.response.status.value == 401) getString(R.string.message_incorrect_api_key)
             else "OpenAI error: ${e.message}",
             Toast.LENGTH_LONG
         ).show()
