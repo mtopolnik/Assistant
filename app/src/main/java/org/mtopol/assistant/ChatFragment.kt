@@ -1087,9 +1087,9 @@ class UtteranceContinuationListener<T>(
 ) : UtteranceProgressListener() {
     override fun onStart(utteranceId: String) {}
 
-    override fun onDone(doneUutteranceId: String) {
-        if (doneUutteranceId != utteranceId) {
-            Log.e("speech", "unexpected utteranceId in onDone: $doneUutteranceId != $utteranceId")
+    override fun onDone(doneUtteranceId: String) {
+        if (doneUtteranceId != utteranceId) {
+            Log.e("speech", "unexpected utteranceId in onDone: $doneUtteranceId != $utteranceId")
         }
         continuation.resumeWith(success(successValue))
     }
