@@ -29,6 +29,7 @@ import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
 import android.media.MediaPlayer
 import android.media.MediaRecorder
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Parcelable
@@ -53,6 +54,7 @@ import android.view.animation.LinearInterpolator
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
 import android.widget.PopupWindow
 import android.widget.TextView
@@ -187,11 +189,10 @@ class ChatFragment : Fragment(), MenuProvider {
         Log.i("lifecycle", "onCreateView ChatFragment")
         binding = FragmentChatBinding.inflate(inflater, container, false)
         vmodel.withFragmentLiveData.observe(viewLifecycleOwner) { it.invoke(this) }
-        sharedImageViewModel.imgUriLiveData.observe(viewLifecycleOwner) { imageUri ->
-            val imgView = LayoutInflater.from(requireContext())
-                .inflate(R.layout.chat_entry_image, binding.viewChat, false) as ImageView
-            imgView.setImageURI(imageUri)
-            binding.viewChat.addView(imgView)
+        sharedImageViewModel.imgUriLiveData.observe(viewLifecycleOwner) { imgUri ->
+            val promptAndResponse = PromptAndResponse("").also { it.promptImageUris.add(imgUri) }
+            vmodel.chatHistory.add(promptAndResponse)
+            addPromptToView(promptAndResponse)
         }
         val context: Context = (requireActivity() as AppCompatActivity).also { activity ->
             activity.addMenuProvider(this, viewLifecycleOwner)
@@ -201,13 +202,15 @@ class ChatFragment : Fragment(), MenuProvider {
             }
         }
 
+        // Trigger lazy loading of OpenAI client
         GlobalScope.launch(IO) { openAi }
 
         var newestHistoryEditable: Editable? = null
         var newestHistoryMessagePair: PromptAndResponse? = null
         for (promptAndResponse in vmodel.chatHistory) {
             newestHistoryMessagePair = promptAndResponse
-            newestHistoryEditable = addPromptAndResponseToView(promptAndResponse)
+            addPromptToView(promptAndResponse)
+            newestHistoryEditable = addResponseToView(promptAndResponse)
         }
         if (vmodel.replyEditable != null) {
             newestHistoryEditable!!.also {
@@ -474,7 +477,7 @@ class ChatFragment : Fragment(), MenuProvider {
         binding.viewChat.apply {
             repeat(2) { removeViewAt(childCount - 1) }
         }
-        val prompt = vmodel.chatHistory.removeLast().prompt
+        val prompt = vmodel.chatHistory.removeLast().promptText
         promptBox.editableText.apply {
             replace(0, length, prompt)
         }
@@ -488,9 +491,18 @@ class ChatFragment : Fragment(), MenuProvider {
                 previousResponseJob?.join()
                 vmodel.isResponding = true
                 vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
-                val promptAndResponse = PromptAndResponse(prompt, "")
-                vmodel.chatHistory.add(promptAndResponse)
-                val editable = addPromptAndResponseToView(promptAndResponse)
+                val chatHistory = vmodel.chatHistory
+                val promptAndResponse = if (chatHistory.isEmpty() || chatHistory.last().promptText != "") {
+                    PromptAndResponse(prompt).also {
+                        chatHistory.add(it)
+                        addPromptToView(it)
+                    }
+                } else {
+                    binding.viewChat.run { getChildAt(childCount - 1) }
+                        .findViewById<TextView>(R.id.chatentry_text).text = prompt
+                    chatHistory.last().also { it.promptText = prompt }
+                }
+                val editable = addResponseToView(promptAndResponse)
                 promptAndResponse.response = editable
                 vmodel.replyEditable = editable
                 vmodel.autoscrollEnabled = true
@@ -802,7 +814,7 @@ class ChatFragment : Fragment(), MenuProvider {
                     return@launch
                 }
                 val prefs = appContext.mainPrefs
-                val promptContext = vmodel.chatHistory.joinToString("\n\n") { it.prompt.toString() }
+                val promptContext = vmodel.chatHistory.joinToString("\n\n") { it.promptText.toString() }
                 val transcription = openAi.transcription(prefs.speechRecogLanguage, promptContext, audioPathname)
                 if (transcription.isEmpty()) {
                     return@launch
@@ -900,29 +912,55 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun addPromptAndResponseToView(promptAndResponse: PromptAndResponse): Editable {
+    private fun styleContainer(view: View, backgroundFill: Int, backgroundBorder: Int) {
         val context = requireContext()
+        (view.background as LayerDrawable).apply {
+            findDrawableByLayerId(R.id.background_fill).setTint(context.getColorCompat(backgroundFill))
+            (findDrawableByLayerId(R.id.background_border) as GradientDrawable)
+                .setStroke(1.dp, context.getColorCompat(backgroundBorder))
+        }
+    }
+
+    private fun styleText(textView: TextView, textColor: Int, text: CharSequence) {
+        val context = requireContext()
+        textView.setTextColor(context.getColorCompat(textColor))
+        textView.text = text
+    }
+
+    private fun addTextView(textColor: Int, backgroundFill: Int, backgroundBorder: Int, text: CharSequence): Editable {
+        val chatView = binding.viewChat
+        val textView = LayoutInflater.from(requireContext())
+            .inflate(R.layout.chat_entry_text, chatView, false) as TextView
+        styleContainer(textView, backgroundFill, backgroundBorder)
+        styleText(textView, textColor, text)
+        chatView.addView(textView)
+        return textView.editableText
+    }
+
+    private fun addPromptToView(promptAndResponse: PromptAndResponse) {
         val chatView = binding.viewChat
 
-        fun addMessageView(textColor: Int, backgroundFill: Int, backgroundBorder: Int, text: CharSequence): Editable {
-            val messageView = LayoutInflater.from(requireContext())
-                .inflate(R.layout.chat_entry_text, chatView, false) as TextView
-            messageView.setTextColor(context.getColorCompat(textColor))
-            (messageView.background as LayerDrawable).apply {
-                findDrawableByLayerId(R.id.background_fill).setTint(context.getColorCompat(backgroundFill))
-                (findDrawableByLayerId(R.id.background_border) as GradientDrawable)
-                    .setStroke(1.dp, context.getColorCompat(backgroundBorder))
-            }
-            messageView.text = text
-            chatView.addView(messageView)
-            return messageView.editableText
+        if (promptAndResponse.promptImageUris.isNotEmpty()) {
+            val compositeEntry = LayoutInflater.from(requireContext())
+                .inflate(R.layout.chat_entry_composite, chatView, false) as LinearLayout
+            compositeEntry.findViewById<ImageView>(R.id.chatentry_image)
+                .setImageURI(promptAndResponse.promptImageUris.first())
+            styleContainer(compositeEntry, R.color.user_text_background, R.color.user_text_border)
+            styleText(
+                compositeEntry.findViewById(R.id.chatentry_text),
+                R.color.user_text_foreground, promptAndResponse.promptText
+            )
+            chatView.addView(compositeEntry)
+        } else {
+            addTextView(
+                R.color.user_text_foreground, R.color.user_text_background, R.color.user_text_border,
+                promptAndResponse.promptText
+            )
         }
+    }
 
-        addMessageView(
-            R.color.user_text_foreground, R.color.user_text_background, R.color.user_text_border,
-            promptAndResponse.prompt
-        )
-        return addMessageView(
+    private fun addResponseToView(promptAndResponse: PromptAndResponse): Editable {
+        return addTextView(
             R.color.gpt_text_foreground, R.color.gpt_text_background, R.color.gpt_text_border,
             promptAndResponse.response
         )
@@ -1113,6 +1151,7 @@ private fun nanosToSeconds(nanos: Long): Float = nanos.toFloat() / 1_000_000_000
 
 @Parcelize
 data class PromptAndResponse(
-    var prompt: CharSequence,
-    var response: CharSequence
+    var promptText: CharSequence,
+    var promptImageUris: MutableList<Uri> = mutableListOf(),
+    var response: CharSequence = ""
 ) : Parcelable

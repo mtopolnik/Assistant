@@ -18,8 +18,14 @@
 package org.mtopol.assistant
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Bitmap.CompressFormat
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.os.Build
 import android.util.Base64
 import android.util.Log
+import androidx.core.net.toFile
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.HttpRequestRetry
@@ -53,6 +59,7 @@ import io.ktor.util.reflect.typeInfo
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.core.writeFully
 import io.ktor.utils.io.readUTF8Line
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
@@ -61,6 +68,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -69,8 +77,11 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonObject
+import java.io.ByteArrayOutputStream
 import java.io.FileInputStream
 import java.security.MessageDigest
+import kotlin.math.min
+
 
 val openAi get() = openAiLazy.value
 
@@ -99,17 +110,15 @@ class OpenAI(
     private val mockRecognizedSpeech = context.getString(R.string.demo_recognized_speech)
     private val mockResponse = context.getString(R.string.demo_response)
 
-    fun chatCompletions(history: List<PromptAndResponse>, useGpt4: Boolean): Flow<String> {
+    suspend fun chatCompletions(history: List<PromptAndResponse>, useGpt4: Boolean): Flow<String> {
         if (demoMode) {
             return mockResponse.toCharArray().asList().chunked(4).asFlow().map { delay(120); it.joinToString("") }
         }
-        val gptModel = if (useGpt4) GPT_4 else GPT_3
-        Log.i("gpt", "Model: $gptModel")
-        val chatHistory = history.toDto().dropLast(1)
-        val promptMessage = chatHistory.last()
+        val gptModel = if (useGpt4) GPT_4_VISION else GPT_3
+        Log.i("client", "Model: $gptModel")
         val chatCompletionRequest = ChatCompletionRequest(
             model = gptModel,
-            messages = systemPrompt() + chatHistory,
+            messages = systemPrompt() + history.toDto().dropLast(1),
             max_tokens = 4096
         )
         return chatCompletions(chatCompletionRequest)
@@ -151,7 +160,7 @@ class OpenAI(
     }
 
     suspend fun transcription(language: String?, prompt: String, audioPathname: String): String {
-        Log.i("speech", "Transcription language: $language, prompt context:\n$prompt")
+        Log.i("client", "Transcription language: $language, prompt context:\n$prompt")
         if (demoMode) {
             delay(2000)
             return mockRecognizedSpeech
@@ -182,11 +191,105 @@ class OpenAI(
             ?: emptyList()
     }
 
-    private fun List<PromptAndResponse>.toDto() = flatMap {
+    private suspend fun List<PromptAndResponse>.toDto() = flatMap { pAndR ->
         listOf(
-            ChatMessage("user", it.prompt.toString()),
-            ChatMessage("assistant", it.response.toString()),
+            ChatMessage(
+                "user",
+                listOf(ContentPart.Text(pAndR.promptText.toString())) +
+                        pAndR.promptImageUris.map { imgUri -> ContentPart.Image(readContentToDataUri(imgUri)) }
+            ),
+            ChatMessage("assistant", pAndR.response.toString()),
         )
+    }
+
+    private suspend fun readContentToDataUri(uri: Uri): String = withContext(Dispatchers.Default) {
+        var bitmapOptions = BitmapFactory.Options().apply {
+            inJustDecodeBounds = true
+        }
+        loadAsBitmap(uri, bitmapOptions)
+        if (bitmapOptions.outWidth == 0 || bitmapOptions.outHeight == 0) {
+            return@withContext "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=="
+        }
+        val (width: Int, height: Int) = Pair(bitmapOptions.outWidth, bitmapOptions.outHeight)
+        bitmapOptions = BitmapFactory.Options().apply {
+            inSampleSize = determineSampleSize(width, height, 512, 512)
+        }
+        val bitmap = loadAsBitmap(uri, bitmapOptions)!!
+        val (targetWidth, targetHeight) = determineTargetDimensions(bitmapOptions, 512, 512)
+        val scaledBitmap = Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, true)
+        val (compressFormat, urlFormat) =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) Pair(CompressFormat.WEBP_LOSSY, "webp")
+            else Pair(CompressFormat.JPEG, "jpeg")
+        val bytes = ByteArrayOutputStream().also { scaledBitmap.compress(compressFormat, 85, it) }.toByteArray()
+        "data:image/$urlFormat;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
+    }
+
+    private fun loadAsBitmap(uri: Uri, bitmapOptions: BitmapFactory.Options): Bitmap? {
+        return when (val scheme = uri.scheme) {
+            "file" -> BitmapFactory.decodeFile(uri.toFile().path, bitmapOptions)
+            "content" -> context.contentResolver.openInputStream(uri).use {
+                Log.i("client", "Decoding bitmap at $uri")
+                BitmapFactory.decodeStream(it, null, bitmapOptions)
+            }
+            else -> {
+                Log.e("client", "URI scheme not supported: $scheme")
+                null
+            }
+        }
+    }
+
+    private fun determineSampleSize(width: Int, height: Int, targetWidth: Int, targetHeight: Int): Int {
+        var sampleSize = 1
+        while (width / (sampleSize * 2) >= targetWidth && height / (sampleSize * 2) >= targetHeight) {
+            sampleSize *= 2
+        }
+        return sampleSize
+    }
+
+    private fun determineTargetDimensions(
+        bitmapOptions: BitmapFactory.Options, targetWidth: Int, targetHeight: Int
+    ): Pair<Int, Int> {
+        val (width: Int, height: Int) = Pair(bitmapOptions.outWidth, bitmapOptions.outHeight)
+        val widthRatio = targetWidth.toDouble() / bitmapOptions.outWidth
+        val heightRatio = targetHeight.toDouble() / bitmapOptions.outHeight
+        val scaleFactor = min(widthRatio, heightRatio).coerceAtMost(1.0)
+        return Pair(
+            (width * scaleFactor).toInt().coerceAtMost(targetWidth),
+            (height * scaleFactor).toInt().coerceAtMost(targetHeight)
+        )
+    }
+}
+
+private fun createHttpClient(apiKey: String): HttpClient {
+    return HttpClient {
+        install(Auth) {
+            bearer {
+                loadTokens {
+                    BearerTokens(accessToken = apiKey, refreshToken = "")
+                }
+            }
+        }
+        install(HttpTimeout) {
+            connectTimeoutMillis = 4000
+            socketTimeoutMillis = 4000
+            requestTimeoutMillis = 180_000
+        }
+        install(HttpRequestRetry) {
+            retryIf { _, response -> response.status.value == 429 } // == Too Many Requests
+            maxRetries = 2
+            exponentialDelay(2.0, 2000)
+        }
+        install(ContentNegotiation) {
+            json(jsonLenient)
+        }
+        install(Logging) {
+            level = LogLevel.ALL
+            logger = Logger.ANDROID
+        }
+        defaultRequest {
+            url(OPENAI_URL)
+        }
+        expectSuccess = true
     }
 }
 
@@ -224,39 +327,6 @@ private suspend inline fun <reified T> FlowCollector<T>.streamEventsFrom(respons
             else -> continue
         }
         emit(value)
-    }
-}
-
-private fun createHttpClient(apiKey: String): HttpClient {
-    return HttpClient {
-        install(Auth) {
-            bearer {
-                loadTokens {
-                    BearerTokens(accessToken = apiKey, refreshToken = "")
-                }
-            }
-        }
-        install(HttpTimeout) {
-            connectTimeoutMillis = 4000
-            requestTimeoutMillis = 4000
-            socketTimeoutMillis = 180_000
-        }
-        install(HttpRequestRetry) {
-            retryIf { _, response -> response.status.value == 429 } // == Too Many Requests
-            maxRetries = 2
-            exponentialDelay(2.0, 2000)
-        }
-        install(ContentNegotiation) {
-            json(jsonLenient)
-        }
-        install(Logging) {
-            level = LogLevel.ALL
-            logger = Logger.ANDROID
-        }
-        defaultRequest {
-            url(OPENAI_URL)
-        }
-        expectSuccess = true
     }
 }
 
@@ -304,12 +374,15 @@ sealed class ContentPart {
     @Serializable
     @SerialName("image_url")
     class Image(val image_url: ImageUrl) : ContentPart()
+
+    companion object {
+        fun Image(imgUrl: String) = Image(ImageUrl(imgUrl))
+    }
 }
 
 @Serializable
 class ImageUrl(
-    val url: String,
-    val detail: String? = null
+    val url: String
 )
 
 @Serializable
