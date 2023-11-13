@@ -553,14 +553,20 @@ class ChatFragment : Fragment(), MenuProvider {
                                     is CancellationException -> {}
                                     is ClientRequestException -> {
                                         Log.e("lifecycle", "OpenAI error in chatCompletions flow", e)
-                                        if ((e.message ?: "").contains("` does not exist\"")) {
-                                            Toast.makeText(
-                                                appContext,
-                                                getString(R.string.gpt4_unavailable), Toast.LENGTH_SHORT
-                                            )
-                                                .show()
-                                        } else {
-                                            showApiErrorToast(e)
+                                        val message = e.message ?: ""
+                                        when {
+                                            message.contains("` does not exist\"") ->
+                                                Toast.makeText(
+                                                    appContext,
+                                                    getString(R.string.gpt4_unavailable), Toast.LENGTH_SHORT
+                                                ).show()
+                                            message.contains("image_url is only supported by certain models.") ->
+                                                Toast.makeText(
+                                                    appContext,
+                                                    getString(R.string.gpt4_required), Toast.LENGTH_SHORT
+                                                ).show()
+                                            else ->
+                                                showApiErrorToast(e)
                                         }
                                     }
                                     else -> {

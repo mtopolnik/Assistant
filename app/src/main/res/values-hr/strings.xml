@@ -58,6 +58,7 @@
     <string name="gpt_3_5">GPT-3.5</string>
     <string name="gpt_4">GPT-4</string>
     <string name="gpt4_unavailable">GPT-4 nije dostupan s trenutnim API ključem.</string>
+    <string name="gpt4_required">Samo GPT-4 podržava vid</string>
     <string name="clear_chat_history">Obriši povijest brbljanja</string>
     <string name="action_mute">Ugasi zvuk</string>
     <string name="action_cancel">Prestani odgovarati</string>

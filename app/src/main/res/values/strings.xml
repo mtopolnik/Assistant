@@ -59,6 +59,7 @@
     <string name="gpt_3_5">GPT-3.5</string>
     <string name="gpt_4">GPT-4</string>
     <string name="gpt4_unavailable">GPT-4 is not available with your API key.</string>
+    <string name="gpt4_required">You need GPT-4 for vision</string>
     <string name="clear_chat_history">Clear Chat History</string>
     <string name="action_mute">Mute Sound</string>
     <string name="action_cancel">Stop Responding</string>
