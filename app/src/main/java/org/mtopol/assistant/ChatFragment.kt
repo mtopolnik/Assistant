@@ -474,13 +474,32 @@ class ChatFragment : Fragment(), MenuProvider {
         if (vmodel.chatHistory.isEmpty()) {
             return
         }
+
+        // Remove the response view
         binding.viewChat.apply {
-            repeat(2) { removeViewAt(childCount - 1) }
+            removeViewAt(childCount - 1)
         }
-        val prompt = vmodel.chatHistory.removeLast().promptText
+
+        // Determine where the prompt text is and remove it
+        val lastEntry = vmodel.chatHistory.last()
+        if (lastEntry.promptImageUris.isNotEmpty() && lastEntry.promptText.isNotEmpty()) {
+            binding.viewChat.apply {
+                val promptView = getChildAt(childCount - 1) as LinearLayout
+                promptView.findViewById<TextView>(R.id.chatentry_text).text = ""
+            }
+        } else {
+            binding.viewChat.apply {
+                removeViewAt(childCount - 1)
+            }
+            vmodel.chatHistory.removeLast()
+        }
+
+        // Put the prompt text back into the edit box
         promptBox.editableText.apply {
-            replace(0, length, prompt)
+            replace(0, length, lastEntry.promptText)
         }
+        // Clear the prompt text from the chat history entry
+        lastEntry.promptText = ""
     }
 
     private fun sendPromptAndReceiveResponse(prompt: CharSequence) {
