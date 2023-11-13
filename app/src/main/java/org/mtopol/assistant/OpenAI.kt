@@ -110,7 +110,7 @@ class OpenAI(
     private val mockRecognizedSpeech = context.getString(R.string.demo_recognized_speech)
     private val mockResponse = context.getString(R.string.demo_response)
 
-    suspend fun chatCompletions(history: List<PromptAndResponse>, useGpt4: Boolean): Flow<String> {
+    suspend fun chatCompletions(history: List<Exchange>, useGpt4: Boolean): Flow<String> {
         if (demoMode) {
             return mockResponse.toCharArray().asList().chunked(4).asFlow().map { delay(120); it.joinToString("") }
         }
@@ -191,7 +191,7 @@ class OpenAI(
             ?: emptyList()
     }
 
-    private suspend fun List<PromptAndResponse>.toDto() = flatMap { pAndR ->
+    private suspend fun List<Exchange>.toDto() = flatMap { pAndR ->
         listOf(
             ChatMessage(
                 "user",

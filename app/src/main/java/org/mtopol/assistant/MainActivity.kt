@@ -37,7 +37,7 @@ import org.mtopol.assistant.databinding.ActivityMainBinding
 
 
 class SharedImageViewModel : ViewModel() {
-    val imgUriLiveData = MutableLiveData<Uri>()
+    val imgUriLiveData = MutableLiveData<List<Uri>>()
 }
 
 class MainActivity : AppCompatActivity() {
@@ -115,18 +115,30 @@ class MainActivity : AppCompatActivity() {
     private fun handleImageIntent(intent: Intent?) {
         val action = intent?.action ?: return
         val type = intent.type ?: return
-        if (action != Intent.ACTION_SEND || !type.startsWith("image/")) {
+        if (!type.startsWith("image/")) {
             return
         }
-
-        val imageUri: Uri? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
-        } else {
-            @Suppress("DEPRECATION")
-            intent.getParcelableExtra(Intent.EXTRA_STREAM)
+        val imageUris: List<Uri>? = when (action) {
+            Intent.ACTION_SEND -> {
+                val imageUri: Uri? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableExtra(Intent.EXTRA_STREAM)
+                }
+                imageUri?.let { listOf(it) }
+            }
+            Intent.ACTION_SEND_MULTIPLE ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM)
+                }
+            else -> null
         }
-        if (imageUri != null) {
-            sharedImageViewModel.imgUriLiveData.value = imageUri
+        if (imageUris != null) {
+            sharedImageViewModel.imgUriLiveData.value = imageUris
             navController.popBackStack(R.id.fragment_chat, false)
         }
     }
