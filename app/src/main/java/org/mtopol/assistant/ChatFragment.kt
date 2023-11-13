@@ -475,7 +475,8 @@ class ChatFragment : Fragment(), MenuProvider {
             return
         }
 
-        // Remove the response view
+        // Remove the last view. This may be the prompt or the response view, depending
+        // on previous undo actions.
         binding.viewChat.apply {
             removeViewAt(childCount - 1)
         }
@@ -483,13 +484,18 @@ class ChatFragment : Fragment(), MenuProvider {
         // Determine where the prompt text is and remove it
         val lastEntry = vmodel.chatHistory.last()
         if (lastEntry.promptImageUris.isNotEmpty() && lastEntry.promptText.isNotEmpty()) {
+            // The prompt contains both text and image. Remove just the text and leave the
+            // image. This means the prompt view stays.
             binding.viewChat.apply {
                 val promptView = getChildAt(childCount - 1) as LinearLayout
                 promptView.findViewById<TextView>(R.id.chatentry_text).text = ""
             }
         } else {
-            binding.viewChat.apply {
-                removeViewAt(childCount - 1)
+            if (lastEntry.promptText.isNotEmpty()) {
+                // The prompt contains just text and no image. Remove the prompt view.
+                binding.viewChat.apply {
+                    removeViewAt(childCount - 1)
+                }
             }
             vmodel.chatHistory.removeLast()
         }
