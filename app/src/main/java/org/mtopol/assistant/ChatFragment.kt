@@ -498,8 +498,11 @@ class ChatFragment : Fragment(), MenuProvider {
         promptBox.editableText.apply {
             replace(0, length, lastEntry.promptText)
         }
-        // Clear the prompt text from the chat history entry
-        lastEntry.promptText = ""
+        // Clear the prompt and response text from the chat history entry
+        lastEntry.apply {
+            promptText = ""
+            response = ""
+        }
     }
 
     private fun sendPromptAndReceiveResponse(prompt: CharSequence) {
