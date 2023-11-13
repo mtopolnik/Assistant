@@ -13,8 +13,8 @@ android {
         applicationId "org.mtopol.assistant"
         minSdk 26
         targetSdk 34
-        versionCode 27
-        versionName "1.10.0"
+        versionCode 28
+        versionName "2.0.0"
         resConfigs("en", "hr")
     }
 
@@ -36,7 +36,7 @@ android {
     }
 }
 
-dependencies {
+ dependencies {
     implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3'
