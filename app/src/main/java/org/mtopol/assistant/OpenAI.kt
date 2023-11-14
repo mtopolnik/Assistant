@@ -114,7 +114,14 @@ class OpenAI(
         if (demoMode) {
             return mockResponse.toCharArray().asList().chunked(4).asFlow().map { delay(120); it.joinToString("") }
         }
-        val gptModel = if (useGpt4) GPT_4_VISION else GPT_3
+        val gptModel = if (useGpt4) {
+            if (history.any { it.promptImageUris.isNotEmpty() }) {
+                GPT_4_VISION
+            } else
+                GPT_4
+        } else {
+            GPT_3
+        }
         Log.i("client", "Model: $gptModel")
         val chatCompletionRequest = ChatCompletionRequest(
             model = gptModel,
