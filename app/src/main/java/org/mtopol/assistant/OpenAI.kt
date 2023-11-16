@@ -28,6 +28,7 @@ import android.util.Log
 import androidx.core.net.toFile
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.HttpRequestRetry
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.auth.Auth
@@ -72,11 +73,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.encodeToJsonElement
-import kotlinx.serialization.json.jsonObject
 import java.io.ByteArrayOutputStream
 import java.io.FileInputStream
 import java.security.MessageDigest
@@ -126,7 +123,6 @@ class OpenAI(
         val chatCompletionRequest = ChatCompletionRequest(
             model = gptModel,
             messages = systemPrompt() + history.toDto().dropLast(1),
-            max_tokens = 4096
         )
         return chatCompletions(chatCompletionRequest)
     }
@@ -152,15 +148,10 @@ class OpenAI(
             val builder = HttpRequestBuilder().apply {
                 method = HttpMethod.Post
                 url(path = "chat/completions")
-                setBody(streamRequestOf(request))
                 contentType(ContentType.Application.Json)
-                accept(ContentType.Text.EventStream)
-                headers {
-                    append(HttpHeaders.CacheControl, "no-cache")
-                    append(HttpHeaders.Connection, "keep-alive")
-                }
+                setBody(jsonCodec.encodeToJsonElement(request))
             }
-            HttpStatement(builder, httpClient).execute { streamEventsFrom(it) }
+            HttpStatement(builder, httpClient).execute { emitStreamingResponse(it) }
         }
             .map { chunk -> chunk.choices[0].delta.content }
             .filterNotNull()
@@ -268,7 +259,10 @@ class OpenAI(
 }
 
 private fun createHttpClient(apiKey: String): HttpClient {
-    return HttpClient {
+    return HttpClient(CIO) {
+        defaultRequest {
+            url(OPENAI_URL)
+        }
         install(Auth) {
             bearer {
                 loadTokens {
@@ -287,14 +281,11 @@ private fun createHttpClient(apiKey: String): HttpClient {
             exponentialDelay(2.0, 2000)
         }
         install(ContentNegotiation) {
-            json(jsonLenient)
+            json(jsonCodec)
         }
         install(Logging) {
-            level = LogLevel.ALL
+            level = LogLevel.HEADERS
             logger = Logger.ANDROID
-        }
-        defaultRequest {
-            url(OPENAI_URL)
         }
         expectSuccess = true
     }
@@ -319,25 +310,22 @@ private fun apiKeyHash(apiKey: String): String =
 private const val DATA_LINE_PREFIX = "data:"
 private const val DONE_TOKEN = "$DATA_LINE_PREFIX [DONE]"
 
-private inline fun <reified T> streamRequestOf(serializable: T): JsonElement =
-    jsonLenient.encodeToJsonElement(serializable).jsonObject.toMutableMap()
-        .also { it += "stream" to JsonPrimitive(true) }
-        .let { JsonObject(it) }
-
-private suspend inline fun <reified T> FlowCollector<T>.streamEventsFrom(response: HttpResponse) {
+private suspend inline fun <reified T> FlowCollector<T>.emitStreamingResponse(response: HttpResponse) {
     val channel: ByteReadChannel = response.body()
     while (!channel.isClosedForRead) {
-        val line = channel.readUTF8Line() ?: continue
-        val value: T = when {
-            line.startsWith(DONE_TOKEN) -> break
-            line.startsWith(DATA_LINE_PREFIX) -> jsonLenient.decodeFromString(line.removePrefix(DATA_LINE_PREFIX))
-            else -> continue
+        val line = channel.readUTF8Line() ?: break
+        Log.i("client", "Response line: $line")
+        if (line.startsWith(DONE_TOKEN)) {
+             break
         }
-        emit(value)
+        if (line.startsWith(DATA_LINE_PREFIX)) {
+            emit(jsonCodec.decodeFromString(line.removePrefix(DATA_LINE_PREFIX)))
+            delay(1)
+        }
     }
 }
 
-private val jsonLenient = Json {
+private val jsonCodec = Json {
     isLenient = true
     ignoreUnknownKeys = true
 }
@@ -361,8 +349,12 @@ private fun FormBuilder.appendFile(key: String, pathname: String) {
 class ChatCompletionRequest(
     val model: String,
     val messages: List<ChatMessage>,
-    val max_tokens: Int? = null
+    val max_tokens: Int? = null,
+    val stream: Boolean
 )
+
+fun ChatCompletionRequest(model: String, messages: List<ChatMessage>) =
+    ChatCompletionRequest(model, messages, null, true)
 
 @Serializable
 class ChatMessage(
