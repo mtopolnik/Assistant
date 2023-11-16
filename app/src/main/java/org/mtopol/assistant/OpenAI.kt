@@ -70,6 +70,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -320,7 +321,7 @@ private suspend inline fun <reified T> FlowCollector<T>.emitStreamingResponse(re
         }
         if (line.startsWith(DATA_LINE_PREFIX)) {
             emit(jsonCodec.decodeFromString(line.removePrefix(DATA_LINE_PREFIX)))
-            delay(1)
+            yield()
         }
     }
 }
@@ -354,7 +355,11 @@ class ChatCompletionRequest(
 )
 
 fun ChatCompletionRequest(model: String, messages: List<ChatMessage>) =
-    ChatCompletionRequest(model, messages, null, true)
+    ChatCompletionRequest(
+        model,
+        messages,
+        max_tokens = if (model == GPT_3) null else 4096,
+        stream = true)
 
 @Serializable
 class ChatMessage(
