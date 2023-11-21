@@ -223,7 +223,7 @@ class ChatFragment : Fragment(), MenuProvider {
         for (exchange in vmodel.chatHistory) {
             newestHistoryExchange = exchange
             addPromptToView(exchange)
-            newestHistoryEditable = addTextResponseToView(exchange)
+            newestHistoryEditable = addResponseToView(exchange)
         }
         if (vmodel.replyEditable != null) {
             newestHistoryEditable!!.also {
@@ -373,17 +373,25 @@ class ChatFragment : Fragment(), MenuProvider {
         fun TextView.updateText() {
             text = getString(appContext.mainPrefs.selectedModel.uiId)
         }
-        if (requireContext().mainPrefs.openaiApiKey.isGpt3OnlyKey()) {
+
+        val apiKey = requireContext().mainPrefs.openaiApiKey
+        if (apiKey.isGpt3OnlyKey()) {
             appContext.mainPrefs.applyUpdate { setSelectedModel(OpenAiModel.GPT_3) }
         } else {
+            val gptOnlyMode = apiKey.isGptOnlyKey()
+            if (gptOnlyMode && !appContext.mainPrefs.selectedModel.isGptModel()) {
+                appContext.mainPrefs.applyUpdate { setSelectedModel(OpenAiModel.GPT_3) }
+            }
             menu.findItem(R.id.action_gpt_toggle).apply {
                 isVisible = true
-            }.actionView!!.findViewById<TextView>(R.id.textview_gpt_toggle).apply {
+            }.actionView!!.findViewById<TextView>(R.id.textview_model_selector).apply {
                 updateText()
                 setOnClickListener {
-                    appContext.mainPrefs.applyUpdate { setSelectedModel(
-                        OpenAiModel.entries[(appContext.mainPrefs.selectedModel.ordinal + 1) % OpenAiModel.entries.size]
-                    ) }
+                    val currOrdinal = appContext.mainPrefs.selectedModel.ordinal
+                    val nextOrdinal = (currOrdinal + 1) % if (gptOnlyMode) gptModels.size else OpenAiModel.entries.size
+                    appContext.mainPrefs.applyUpdate {
+                        setSelectedModel(OpenAiModel.entries[nextOrdinal])
+                    }
                     updateText()
                 }
             }
@@ -660,7 +668,7 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun sendPromptAndReceiveResponse(prompt: String) {
-        if (appContext.mainPrefs.selectedModel in listOf(OpenAiModel.GPT_3, OpenAiModel.GPT_4)) {
+        if (appContext.mainPrefs.selectedModel.isGptModel()) {
             sendPromptAndReceiveTextResponse(prompt)
         } else {
             sendPromptAndReceiveImageResponse(prompt)
@@ -684,9 +692,10 @@ class ChatFragment : Fragment(), MenuProvider {
                 }
                 vmodel.autoscrollEnabled = true
                 scrollToBottom()
+                val responseContainer = addMessageContainerToView(RESPONSE)
                 val imageUris = openAi.imageGeneration(prompt, appContext.mainPrefs.selectedModel)
                 exchange.responseImageUris = imageUris
-                addImageResponseToView(exchange)
+                addImagesToView(responseContainer, exchange.responseImageUris)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -1051,9 +1060,11 @@ class ChatFragment : Fragment(), MenuProvider {
         return addTextToView(responseContainer, exchange.responseText, RESPONSE).editableText
     }
 
-    private fun addImageResponseToView(exchange: Exchange) {
+    private fun addResponseToView(exchange: Exchange): Editable {
         val responseContainer = addMessageContainerToView(RESPONSE)
+        val editable = addTextToView(responseContainer, exchange.responseText, RESPONSE).editableText
         addImagesToView(responseContainer, exchange.responseImageUris)
+        return editable
     }
 
     private fun clearChat() {

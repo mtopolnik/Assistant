@@ -25,6 +25,7 @@ import android.net.Uri
 import android.os.Build
 import android.util.Base64
 import android.util.Log
+import android.widget.Toast
 import androidx.core.net.toFile
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -103,6 +104,10 @@ enum class OpenAiModel(
     DALL_E_2(MODEL_ID_DALL_E_2, R.string.dall_e_2),
     DALL_E_3(MODEL_ID_DALL_E_3, R.string.dall_e_3)
 }
+
+val gptModels = listOf(OpenAiModel.GPT_3, OpenAiModel.GPT_4)
+
+fun OpenAiModel.isGptModel() = this in gptModels
 
 fun resetOpenAi(context: Context): Lazy<OpenAI> {
     if (::openAiLazy.isInitialized) {
@@ -188,6 +193,10 @@ class OpenAI(
     }
 
     suspend fun imageGeneration(prompt: CharSequence, model: OpenAiModel): List<Uri> {
+        if (appContext.mainPrefs.openaiApiKey.isGptOnlyKey()) {
+            Toast.makeText(appContext, "Your API key doesn't allow Dall-E", Toast.LENGTH_LONG).show()
+            return listOf()
+        }
         val request = ImageGenerationRequest(prompt.toString(), model.apiId, "vivid", "url")
         val builder = HttpRequestBuilder().apply {
             method = HttpMethod.Post
@@ -337,7 +346,13 @@ private val GPT3_ONLY_KEY_HASHES = hashSetOf(
     "DIkQ9HIwN3Ky+t53aMHyojOYAsXBFBnZQvnhbU2oyPs=",
 )
 
+private val GPT_ONLY_KEY_HASHES = hashSetOf(
+    "Ej1/kPkeX2/5AVBalQHV+Fg/5QSo9UjK+XgDWFhOQ10="
+)
+
 fun String.isGpt3OnlyKey() = GPT3_ONLY_KEY_HASHES.contains(apiKeyHash(this))
+
+fun String.isGptOnlyKey() = GPT_ONLY_KEY_HASHES.contains(apiKeyHash(this))
 
 private fun apiKeyHash(apiKey: String): String =
     apiKey.toByteArray(Charsets.UTF_8).let {
@@ -355,7 +370,6 @@ private suspend inline fun <reified T> FlowCollector<T>.emitStreamingResponse(re
     val channel: ByteReadChannel = response.body()
     while (!channel.isClosedForRead) {
         val line = channel.readUTF8Line() ?: break
-        Log.i("client", "Response line: $line")
         if (line.startsWith(DONE_TOKEN)) {
              break
         }
