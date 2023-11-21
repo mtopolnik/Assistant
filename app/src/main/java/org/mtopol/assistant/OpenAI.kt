@@ -28,12 +28,13 @@ import android.util.Log
 import androidx.core.net.toFile
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.engine.cio.CIO
+import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.HttpRequestRetry
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.auth.Auth
 import io.ktor.client.plugins.auth.providers.BearerTokens
 import io.ktor.client.plugins.auth.providers.bearer
+import io.ktor.client.plugins.compression.ContentEncoding
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.logging.ANDROID
@@ -41,22 +42,19 @@ import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.request.HttpRequestBuilder
-import io.ktor.client.request.accept
 import io.ktor.client.request.forms.FormBuilder
 import io.ktor.client.request.forms.append
 import io.ktor.client.request.forms.formData
 import io.ktor.client.request.forms.submitFormWithBinaryData
-import io.ktor.client.request.headers
+import io.ktor.client.request.get
 import io.ktor.client.request.setBody
 import io.ktor.client.request.url
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.HttpStatement
 import io.ktor.http.ContentType
-import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
-import io.ktor.util.reflect.typeInfo
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.core.writeFully
 import io.ktor.utils.io.readUTF8Line
@@ -76,7 +74,10 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.encodeToJsonElement
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.io.InputStream
 import java.security.MessageDigest
 import kotlin.math.min
 
@@ -84,12 +85,24 @@ import kotlin.math.min
 val openAi get() = openAiLazy.value
 
 private const val OPENAI_URL = "https://api.openai.com/v1/"
-private const val GPT_3 = "gpt-3.5-turbo"
-private const val GPT_4 = "gpt-4-1106-preview"
-private const val GPT_4_VISION = "gpt-4-vision-preview"
+private const val MODEL_ID_GPT_3 = "gpt-3.5-turbo"
+private const val MODEL_ID_GPT_4 = "gpt-4-1106-preview"
+private const val MODEL_ID_DALL_E_2 = "dall-e-2"
+private const val MODEL_ID_DALL_E_3 = "dall-e-3"
+private const val MODEL_ID_GPT_4_VISION = "gpt-4-vision-preview"
 private const val DEMO_API_KEY = "demo"
 
 private lateinit var openAiLazy: Lazy<OpenAI>
+
+enum class OpenAiModel(
+    val apiId: String,
+    val uiId: Int
+) {
+    GPT_3(MODEL_ID_GPT_3, R.string.gpt_3_5),
+    GPT_4(MODEL_ID_GPT_4, R.string.gpt_4),
+    DALL_E_2(MODEL_ID_DALL_E_2, R.string.dall_e_2),
+    DALL_E_3(MODEL_ID_DALL_E_3, R.string.dall_e_3)
+}
 
 fun resetOpenAi(context: Context): Lazy<OpenAI> {
     if (::openAiLazy.isInitialized) {
@@ -101,25 +114,20 @@ fun resetOpenAi(context: Context): Lazy<OpenAI> {
 class OpenAI(
     private val context: Context
 ) {
-    private val httpClient = createHttpClient(context.mainPrefs.openaiApiKey)
+    private val httpClient = createApiClient(context.mainPrefs.openaiApiKey)
 
     private val demoMode = context.mainPrefs.openaiApiKey.trim().lowercase() == DEMO_API_KEY
 
     private val mockRecognizedSpeech = context.getString(R.string.demo_recognized_speech)
     private val mockResponse = context.getString(R.string.demo_response)
 
-    suspend fun chatCompletions(history: List<Exchange>, useGpt4: Boolean): Flow<String> {
+    suspend fun chatCompletions(history: List<Exchange>, model: OpenAiModel): Flow<String> {
         if (demoMode) {
             return mockResponse.toCharArray().asList().chunked(4).asFlow().map { delay(120); it.joinToString("") }
         }
-        val gptModel = if (useGpt4) {
-            if (history.any { it.promptImageUris.isNotEmpty() }) {
-                GPT_4_VISION
-            } else
-                GPT_4
-        } else {
-            GPT_3
-        }
+        val gptModel =
+            if (model == OpenAiModel.GPT_4 && history.any { it.promptImageUris.isNotEmpty() }) MODEL_ID_GPT_4_VISION
+            else model.apiId
         Log.i("client", "Model: $gptModel")
         val chatCompletionRequest = ChatCompletionRequest(
             model = gptModel,
@@ -128,14 +136,14 @@ class OpenAI(
         return chatCompletions(chatCompletionRequest)
     }
 
-    fun translation(targetLanguage: String, text: String, useGpt4: Boolean): Flow<String> {
+    fun translation(targetLanguage: String, text: String, model: OpenAiModel): Flow<String> {
         if (demoMode) {
             return flowOf("Demo mode is on. You asked to translate this:\n$text")
         }
         val systemPrompt = "You are a translator." +
                 " I will write in a language of my choice, and you will translate it to $targetLanguage."
         val chatCompletionRequest = ChatCompletionRequest(
-            model = if (useGpt4) GPT_4 else GPT_3,
+            model = model.apiId,
             messages = listOf(
                 ChatMessage("system", systemPrompt),
                 ChatMessage("user", text)
@@ -176,7 +184,19 @@ class OpenAI(
                 append("response_format", "text")
                 appendFile("file", audioPathname)
             })
-        return response.body<String>(typeInfo<String>()).replace("\n", "")
+        return response.body<String>().replace("\n", "")
+    }
+
+    suspend fun imageGeneration(prompt: CharSequence, model: OpenAiModel): List<Uri> {
+        val request = ImageGenerationRequest(prompt.toString(), model.apiId, "vivid", "url")
+        val builder = HttpRequestBuilder().apply {
+            method = HttpMethod.Post
+            url(path = "images/generations")
+            contentType(ContentType.Application.Json)
+            setBody(jsonCodec.encodeToJsonElement(request))
+        }
+        val imageUrls = HttpStatement(builder, httpClient).execute().body<ImageGenerationResponse>().data.map { it.url }
+        return downloadToCache(imageUrls)
     }
 
     fun close() {
@@ -197,7 +217,7 @@ class OpenAI(
                 listOf(ContentPart.Text(pAndR.promptText.toString())) +
                         pAndR.promptImageUris.map { imgUri -> ContentPart.Image(readContentToDataUri(imgUri)) }
             ),
-            ChatMessage("assistant", pAndR.response.toString()),
+            ChatMessage("assistant", pAndR.responseText.toString()),
         )
     }
 
@@ -257,39 +277,59 @@ class OpenAI(
             (height * scaleFactor).toInt().coerceAtMost(targetHeight)
         )
     }
-}
 
-private fun createHttpClient(apiKey: String): HttpClient {
-    return HttpClient(CIO) {
-        defaultRequest {
-            url(OPENAI_URL)
-        }
-        install(Auth) {
-            bearer {
-                loadTokens {
-                    BearerTokens(accessToken = apiKey, refreshToken = "")
+    private suspend fun downloadToCache(imageUrls: List<String>): List<Uri> = withContext(Dispatchers.IO) {
+        createBlobClient().use { client ->
+            imageUrls.map { imageUrl ->
+                val imageFile = File.createTempFile("dalle-", ".jpg", appContext.cacheDir)
+                FileOutputStream(imageFile).use { fos ->
+                    client.get(imageUrl).body<InputStream>().copyTo(fos)
                 }
+                Uri.fromFile(imageFile)
             }
         }
-        install(HttpTimeout) {
-            connectTimeoutMillis = 4000
-            socketTimeoutMillis = 4000
-            requestTimeoutMillis = 180_000
-        }
-        install(HttpRequestRetry) {
-            retryIf { _, response -> response.status.value == 429 } // == Too Many Requests
-            maxRetries = 2
-            exponentialDelay(2.0, 2000)
-        }
-        install(ContentNegotiation) {
-            json(jsonCodec)
-        }
-        install(Logging) {
-            level = LogLevel.HEADERS
-            logger = Logger.ANDROID
-        }
-        expectSuccess = true
     }
+}
+
+private fun createApiClient(apiKey: String) = HttpClient(OkHttp) {
+    defaultRequest {
+        url(OPENAI_URL)
+    }
+    install(Auth) {
+        bearer {
+            loadTokens {
+                BearerTokens(accessToken = apiKey, refreshToken = "")
+            }
+        }
+    }
+    install(HttpTimeout) {
+        connectTimeoutMillis = 4000
+        socketTimeoutMillis = 30_000
+        requestTimeoutMillis = 180_000
+    }
+    install(HttpRequestRetry) {
+        retryIf { _, response -> response.status.value == 429 } // == Too Many Requests
+        maxRetries = 2
+        exponentialDelay(2.0, 2000)
+    }
+    install(ContentNegotiation) {
+        json(jsonCodec)
+    }
+    install(ContentEncoding)
+    install(Logging) {
+        level = LogLevel.HEADERS
+        logger = Logger.ANDROID
+    }
+    expectSuccess = true
+}
+
+private fun createBlobClient(): HttpClient = HttpClient(OkHttp) {
+    install(ContentEncoding)
+    install(Logging) {
+        level = LogLevel.HEADERS
+        logger = Logger.ANDROID
+    }
+    expectSuccess = true
 }
 
 private val GPT3_ONLY_KEY_HASHES = hashSetOf(
@@ -358,7 +398,7 @@ fun ChatCompletionRequest(model: String, messages: List<ChatMessage>) =
     ChatCompletionRequest(
         model,
         messages,
-        max_tokens = if (model == GPT_3) null else 4096,
+        max_tokens = if (model == MODEL_ID_GPT_3) null else 4096,
         stream = true)
 
 @Serializable
@@ -402,4 +442,22 @@ class ChatChunk(
 @Serializable
 class ChatDelta(
     val content: String? = null
+)
+
+@Serializable
+class ImageGenerationRequest(
+    val prompt: String,
+    val model: String,
+    val style: String,
+    val response_format: String
+)
+
+@Serializable
+class ImageObject(
+    val url: String,
+)
+
+@Serializable
+class ImageGenerationResponse(
+    val data: List<ImageObject>
 )

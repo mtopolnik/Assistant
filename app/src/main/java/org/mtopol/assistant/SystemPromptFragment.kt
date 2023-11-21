@@ -69,7 +69,7 @@ class SystemPromptFragment : Fragment(), MenuProvider {
                     _translationJob = viewLifecycleOwner.lifecycleScope.launch {
                         try {
                             openAi.translation(
-                                item.title.toString(), edittextPrompt.text.toString(), appContext.mainPrefs.isGpt4
+                                item.title.toString(), edittextPrompt.text.toString(), appContext.mainPrefs.selectedModel
                             )
                                 .onStart { edittextPrompt.editableText.clear() }
                                 .collect { edittextPrompt.editableText.append(it) }

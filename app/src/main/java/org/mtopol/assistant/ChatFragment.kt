@@ -53,6 +53,7 @@ import android.view.ViewGroup
 import android.view.animation.LinearInterpolator
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
+import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
@@ -105,6 +106,8 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import kotlinx.parcelize.Parcelize
+import org.mtopol.assistant.MessageType.PROMPT
+import org.mtopol.assistant.MessageType.RESPONSE
 import org.mtopol.assistant.databinding.FragmentChatBinding
 import java.io.File
 import java.util.*
@@ -153,6 +156,10 @@ class ChatFragmentModel(
     }
 }
 
+enum class MessageType {
+    PROMPT, RESPONSE
+}
+
 @SuppressLint("ClickableViewAccessibility")
 class ChatFragment : Fragment(), MenuProvider {
 
@@ -193,12 +200,12 @@ class ChatFragment : Fragment(), MenuProvider {
             val lastExchange = vmodel.chatHistory.lastOrNull()
             val promptContainer = if (lastExchange == null || lastExchange.promptText.isNotEmpty()) {
                 vmodel.chatHistory.add(Exchange(imgUris))
-                addPromptContainerToView()
+                addMessageContainerToView(PROMPT)
             } else {
                 lastExchange.promptImageUris.addAll(imgUris)
                 lastPromptContainer()
             }
-            addPromptImagesToView(promptContainer, imgUris)
+            addImagesToView(promptContainer, imgUris)
         }
         val context: Context = (requireActivity() as AppCompatActivity).also { activity ->
             activity.addMenuProvider(this, viewLifecycleOwner)
@@ -216,12 +223,12 @@ class ChatFragment : Fragment(), MenuProvider {
         for (exchange in vmodel.chatHistory) {
             newestHistoryExchange = exchange
             addPromptToView(exchange)
-            newestHistoryEditable = addResponseToView(exchange)
+            newestHistoryEditable = addTextResponseToView(exchange)
         }
         if (vmodel.replyEditable != null) {
             newestHistoryEditable!!.also {
                 vmodel.replyEditable = it
-                newestHistoryExchange!!.response = it
+                newestHistoryExchange!!.responseText = it
             }
         }
         // Reduce the size of the scrollview when soft keyboard shown
@@ -364,17 +371,19 @@ class ChatFragment : Fragment(), MenuProvider {
         updateMuteItem(menu.findItem(R.id.action_sound_toggle))
 
         fun TextView.updateText() {
-            text = getString(if (appContext.mainPrefs.isGpt4) R.string.gpt_4 else R.string.gpt_3_5)
+            text = getString(appContext.mainPrefs.selectedModel.uiId)
         }
         if (requireContext().mainPrefs.openaiApiKey.isGpt3OnlyKey()) {
-            appContext.mainPrefs.applyUpdate { setIsGpt4(false) }
+            appContext.mainPrefs.applyUpdate { setSelectedModel(OpenAiModel.GPT_3) }
         } else {
             menu.findItem(R.id.action_gpt_toggle).apply {
                 isVisible = true
             }.actionView!!.findViewById<TextView>(R.id.textview_gpt_toggle).apply {
                 updateText()
                 setOnClickListener {
-                    appContext.mainPrefs.applyUpdate { setIsGpt4(!appContext.mainPrefs.isGpt4) }
+                    appContext.mainPrefs.applyUpdate { setSelectedModel(
+                        OpenAiModel.entries[(appContext.mainPrefs.selectedModel.ordinal + 1) % OpenAiModel.entries.size]
+                    ) }
                     updateText()
                 }
             }
@@ -509,11 +518,11 @@ class ChatFragment : Fragment(), MenuProvider {
         // Clear the prompt and response text from the chat history entry
         lastEntry.apply {
             promptText = ""
-            response = ""
+            responseText = ""
         }
     }
 
-    private fun sendPromptAndReceiveResponse(prompt: CharSequence) {
+    private fun sendPromptAndReceiveTextResponse(prompt: CharSequence) {
         var lastSpokenPos = 0
         val previousResponseJob = vmodel.handleResponseJob?.apply { cancel() }
         vmodel.handleResponseJob = vmodel.viewModelScope.launch {
@@ -523,19 +532,19 @@ class ChatFragment : Fragment(), MenuProvider {
                 vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
                 val chatHistory = vmodel.chatHistory
                 val exchange = if (chatHistory.isEmpty() || chatHistory.last().promptText.isNotEmpty()) {
-                    addPromptContainerToView().also { addPromptTextToView(it, prompt) }
+                    addMessageContainerToView(PROMPT).also { addTextToView(it, prompt, PROMPT) }
                     Exchange(prompt).also { chatHistory.add(it) }
                 } else {
-                    addPromptTextToView(lastPromptContainer(), prompt)
+                    addTextToView(lastPromptContainer(), prompt, PROMPT)
                     chatHistory.last().also { it.promptText = prompt }
                 }
-                val editable = addResponseToView(exchange)
-                exchange.response = editable
+                val editable = addTextResponseToView(exchange)
+                exchange.responseText = editable
                 vmodel.replyEditable = editable
                 vmodel.autoscrollEnabled = true
                 scrollToBottom()
                 val sentenceFlow: Flow<String> = channelFlow {
-                    openAi.chatCompletions(vmodel.chatHistory, appContext.mainPrefs.isGpt4)
+                    openAi.chatCompletions(vmodel.chatHistory, appContext.mainPrefs.selectedModel)
                         .onEach { token ->
                             val replyEditable = vmodel.replyEditable!!
                             replyEditable.append(token)
@@ -587,7 +596,7 @@ class ChatFragment : Fragment(), MenuProvider {
                             if (lastSpokenPos < replyEditable.length) {
                                 channel.send(replyEditable.substring(lastSpokenPos, replyEditable.length))
                             }
-                            exchange.response = replyEditable.toString()
+                            exchange.responseText = replyEditable.toString()
                             vmodel.replyEditable = null
                         }
                         .launchIn(this)
@@ -650,6 +659,45 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
+    private fun sendPromptAndReceiveResponse(prompt: String) {
+        if (appContext.mainPrefs.selectedModel in listOf(OpenAiModel.GPT_3, OpenAiModel.GPT_4)) {
+            sendPromptAndReceiveTextResponse(prompt)
+        } else {
+            sendPromptAndReceiveImageResponse(prompt)
+        }
+    }
+
+    private fun sendPromptAndReceiveImageResponse(prompt: CharSequence) {
+        val previousResponseJob = vmodel.handleResponseJob?.apply { cancel() }
+        vmodel.handleResponseJob = vmodel.viewModelScope.launch {
+            try {
+                previousResponseJob?.join()
+                vmodel.isResponding = true
+                vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
+                val chatHistory = vmodel.chatHistory
+                val exchange = if (chatHistory.isEmpty() || chatHistory.last().promptText.isNotEmpty()) {
+                    addMessageContainerToView(PROMPT).also { addTextToView(it, prompt, PROMPT) }
+                    Exchange(prompt).also { chatHistory.add(it) }
+                } else {
+                    addTextToView(lastPromptContainer(), prompt, PROMPT)
+                    chatHistory.last().also { it.promptText = prompt }
+                }
+                vmodel.autoscrollEnabled = true
+                scrollToBottom()
+                val imageUris = openAi.imageGeneration(prompt, appContext.mainPrefs.selectedModel)
+                exchange.responseImageUris = imageUris
+                addImageResponseToView(exchange)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e("lifecycle", "Error in receiveResponseJob", e)
+            } finally {
+                vmodel.isResponding = false
+                vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
+            }
+        }
+    }
+
     private fun lastPromptContainer() = binding.viewChat.run { getChildAt(childCount - 1) } as LinearLayout
 
     private suspend fun MediaPlayer.play(file: File) {
@@ -693,7 +741,7 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private suspend fun speakLastResponse() {
-        val response = vmodel.chatHistory.lastOrNull()?.response?.toString() ?: return
+        val response = vmodel.chatHistory.lastOrNull()?.responseText?.toString() ?: return
         val utteranceId = "speak_again"
         vmodel.isResponding = true
         vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
@@ -947,7 +995,7 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun styleChatBox(box: View, backgroundFill: Int, backgroundBorder: Int) {
+    private fun styleMessageContainer(box: View, backgroundFill: Int, backgroundBorder: Int) {
         val context = requireContext()
         (box.background as LayerDrawable).apply {
             findDrawableByLayerId(R.id.background_fill).setTint(context.getColorCompat(backgroundFill))
@@ -962,47 +1010,50 @@ class ChatFragment : Fragment(), MenuProvider {
         textView.text = text
     }
 
-    private fun addPromptContainerToView(): LinearLayout {
+    private fun addMessageContainerToView(messageType: MessageType): LinearLayout {
         val chatView = binding.viewChat
         val container = LayoutInflater.from(requireContext())
-            .inflate(R.layout.prompt_container, chatView, false) as LinearLayout
-        styleChatBox(container, R.color.user_text_background, R.color.user_text_border)
+            .inflate(R.layout.message_container, chatView, false) as LinearLayout
+        val (bg, border) =
+            if (messageType == PROMPT) Pair(R.color.prompt_background, R.color.prompt_border)
+            else Pair(R.color.response_background, R.color.response_border)
+        styleMessageContainer(container, bg, border)
         chatView.addView(container)
         return container
     }
 
-    private fun addPromptImagesToView(container: LinearLayout, imageUris: List<Uri>) {
+    private fun addImagesToView(container: LinearLayout, imageUris: List<Uri>) {
         for (imageUri in imageUris) {
             val imageView = LayoutInflater.from(requireContext())
-                .inflate(R.layout.prompt_image, container, false) as ImageView
+                .inflate(R.layout.message_image, container, false) as ImageView
             imageView.setImageURI(imageUri)
             container.addView(imageView)
         }
     }
 
-    private fun addPromptTextToView(container: LinearLayout, text: CharSequence) {
-        val textView = LayoutInflater.from(requireContext())
-            .inflate(R.layout.prompt_text, container, false) as TextView
-        styleText(textView, R.color.user_text_foreground, text)
-        container.addView(textView)
+    private fun addTextToView(container: LinearLayout, text: CharSequence, messageType: MessageType): EditText {
+        val editText = LayoutInflater.from(requireContext())
+            .inflate(R.layout.message_text, container, false) as EditText
+        val color = if (messageType == PROMPT) R.color.prompt_foreground else R.color.response_foreground
+        styleText(editText, color, text)
+        container.addView(editText)
+        return editText
     }
 
     private fun addPromptToView(exchange: Exchange) {
-        val promptContainer = addPromptContainerToView()
-        addPromptImagesToView(promptContainer, exchange.promptImageUris)
-        addPromptTextToView(promptContainer, exchange.promptText)
+        val promptContainer = addMessageContainerToView(PROMPT)
+        addImagesToView(promptContainer, exchange.promptImageUris)
+        addTextToView(promptContainer, exchange.promptText, PROMPT)
     }
 
-    private fun addResponseToView(exchange: Exchange): Editable {
-        val chatView = binding.viewChat
-        val textView = LayoutInflater.from(requireContext())
-            .inflate(R.layout.response_text, chatView, false) as TextView
-        styleChatBox(textView, R.color.gpt_text_background, R.color.gpt_text_border)
-        styleText(
-            textView, R.color.gpt_text_foreground, exchange.response
-        )
-        chatView.addView(textView)
-        return textView.editableText
+    private fun addTextResponseToView(exchange: Exchange): Editable {
+        val responseContainer = addMessageContainerToView(RESPONSE)
+        return addTextToView(responseContainer, exchange.responseText, RESPONSE).editableText
+    }
+
+    private fun addImageResponseToView(exchange: Exchange) {
+        val responseContainer = addMessageContainerToView(RESPONSE)
+        addImagesToView(responseContainer, exchange.responseImageUris)
     }
 
     private fun clearChat() {
@@ -1192,7 +1243,8 @@ private fun nanosToSeconds(nanos: Long): Float = nanos.toFloat() / 1_000_000_000
 data class Exchange(
     var promptText: CharSequence,
     var promptImageUris: MutableList<Uri> = mutableListOf(),
-    var response: CharSequence = ""
+    var responseText: CharSequence = "",
+    var responseImageUris: List<Uri> = listOf()
 ) : Parcelable
 
 fun Exchange(imageUris: List<Uri>) = Exchange("").apply { promptImageUris.addAll(imageUris) }

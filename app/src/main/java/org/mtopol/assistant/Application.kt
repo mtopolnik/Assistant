@@ -35,6 +35,7 @@ private const val KEY_SPEECH_RECOG_LANGUAGE = "speech_recognition_language"
 private const val KEY_LANGUAGES = "languages"
 private const val KEY_IS_MUTED = "is_muted"
 private const val KEY_IS_GPT4 = "is_gpt4"
+private const val KEY_SELECTED_MODEL = "selected_model"
 
 lateinit var appContext: Context
 
@@ -126,10 +127,12 @@ val SharedPreferences.isMuted: Boolean get() = getBoolean(KEY_IS_MUTED, false)
 fun SharedPreferences.Editor.setIsMuted(value: Boolean): SharedPreferences.Editor =
     putBoolean(KEY_IS_MUTED, value)
 
-val SharedPreferences.isGpt4: Boolean get() = getBoolean(KEY_IS_GPT4, false)
+val SharedPreferences.selectedModel: OpenAiModel get() =
+    getString(KEY_SELECTED_MODEL, OpenAiModel.GPT_3.name).let { OpenAiModel.valueOf(it!!)
+}
 
-fun SharedPreferences.Editor.setIsGpt4(value: Boolean): SharedPreferences.Editor =
-    putBoolean(KEY_IS_GPT4, value)
+fun SharedPreferences.Editor.setSelectedModel(value: OpenAiModel): SharedPreferences.Editor =
+    putString(KEY_SELECTED_MODEL, value.name)
 
 fun SharedPreferences.configuredLanguages(): List<String> =
     getStringSet(KEY_LANGUAGES, null)?.let {
