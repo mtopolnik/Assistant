@@ -23,6 +23,7 @@ import android.graphics.Bitmap.CompressFormat
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
+import android.text.Editable
 import android.util.Base64
 import android.util.Log
 import android.widget.Toast
@@ -32,6 +33,7 @@ import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.HttpRequestRetry
 import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.ResponseException
 import io.ktor.client.plugins.auth.Auth
 import io.ktor.client.plugins.auth.providers.BearerTokens
 import io.ktor.client.plugins.auth.providers.bearer
@@ -192,7 +194,7 @@ class OpenAI(
         return response.body<String>().replace("\n", "")
     }
 
-    suspend fun imageGeneration(prompt: CharSequence, model: OpenAiModel): List<Uri> {
+    suspend fun imageGeneration(prompt: CharSequence, model: OpenAiModel, console: Editable): List<Uri> {
         if (appContext.mainPrefs.openaiApiKey.isGptOnlyKey()) {
             Toast.makeText(appContext, "Your API key doesn't allow Dall-E", Toast.LENGTH_LONG).show()
             return listOf()
@@ -204,8 +206,20 @@ class OpenAI(
             contentType(ContentType.Application.Json)
             setBody(jsonCodec.encodeToJsonElement(request))
         }
-        val imageUrls = HttpStatement(builder, httpClient).execute().body<ImageGenerationResponse>().data.map { it.url }
-        return downloadToCache(imageUrls)
+        console.append("Dall-E is generating your image...\n")
+        return try {
+            val imageObjects = HttpStatement(builder, httpClient).execute().body<ImageGenerationResponse>().data
+            console.append("Dall-E is done, fetching your image...\n")
+            downloadToCache(imageObjects.map { it.url }).also {
+                console.clear()
+                imageObjects.firstOrNull()?.revised_prompt?.takeIf { it.isNotBlank() }?.also { revisedPrompt ->
+                    console.append("Dall-E revised your prompt to:\n$revisedPrompt")
+                }
+            }
+        } catch (e: ResponseException) {
+            console.append("Error: ${e.message}")
+            listOf()
+        }
     }
 
     fun close() {
@@ -469,6 +483,7 @@ class ImageGenerationRequest(
 @Serializable
 class ImageObject(
     val url: String,
+    val revised_prompt: String = ""
 )
 
 @Serializable

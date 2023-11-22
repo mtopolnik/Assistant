@@ -667,14 +667,6 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun sendPromptAndReceiveResponse(prompt: String) {
-        if (appContext.mainPrefs.selectedModel.isGptModel()) {
-            sendPromptAndReceiveTextResponse(prompt)
-        } else {
-            sendPromptAndReceiveImageResponse(prompt)
-        }
-    }
-
     private fun sendPromptAndReceiveImageResponse(prompt: CharSequence) {
         val previousResponseJob = vmodel.handleResponseJob?.apply { cancel() }
         vmodel.handleResponseJob = vmodel.viewModelScope.launch {
@@ -693,7 +685,8 @@ class ChatFragment : Fragment(), MenuProvider {
                 vmodel.autoscrollEnabled = true
                 scrollToBottom()
                 val responseContainer = addMessageContainerToView(RESPONSE)
-                val imageUris = openAi.imageGeneration(prompt, appContext.mainPrefs.selectedModel)
+                val editable = addTextToView(responseContainer, "", RESPONSE).editableText
+                val imageUris = openAi.imageGeneration(prompt, appContext.mainPrefs.selectedModel, editable)
                 exchange.responseImageUris = imageUris
                 addImagesToView(responseContainer, exchange.responseImageUris)
             } catch (e: CancellationException) {
@@ -704,6 +697,14 @@ class ChatFragment : Fragment(), MenuProvider {
                 vmodel.isResponding = false
                 vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
             }
+        }
+    }
+
+    private fun sendPromptAndReceiveResponse(prompt: String) {
+        if (appContext.mainPrefs.selectedModel.isGptModel()) {
+            sendPromptAndReceiveTextResponse(prompt)
+        } else {
+            sendPromptAndReceiveImageResponse(prompt)
         }
     }
 
