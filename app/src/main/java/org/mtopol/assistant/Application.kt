@@ -23,15 +23,29 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Point
 import android.graphics.PointF
 import android.graphics.RectF
 import android.net.Uri
+import android.os.Build
+import android.util.Base64
+import android.util.Log
 import android.widget.ImageView
 import androidx.core.content.ContextCompat
+import androidx.core.net.toFile
 import androidx.core.os.LocaleListCompat
 import androidx.preference.PreferenceManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.io.InputStream
 import java.util.*
+import kotlin.math.min
 
 private const val KEY_OPENAI_API_KEY = "openai_api_key"
 private const val KEY_SYSTEM_PROMPT = "system_prompt"
@@ -176,3 +190,69 @@ operator fun RectF.component1() = left
 operator fun RectF.component2() = top
 operator fun RectF.component3() = right
 operator fun RectF.component4() = bottom
+
+fun Uri.inputStream(): InputStream =
+    when (scheme) {
+        "file" -> FileInputStream(toFile())
+        "content" -> appContext.contentResolver.openInputStream(this)!!
+        else -> throw IllegalArgumentException("URI scheme $scheme not supported")
+    }
+
+fun scaleAndSave(uri: Uri, widthLimit: Int, heightLimit: Int): File? {
+
+    fun loadAsBitmap(uri: Uri, bitmapOptions: BitmapFactory.Options): Bitmap? {
+        return when (val scheme = uri.scheme) {
+            "file" -> BitmapFactory.decodeFile(uri.toFile().path, bitmapOptions)
+            "content" -> appContext.contentResolver.openInputStream(uri).use {
+                Log.i("client", "Decoding bitmap at $uri")
+                BitmapFactory.decodeStream(it, null, bitmapOptions)
+            }
+            else -> {
+                Log.e("client", "URI scheme not supported: $scheme")
+                null
+            }
+        }
+    }
+
+    fun determineSampleSize(width: Int, height: Int, targetWidth: Int, targetHeight: Int): Int {
+        var sampleSize = 1
+        while (width / (sampleSize * 2) >= targetWidth && height / (sampleSize * 2) >= targetHeight) {
+            sampleSize *= 2
+        }
+        return sampleSize
+    }
+
+    fun determineTargetDimensions(
+        bitmapOptions: BitmapFactory.Options, widthLimit: Int, heightLimit: Int
+    ): Pair<Int, Int> {
+        val (width: Int, height: Int) = Pair(bitmapOptions.outWidth, bitmapOptions.outHeight)
+        val widthRatio = widthLimit.toDouble() / bitmapOptions.outWidth
+        val heightRatio = heightLimit.toDouble() / bitmapOptions.outHeight
+        val scaleFactor = min(widthRatio, heightRatio).coerceAtMost(1.0)
+        return Pair(
+            (width * scaleFactor).toInt().coerceAtMost(widthLimit),
+            (height * scaleFactor).toInt().coerceAtMost(heightLimit)
+        )
+    }
+
+    var bitmapOptions = BitmapFactory.Options().apply {
+        inJustDecodeBounds = true
+    }
+    loadAsBitmap(uri, bitmapOptions)
+    if (bitmapOptions.outWidth == 0 || bitmapOptions.outHeight == 0) {
+        return null
+    }
+    val (width: Int, height: Int) = Pair(bitmapOptions.outWidth, bitmapOptions.outHeight)
+    bitmapOptions = BitmapFactory.Options().apply {
+        inSampleSize = determineSampleSize(width, height, 512, 512)
+    }
+    val bitmap = loadAsBitmap(uri, bitmapOptions)!!
+    val (targetWidth, targetHeight) = determineTargetDimensions(bitmapOptions, widthLimit, heightLimit)
+    val scaledBitmap = Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, true)
+    val (compressFormat, fileSuffix) =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) Pair(Bitmap.CompressFormat.WEBP_LOSSY, ".webp")
+        else Pair(Bitmap.CompressFormat.JPEG, ".jpeg")
+    return File.createTempFile("shared-", fileSuffix, appContext.cacheDir).also { imageFile ->
+        FileOutputStream(imageFile).use { scaledBitmap.compress(compressFormat, 85, it) }
+    }
+}

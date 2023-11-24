@@ -91,25 +91,18 @@ import com.google.mlkit.nl.languageid.LanguageIdentifier
 import com.google.mlkit.nl.languageid.LanguageIdentifier.UNDETERMINED_LANGUAGE_TAG
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.utils.io.*
+import kotlinx.coroutines.*
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Dispatchers.Main
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.android.awaitFrame
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.tasks.await
-import kotlinx.coroutines.withContext
 import kotlinx.parcelize.Parcelize
 import org.mtopol.assistant.MessageType.PROMPT
 import org.mtopol.assistant.MessageType.RESPONSE
@@ -130,6 +123,7 @@ private const val MAX_RECORDING_TIME_MILLIS = 60_000L
 private const val STOP_RECORDING_DELAY_MILLIS = 300L
 private const val MIN_HOLD_RECORD_BUTTON_MILLIS = 400L
 private const val RECORD_HINT_DURATION_MILLIS = 3_000L
+private const val DALLE_IMAGE_DIMENSION = 512
 
 @Suppress("RegExpUnnecessaryNonCapturingGroup")
 private val sentenceDelimiterRegex = """(?<=\D[.!]['"]?)\s+|(?<=\d[.!]'?)\s+(?=\p{Lu})|(?<=.[;?]'?)\s+|\n+""".toRegex()
@@ -212,15 +206,26 @@ class ChatFragment : Fragment(), MenuProvider {
         binding = FragmentChatBinding.inflate(inflater, container, false)
         vmodel.withFragmentLiveData.observe(viewLifecycleOwner) { it.invoke(this) }
         sharedImageViewModel.imgUriLiveData.observe(viewLifecycleOwner) { imgUris ->
-            val lastExchange = vmodel.chatHistory.lastOrNull()
-            val promptContainer = if (lastExchange == null || lastExchange.promptText.isNotEmpty()) {
-                vmodel.chatHistory.add(Exchange(imgUris))
-                addMessageContainerToView(PROMPT)
-            } else {
-                lastExchange.promptImageUris.addAll(imgUris)
-                lastPromptContainer()
+            lifecycleScope.launch {
+                val lastExchange = vmodel.chatHistory.lastOrNull()
+                val isStartOfExchange = lastExchange == null || lastExchange.promptText.isNotEmpty()
+                val promptContainer = if (isStartOfExchange) {
+                    addMessageContainerToView(PROMPT)
+                } else {
+                    lastPromptContainer()
+                }
+                val savedImgUris = withContext(IO) {
+                    imgUris
+                        .mapNotNull { scaleAndSave(it, DALLE_IMAGE_DIMENSION, DALLE_IMAGE_DIMENSION) }
+                        .map { Uri.fromFile(it) }
+                }
+                addImagesToView(promptContainer, savedImgUris)
+                if (isStartOfExchange) {
+                    vmodel.chatHistory.add(Exchange(savedImgUris))
+                } else {
+                    lastExchange!!.promptImageUris.addAll(savedImgUris)
+                }
             }
-            addImagesToView(promptContainer, imgUris)
         }
         val context: Context = (requireActivity() as AppCompatActivity).also { activity ->
             activity.addMenuProvider(this, viewLifecycleOwner)
@@ -721,8 +726,12 @@ class ChatFragment : Fragment(), MenuProvider {
                 vmodel.autoscrollEnabled = true
                 scrollToBottom()
                 val responseContainer = addMessageContainerToView(RESPONSE)
-                val editable = addTextToView(responseContainer, "", RESPONSE).editableText
+                val responseText = addTextToView(responseContainer, "", RESPONSE)
+                val editable = responseText.editableText
                 val imageUris = openAi.imageGeneration(prompt, appContext.mainPrefs.selectedModel, editable)
+                if (editable.isBlank()) {
+                    responseContainer.removeView(responseText)
+                }
                 exchange.responseImageUris = imageUris
                 addImagesToView(responseContainer, exchange.responseImageUris)
             } catch (e: CancellationException) {

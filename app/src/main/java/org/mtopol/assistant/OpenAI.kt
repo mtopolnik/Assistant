@@ -18,11 +18,7 @@
 package org.mtopol.assistant
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.Bitmap.CompressFormat
-import android.graphics.BitmapFactory
 import android.net.Uri
-import android.os.Build
 import android.text.Editable
 import android.util.Base64
 import android.util.Log
@@ -82,7 +78,6 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStream
 import java.security.MessageDigest
-import kotlin.math.min
 
 
 val openAi get() = openAiLazy.value
@@ -246,61 +241,15 @@ class OpenAI(
         )
     }
 
-    private suspend fun readContentToDataUri(uri: Uri): String = withContext(Dispatchers.Default) {
-        var bitmapOptions = BitmapFactory.Options().apply {
-            inJustDecodeBounds = true
-        }
-        loadAsBitmap(uri, bitmapOptions)
-        if (bitmapOptions.outWidth == 0 || bitmapOptions.outHeight == 0) {
-            return@withContext "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=="
-        }
-        val (width: Int, height: Int) = Pair(bitmapOptions.outWidth, bitmapOptions.outHeight)
-        bitmapOptions = BitmapFactory.Options().apply {
-            inSampleSize = determineSampleSize(width, height, 512, 512)
-        }
-        val bitmap = loadAsBitmap(uri, bitmapOptions)!!
-        val (targetWidth, targetHeight) = determineTargetDimensions(bitmapOptions, 512, 512)
-        val scaledBitmap = Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, true)
-        val (compressFormat, urlFormat) =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) Pair(CompressFormat.WEBP_LOSSY, "webp")
-            else Pair(CompressFormat.JPEG, "jpeg")
-        val bytes = ByteArrayOutputStream().also { scaledBitmap.compress(compressFormat, 85, it) }.toByteArray()
-        "data:image/$urlFormat;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
-    }
-
-    private fun loadAsBitmap(uri: Uri, bitmapOptions: BitmapFactory.Options): Bitmap? {
-        return when (val scheme = uri.scheme) {
-            "file" -> BitmapFactory.decodeFile(uri.toFile().path, bitmapOptions)
-            "content" -> context.contentResolver.openInputStream(uri).use {
-                Log.i("client", "Decoding bitmap at $uri")
-                BitmapFactory.decodeStream(it, null, bitmapOptions)
+    private suspend fun readContentToDataUri(uri: Uri): String = withContext(Dispatchers.IO) {
+        try {
+            val bytes = uri.inputStream().use { input ->
+                ByteArrayOutputStream().also { input.copyTo(it) }.toByteArray()
             }
-            else -> {
-                Log.e("client", "URI scheme not supported: $scheme")
-                null
-            }
+            "data:image/${uri.toFile().extension};base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
+        } catch (e: Exception) {
+            "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=="
         }
-    }
-
-    private fun determineSampleSize(width: Int, height: Int, targetWidth: Int, targetHeight: Int): Int {
-        var sampleSize = 1
-        while (width / (sampleSize * 2) >= targetWidth && height / (sampleSize * 2) >= targetHeight) {
-            sampleSize *= 2
-        }
-        return sampleSize
-    }
-
-    private fun determineTargetDimensions(
-        bitmapOptions: BitmapFactory.Options, targetWidth: Int, targetHeight: Int
-    ): Pair<Int, Int> {
-        val (width: Int, height: Int) = Pair(bitmapOptions.outWidth, bitmapOptions.outHeight)
-        val widthRatio = targetWidth.toDouble() / bitmapOptions.outWidth
-        val heightRatio = targetHeight.toDouble() / bitmapOptions.outHeight
-        val scaleFactor = min(widthRatio, heightRatio).coerceAtMost(1.0)
-        return Pair(
-            (width * scaleFactor).toInt().coerceAtMost(targetWidth),
-            (height * scaleFactor).toInt().coerceAtMost(targetHeight)
-        )
     }
 
     private suspend fun downloadToCache(imageUrls: List<String>): List<Uri> = withContext(Dispatchers.IO) {
