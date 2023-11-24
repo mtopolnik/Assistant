@@ -49,7 +49,6 @@ class ChatApplication : Application() {
 @SuppressLint("QueryPermissionsNeeded") // Play Store is visible automatically
 fun Context.visitOnPlayStore() {
     val rateIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName"))
-    @Suppress("DEPRECATION") // The new variant just adds more flags in a Long
     packageManager.queryIntentActivities(rateIntent, 0)
         .map { it.activityInfo }
         .find { it.applicationInfo.packageName == "com.android.vending" }
