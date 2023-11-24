@@ -121,7 +121,8 @@ fun resetOpenAi(): Lazy<OpenAI> {
 class OpenAI(
     private val context: Context
 ) {
-    private val httpClient = createApiClient(context.mainPrefs.openaiApiKey)
+    private val apiClient = createApiClient(context.mainPrefs.openaiApiKey)
+    private val blobClient = createBlobClient()
 
     private val demoMode = context.mainPrefs.openaiApiKey.trim().lowercase() == DEMO_API_KEY
 
@@ -167,7 +168,7 @@ class OpenAI(
                 contentType(ContentType.Application.Json)
                 setBody(jsonCodec.encodeToJsonElement(request))
             }
-            HttpStatement(builder, httpClient).execute { emitStreamingResponse(it) }
+            HttpStatement(builder, apiClient).execute { emitStreamingResponse(it) }
         }
             .map { chunk -> chunk.choices[0].delta.content }
             .filterNotNull()
@@ -179,7 +180,7 @@ class OpenAI(
             delay(2000)
             return mockRecognizedSpeech
         }
-        val response = httpClient.submitFormWithBinaryData(
+        val response = apiClient.submitFormWithBinaryData(
             url = "audio/transcriptions",
             formData = formData {
                 append("model", "whisper-1")
@@ -208,7 +209,7 @@ class OpenAI(
         }
         console.append("Dall-E is generating your image...\n")
         return try {
-            val imageObjects = HttpStatement(builder, httpClient).execute().body<ImageGenerationResponse>().data
+            val imageObjects = HttpStatement(builder, apiClient).execute().body<ImageGenerationResponse>().data
             console.append("Dall-E is done, fetching your image...\n")
             downloadToCache(imageObjects.map { it.url }).also {
                 console.clear()
@@ -223,7 +224,8 @@ class OpenAI(
     }
 
     fun close() {
-        httpClient.close()
+        apiClient.close()
+        blobClient.close()
     }
 
     private fun systemPrompt(): List<ChatMessage> {
@@ -302,7 +304,7 @@ class OpenAI(
     }
 
     private suspend fun downloadToCache(imageUrls: List<String>): List<Uri> = withContext(Dispatchers.IO) {
-        createBlobClient().use { client ->
+        blobClient.use { client ->
             imageUrls.map { imageUrl ->
                 val imageFile = File.createTempFile("dalle-", ".jpg", appContext.cacheDir)
                 FileOutputStream(imageFile).use { fos ->
