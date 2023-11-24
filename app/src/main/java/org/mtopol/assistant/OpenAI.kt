@@ -214,7 +214,7 @@ class OpenAI(
             downloadToCache(imageObjects.map { it.url }).also {
                 console.clear()
                 imageObjects.firstOrNull()?.revised_prompt?.takeIf { it.isNotBlank() }?.also { revisedPrompt ->
-                    console.append("Dall-E revised your prompt to:\n$revisedPrompt")
+                    console.append("Dall-E revised your prompt to:\n\n$revisedPrompt")
                 }
             }
         } catch (e: ResponseException) {
@@ -235,14 +235,14 @@ class OpenAI(
             ?: emptyList()
     }
 
-    private suspend fun List<Exchange>.toDto() = flatMap { pAndR ->
+    private suspend fun List<Exchange>.toDto() = flatMap { exchange ->
         listOf(
             ChatMessage(
                 "user",
-                listOf(ContentPart.Text(pAndR.promptText.toString())) +
-                        pAndR.promptImageUris.map { imgUri -> ContentPart.Image(readContentToDataUri(imgUri)) }
+                listOf(ContentPart.Text(exchange.promptText.toString())) +
+                        exchange.promptImageUris.map { imgUri -> ContentPart.Image(readContentToDataUri(imgUri)) }
             ),
-            ChatMessage("assistant", pAndR.responseText.toString()),
+            ChatMessage("assistant", exchange.responseText.toString()),
         )
     }
 
