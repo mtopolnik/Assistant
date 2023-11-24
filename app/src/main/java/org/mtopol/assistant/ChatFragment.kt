@@ -499,7 +499,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 activity.mainPrefs.applyUpdate {
                     setOpenaiApiKey("")
                 }
-                resetOpenAi(activity)
+                resetOpenAi()
                 activity.navigateToApiKeyFragment()
                 true
             }

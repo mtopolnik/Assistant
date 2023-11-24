@@ -111,11 +111,11 @@ val gptModels = listOf(OpenAiModel.GPT_3, OpenAiModel.GPT_4)
 
 fun OpenAiModel.isGptModel() = this in gptModels
 
-fun resetOpenAi(context: Context): Lazy<OpenAI> {
+fun resetOpenAi(): Lazy<OpenAI> {
     if (::openAiLazy.isInitialized) {
         openAiLazy.value.close()
     }
-    return lazy { OpenAI(context) }.also { openAiLazy = it }
+    return lazy { OpenAI(appContext) }.also { openAiLazy = it }
 }
 
 class OpenAI(

@@ -28,7 +28,6 @@ import android.view.Surface.*
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
-import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.navigation.NavOptions
@@ -49,7 +48,7 @@ class MainActivity : AppCompatActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, true)
         super.onCreate(savedInstanceState)
         setContentView(ActivityMainBinding.inflate(layoutInflater).root)
-        resetOpenAi(this)
+        resetOpenAi()
         if (mainPrefs.openaiApiKey.isBlank()) {
             if (savedInstanceState == null) {
                 navigateToApiKeyFragment()
