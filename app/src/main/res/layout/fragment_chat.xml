@@ -23,6 +23,7 @@
         android:layout_height="match_parent"
         >
     <LinearLayout
+            android:id="@+id/chat_layout"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:orientation="vertical"
@@ -158,6 +159,15 @@
                     />
         </androidx.constraintlayout.widget.ConstraintLayout>
     </LinearLayout>
+
+    <org.mtopol.assistant.TouchImageView
+            android:id="@+id/img_zoomed"
+            android:layout_height="match_parent"
+            android:layout_width="match_parent"
+            android:visibility="invisible"
+            android:adjustViewBounds="true"
+            android:scaleType="fitCenter"
+            />
 
     <org.mtopol.assistant.RecordingGlowView
             android:id="@+id/recording_glow"

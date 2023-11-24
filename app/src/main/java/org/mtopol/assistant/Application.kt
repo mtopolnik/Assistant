@@ -23,7 +23,11 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.graphics.Point
+import android.graphics.PointF
+import android.graphics.RectF
 import android.net.Uri
+import android.widget.ImageView
 import androidx.core.content.ContextCompat
 import androidx.core.os.LocaleListCompat
 import androidx.preference.PreferenceManager
@@ -150,3 +154,25 @@ fun SharedPreferences.Editor.setConfiguredLanguages(languages: List<String>?): S
 }
 
 private fun List<String>.toStringSet(): Set<String> = mapIndexed { i, language -> "$i $language" }.toSet()
+
+fun ImageView?.bitmapSize(p: Point) =
+    p.also { this?.drawable
+        ?.apply { it.set(intrinsicWidth, intrinsicHeight) }
+        ?: it.set(0, 0)
+    }.takeIf { it.x > 0 && it.y > 0 }
+
+fun ImageView?.bitmapSize(p: PointF) =
+    p.also { this?.drawable
+        ?.apply { it.set(intrinsicWidth.toFloat(), intrinsicHeight.toFloat()) }
+        ?: it.set(0f, 0f)
+    }.takeIf { it.x > 0 && it.y > 0 }
+
+operator fun Point.component1() = x
+operator fun Point.component2() = y
+operator fun PointF.component1() = x
+operator fun PointF.component2() = y
+
+operator fun RectF.component1() = left
+operator fun RectF.component2() = top
+operator fun RectF.component3() = right
+operator fun RectF.component4() = bottom

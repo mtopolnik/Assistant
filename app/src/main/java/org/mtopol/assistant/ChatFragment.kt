@@ -24,7 +24,9 @@ import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Context.VIBRATOR_SERVICE
+import android.content.Intent
 import android.content.pm.PackageManager.PERMISSION_GRANTED
+import android.graphics.PointF
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
 import android.media.MediaPlayer
@@ -41,6 +43,7 @@ import android.speech.tts.UtteranceProgressListener
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
+import android.view.GestureDetector
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.Menu
@@ -60,6 +63,7 @@ import android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
 import android.widget.PopupWindow
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.PopupMenu
@@ -68,6 +72,7 @@ import androidx.core.view.MenuProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.doOnLayout
+import androidx.core.view.isVisible
 import androidx.core.view.postDelayed
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -181,6 +186,16 @@ class ChatFragment : Fragment(), MenuProvider {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.i("lifecycle", "onCreate ChatFragment")
+        requireActivity().onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (binding.imgZoomed.isVisible) return
+                startActivity(
+                    Intent(Intent.ACTION_MAIN).apply {
+                        addCategory(Intent.CATEGORY_HOME)
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    })
+            }
+        })
     }
 
     override fun onDestroy() {
@@ -245,6 +260,13 @@ class ChatFragment : Fragment(), MenuProvider {
         binding.root.doOnLayout {
             if (vmodel.recordingGlowJob != null) {
                 binding.showRecordingGlow()
+            }
+        }
+
+        binding.imgZoomed.apply {
+            coroScope = vmodel.viewModelScope
+            GestureDetector(activity, ExitFullScreenListener()).also { gd ->
+                setOnTouchListener { _, e -> gd.onTouchEvent(e); true }
             }
         }
 
@@ -356,6 +378,20 @@ class ChatFragment : Fragment(), MenuProvider {
             })
         }
         return binding.root
+    }
+
+    private inner class ExitFullScreenListener() : GestureDetector.SimpleOnGestureListener() {
+        override fun onSingleTapUp(e: MotionEvent): Boolean {
+            lifecycleScope.launch {
+                binding.imgZoomed.apply {
+                    animateZoomExit()
+                    setImageURI(null)
+                    visibility = INVISIBLE
+                }
+                binding.chatLayout.visibility = VISIBLE
+            }
+            return true
+        }
     }
 
     override fun onDestroyView() {
@@ -1038,6 +1074,32 @@ class ChatFragment : Fragment(), MenuProvider {
                 .inflate(R.layout.message_image, container, false) as ImageView
             imageView.setImageURI(imageUri)
             container.addView(imageView)
+            GestureDetector(activity, ZoomEnterListener(imageView, imageUri)).also { gd ->
+                imageView.setOnTouchListener { _, e -> gd.onTouchEvent(e); true }
+            }
+        }
+    }
+
+    private inner class ZoomEnterListener(
+        private val imageView: ImageView,
+        private val imageUri: Uri
+    ) : GestureDetector.SimpleOnGestureListener() {
+        override fun onSingleTapUp(e: MotionEvent): Boolean {
+            val (bitmapW, bitmapH) = imageView.bitmapSize(PointF()) ?: return true
+            val viewWidth = imageView.width
+            val focusInBitmapX = (e.x / viewWidth) * bitmapW
+            val focusInBitmapY = (e.y / imageView.height) * bitmapH
+            val (imgOnScreenX, imgOnScreenY) = IntArray(2).also { imageView.getLocationInWindow(it) }
+            binding.chatLayout.visibility = INVISIBLE
+            binding.imgZoomed.apply {
+                setImageURI(imageUri)
+                visibility = VISIBLE
+                lifecycleScope.launch {
+                    awaitBitmapMeasured()
+                    animateZoomEnter(imgOnScreenX, imgOnScreenY, viewWidth, focusInBitmapX, focusInBitmapY)
+                }
+            }
+            return true
         }
     }
 
