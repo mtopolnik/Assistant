@@ -253,14 +253,12 @@ class OpenAI(
     }
 
     private suspend fun downloadToCache(imageUrls: List<String>): List<Uri> = withContext(Dispatchers.IO) {
-        blobClient.use { client ->
-            imageUrls.map { imageUrl ->
-                val imageFile = File.createTempFile("dalle-", ".jpg", appContext.cacheDir)
-                FileOutputStream(imageFile).use { fos ->
-                    client.get(imageUrl).body<InputStream>().copyTo(fos)
-                }
-                Uri.fromFile(imageFile)
+        imageUrls.map { imageUrl ->
+            val imageFile = File.createTempFile("dalle-", ".jpg", appContext.cacheDir)
+            FileOutputStream(imageFile).use { fos ->
+                blobClient.get(imageUrl).body<InputStream>().copyTo(fos)
             }
+            Uri.fromFile(imageFile)
         }
     }
 }
