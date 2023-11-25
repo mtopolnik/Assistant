@@ -88,7 +88,6 @@ class TouchImageView
     lateinit var coroScope: CoroutineScope
 
     private val overdrag = resources.getDimensionPixelOffset(R.dimen.fullscreen_allowed_overdrag)
-    private val bottomMargin = resources.getDimensionPixelOffset(R.dimen.fullscreen_bottom_margin)
     private val tolerance = resources.getDimensionPixelOffset(R.dimen.fullscreen_tolerance)
 
     // Reusable value containers
@@ -236,9 +235,9 @@ class TouchImageView
 
         val (screenX, screenY) = IntArray(2).also { getLocationInWindow(it) }
         loadMatrix()
-        startScale = startImgWidth.toFloat() / bitmapW
+        this.startScale = startImgWidth.toFloat() / bitmapW
         val fitWidthScale = viewWidth.toFloat() / bitmapW
-        val fitHeightScale = (viewHeight.toFloat() - bottomMargin) / bitmapH
+        val fitHeightScale = viewHeight.toFloat() / bitmapH
         val toScale = max(fitHeightScale, fitWidthScale).coerceAtMost(MAX_INITIAL_ZOOM * unitScale)
         this.startImgX = startImgX - screenX
         this.startImgY = startImgY - screenY
@@ -449,17 +448,17 @@ class TouchImageView
         val overdrag = if (allowOverdrag) this.overdrag.toFloat() else 0f
         val scale = zoom * unitScale
 
-        fun transBounds(viewSize: Int, bitmapSize: Float, farMargin: Float): PointF {
+        fun transBounds(viewSize: Int, bitmapSize: Float): PointF {
             val transToAlignFarEdgeViewAndScreen = viewSize - scale * bitmapSize
             return pointF.apply { set(
-                    min(0f, transToAlignFarEdgeViewAndScreen - farMargin) - overdrag,
+                    min(0f, transToAlignFarEdgeViewAndScreen) - overdrag,
                     max(0f, transToAlignFarEdgeViewAndScreen) + overdrag
             ) }
         }
 
         val (bitmapW, bitmapH) = bitmapSize(pointF) ?: return null
-        val (minX, maxX) = transBounds(viewWidth, bitmapW, 0f)
-        val (minY, maxY) = transBounds(viewHeight, bitmapH, bottomMargin.toFloat())
+        val (minX, maxX) = transBounds(viewWidth, bitmapW)
+        val (minY, maxY) = transBounds(viewHeight, bitmapH)
         return outParam.apply { set(minX, minY, maxX, maxY) }
     }
 

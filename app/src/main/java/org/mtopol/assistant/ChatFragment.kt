@@ -1102,6 +1102,7 @@ class ChatFragment : Fragment(), MenuProvider {
             binding.chatLayout.visibility = INVISIBLE
             binding.imgZoomed.apply {
                 setImageURI(imageUri)
+                reset()
                 visibility = VISIBLE
                 lifecycleScope.launch {
                     awaitBitmapMeasured()
