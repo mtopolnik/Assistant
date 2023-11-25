@@ -209,7 +209,7 @@ class OpenAI(
             downloadToCache(imageObjects.map { it.url }).also {
                 console.clear()
                 imageObjects.firstOrNull()?.revised_prompt?.takeIf { it.isNotBlank() }?.also { revisedPrompt ->
-                    console.append("Dall-E revised your prompt to:\n\n$revisedPrompt")
+                    console.append("Dall-E revised your prompt to:\n\n$revisedPrompt\n")
                 }
             }
         } catch (e: ResponseException) {
