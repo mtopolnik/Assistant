@@ -52,7 +52,6 @@ private const val KEY_SYSTEM_PROMPT = "system_prompt"
 private const val KEY_SPEECH_RECOG_LANGUAGE = "speech_recognition_language"
 private const val KEY_LANGUAGES = "languages"
 private const val KEY_IS_MUTED = "is_muted"
-private const val KEY_IS_GPT4 = "is_gpt4"
 private const val KEY_SELECTED_MODEL = "selected_model"
 
 lateinit var appContext: Context
