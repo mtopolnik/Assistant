@@ -68,6 +68,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.PopupMenu
 import androidx.core.content.ContextCompat.checkSelfPermission
+import androidx.core.content.FileProvider
+import androidx.core.net.toFile
 import androidx.core.view.MenuProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -261,7 +263,7 @@ class ChatFragment : Fragment(), MenuProvider {
         languageIdentifier = LanguageIdentification.getClient(
             LanguageIdentificationOptions.Builder().setConfidenceThreshold(0.2f).build()
         )
-        audioPathname = File(context.cacheDir, "prompt.mp4").absolutePath
+        audioPathname = File(context.externalCacheDir, "prompt.mp4").absolutePath
         binding.root.doOnLayout {
             if (vmodel.recordingGlowJob != null) {
                 binding.showRecordingGlow()
@@ -787,7 +789,7 @@ class ChatFragment : Fragment(), MenuProvider {
     private suspend fun TextToSpeech.speakToFile(sentence: String, utteranceIdNumeric: Long): File {
         val utteranceId = utteranceIdNumeric.toString()
         return suspendCancellableCoroutine { continuation: Continuation<File> ->
-            val utteranceFile = File(appContext.cacheDir, "utterance-$utteranceId.wav")
+            val utteranceFile = File(appContext.externalCacheDir, "utterance-$utteranceId.wav")
             setOnUtteranceProgressListener(UtteranceContinuationListener(utteranceId, continuation, utteranceFile))
             if (synthesizeToFile(sentence, Bundle(), utteranceFile, utteranceId) == TextToSpeech.ERROR) {
                 continuation.resumeWith(failure(Exception("synthesizeToFile() failed to enqueue its request")))
@@ -1083,33 +1085,9 @@ class ChatFragment : Fragment(), MenuProvider {
                 .inflate(R.layout.message_image, container, false) as ImageView
             imageView.setImageURI(imageUri)
             container.addView(imageView)
-            GestureDetector(activity, ZoomEnterListener(imageView, imageUri)).also { gd ->
+            GestureDetector(activity, ImageViewListener(imageView, imageUri)).also { gd ->
                 imageView.setOnTouchListener { _, e -> gd.onTouchEvent(e); true }
             }
-        }
-    }
-
-    private inner class ZoomEnterListener(
-        private val imageView: ImageView,
-        private val imageUri: Uri
-    ) : GestureDetector.SimpleOnGestureListener() {
-        override fun onSingleTapUp(e: MotionEvent): Boolean {
-            val (bitmapW, bitmapH) = imageView.bitmapSize(PointF()) ?: return true
-            val viewWidth = imageView.width
-            val focusInBitmapX = (e.x / viewWidth) * bitmapW
-            val focusInBitmapY = (e.y / imageView.height) * bitmapH
-            val (imgOnScreenX, imgOnScreenY) = IntArray(2).also { imageView.getLocationInWindow(it) }
-            binding.chatLayout.visibility = INVISIBLE
-            binding.imgZoomed.apply {
-                setImageURI(imageUri)
-                reset()
-                visibility = VISIBLE
-                lifecycleScope.launch {
-                    awaitBitmapMeasured()
-                    animateZoomEnter(imgOnScreenX, imgOnScreenY, viewWidth, focusInBitmapX, focusInBitmapY)
-                }
-            }
-            return true
         }
     }
 
@@ -1138,6 +1116,45 @@ class ChatFragment : Fragment(), MenuProvider {
         val editable = addTextToView(responseContainer, exchange.responseText, RESPONSE).editableText
         addImagesToView(responseContainer, exchange.responseImageUris)
         return editable
+    }
+
+    private inner class ImageViewListener(
+        private val imageView: ImageView,
+        private val imageUri: Uri
+    ) : GestureDetector.SimpleOnGestureListener() {
+
+        override fun onLongPress(e: MotionEvent) {
+            vibrate()
+            val imageFile = imageUri.toFile()
+            Intent().apply {
+                action = Intent.ACTION_SEND
+                type = "image/${imageFile.extension}"
+                putExtra(Intent.EXTRA_STREAM,
+                    FileProvider.getUriForFile(requireContext(), FILE_PROVIDER_AUTHORITY, imageFile)
+                )
+            }.also {
+                startActivity(Intent.createChooser(it, null))
+            }
+        }
+
+        override fun onSingleTapUp(e: MotionEvent): Boolean {
+            val (bitmapW, bitmapH) = imageView.bitmapSize(PointF()) ?: return true
+            val viewWidth = imageView.width
+            val focusInBitmapX = (e.x / viewWidth) * bitmapW
+            val focusInBitmapY = (e.y / imageView.height) * bitmapH
+            val (imgOnScreenX, imgOnScreenY) = IntArray(2).also { imageView.getLocationInWindow(it) }
+            binding.chatLayout.visibility = INVISIBLE
+            binding.imgZoomed.apply {
+                setImageURI(imageUri)
+                reset()
+                visibility = VISIBLE
+                lifecycleScope.launch {
+                    awaitBitmapMeasured()
+                    animateZoomEnter(imgOnScreenX, imgOnScreenY, viewWidth, focusInBitmapX, focusInBitmapY)
+                }
+            }
+            return true
+        }
     }
 
     private fun clearChat() {

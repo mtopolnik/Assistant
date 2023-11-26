@@ -17,7 +17,6 @@
 
 package org.mtopol.assistant
 
-import android.content.Context
 import android.net.Uri
 import android.text.Editable
 import android.util.Base64
@@ -110,19 +109,17 @@ fun resetOpenAi(): Lazy<OpenAI> {
     if (::openAiLazy.isInitialized) {
         openAiLazy.value.close()
     }
-    return lazy { OpenAI(appContext) }.also { openAiLazy = it }
+    return lazy { OpenAI() }.also { openAiLazy = it }
 }
 
-class OpenAI(
-    private val context: Context
-) {
-    private val apiClient = createApiClient(context.mainPrefs.openaiApiKey)
+class OpenAI {
+    private val apiClient = createApiClient(appContext.mainPrefs.openaiApiKey)
     private val blobClient = createBlobClient()
 
-    private val demoMode = context.mainPrefs.openaiApiKey.trim().lowercase() == DEMO_API_KEY
+    private val demoMode = appContext.mainPrefs.openaiApiKey.trim().lowercase() == DEMO_API_KEY
 
-    private val mockRecognizedSpeech = context.getString(R.string.demo_recognized_speech)
-    private val mockResponse = context.getString(R.string.demo_response)
+    private val mockRecognizedSpeech = appContext.getString(R.string.demo_recognized_speech)
+    private val mockResponse = appContext.getString(R.string.demo_response)
 
     suspend fun chatCompletions(history: List<Exchange>, model: OpenAiModel): Flow<String> {
         if (demoMode) {
@@ -224,7 +221,7 @@ class OpenAI(
     }
 
     private fun systemPrompt(): List<ChatMessage> {
-        return context.mainPrefs.systemPrompt
+        return appContext.mainPrefs.systemPrompt
             .takeIf { it.isNotBlank() }
             ?.let { listOf(ChatMessage("system", it)) }
             ?: emptyList()
@@ -254,7 +251,7 @@ class OpenAI(
 
     private suspend fun downloadToCache(imageUrls: List<String>): List<Uri> = withContext(Dispatchers.IO) {
         imageUrls.map { imageUrl ->
-            val imageFile = File.createTempFile("dalle-", ".jpg", appContext.cacheDir)
+            val imageFile = File.createTempFile("dalle-", ".jpg", imageCache)
             FileOutputStream(imageFile).use { fos ->
                 blobClient.get(imageUrl).body<InputStream>().copyTo(fos)
             }

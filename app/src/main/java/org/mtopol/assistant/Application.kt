@@ -47,6 +47,8 @@ import java.io.InputStream
 import java.util.*
 import kotlin.math.min
 
+const val FILE_PROVIDER_AUTHORITY = "org.mtopol.assistant.fileprovider"
+
 private const val KEY_OPENAI_API_KEY = "openai_api_key"
 private const val KEY_SYSTEM_PROMPT = "system_prompt"
 private const val KEY_SPEECH_RECOG_LANGUAGE = "speech_recognition_language"
@@ -55,11 +57,14 @@ private const val KEY_IS_MUTED = "is_muted"
 private const val KEY_SELECTED_MODEL = "selected_model"
 
 lateinit var appContext: Context
+lateinit var imageCache: File
 
 class ChatApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         appContext = applicationContext
+        imageCache = File(applicationContext.externalCacheDir, "images")
+        imageCache.mkdir()
     }
 }
 
@@ -251,7 +256,7 @@ fun scaleAndSave(uri: Uri, widthLimit: Int, heightLimit: Int): File? {
     val (compressFormat, fileSuffix) =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) Pair(Bitmap.CompressFormat.WEBP_LOSSY, ".webp")
         else Pair(Bitmap.CompressFormat.JPEG, ".jpeg")
-    return File.createTempFile("shared-", fileSuffix, appContext.cacheDir).also { imageFile ->
+    return File.createTempFile("shared-", fileSuffix, imageCache).also { imageFile ->
         FileOutputStream(imageFile).use { scaledBitmap.compress(compressFormat, 85, it) }
     }
 }
