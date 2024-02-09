@@ -808,7 +808,11 @@ class ChatFragment : Fragment(), MenuProvider {
             suspendCancellableCoroutine { continuation ->
                 tts.setOnUtteranceProgressListener(UtteranceContinuationListener(utteranceId, continuation, Unit))
                 if (tts.speak(response, TextToSpeech.QUEUE_FLUSH, null, utteranceId) == TextToSpeech.ERROR) {
-                    continuation.resumeWith(failure(Exception("speak() failed to enqueue its request")))
+                    val exception = Exception("speak() failed to enqueue its request")
+                    // Kotlin compiler has an internal error on this:
+//                    continuation.resumeWith(failure(exception))
+                    // Workaround:
+                    throw exception
                 }
             }
         } finally {
