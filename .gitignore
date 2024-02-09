@@ -1,6 +1,7 @@
 app/src/main/res/values/secrets.xml
 *.iml
 .gradle
+.kotlin
 /.idea
 .DS_Store
 /build
