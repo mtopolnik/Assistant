@@ -83,7 +83,7 @@ val openAi get() = openAiLazy.value
 
 private const val OPENAI_URL = "https://api.openai.com/v1/"
 private const val MODEL_ID_GPT_3 = "gpt-3.5-turbo"
-private const val MODEL_ID_GPT_4 = "gpt-4-0125-preview"
+private const val MODEL_ID_GPT_4 = "gpt-4-turbo"
 private const val MODEL_ID_DALL_E_2 = "dall-e-2"
 private const val MODEL_ID_DALL_E_3 = "dall-e-3"
 private const val MODEL_ID_GPT_4_VISION = "gpt-4-vision-preview"
