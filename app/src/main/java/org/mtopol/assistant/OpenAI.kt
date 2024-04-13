@@ -86,7 +86,6 @@ private const val MODEL_ID_GPT_3 = "gpt-3.5-turbo"
 private const val MODEL_ID_GPT_4 = "gpt-4-turbo"
 private const val MODEL_ID_DALL_E_2 = "dall-e-2"
 private const val MODEL_ID_DALL_E_3 = "dall-e-3"
-private const val MODEL_ID_GPT_4_VISION = "gpt-4-vision-preview"
 private const val DEMO_API_KEY = "demo"
 
 private lateinit var openAiLazy: Lazy<OpenAI>
@@ -125,12 +124,9 @@ class OpenAI {
         if (demoMode) {
             return mockResponse.toCharArray().asList().chunked(4).asFlow().map { delay(120); it.joinToString("") }
         }
-        val gptModel =
-            if (model == OpenAiModel.GPT_4 && history.any { it.promptImageUris.isNotEmpty() }) MODEL_ID_GPT_4_VISION
-            else model.apiId
-        Log.i("client", "Model: $gptModel")
+        Log.i("client", "Model: ${model.apiId}")
         val chatCompletionRequest = ChatCompletionRequest(
-            model = gptModel,
+            model = model.apiId,
             messages = systemPrompt() + history.toDto().dropLast(1),
         )
         return chatCompletions(chatCompletionRequest)
