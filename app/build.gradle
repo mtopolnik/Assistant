@@ -37,21 +37,21 @@ android {
 }
 
 dependencies {
-    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.core:core-ktx:1.13.1'
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3'
-    implementation 'com.google.android.material:material:1.11.0'
+    implementation 'com.google.android.material:material:1.12.0'
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
-    implementation 'androidx.fragment:fragment-ktx:1.6.2'
+    implementation 'androidx.fragment:fragment-ktx:1.7.0'
     implementation 'androidx.preference:preference-ktx:1.2.1'
     implementation 'androidx.navigation:navigation-fragment-ktx:2.7.7'
     implementation 'androidx.navigation:navigation-ui-ktx:2.7.7'
 
-    implementation 'com.google.mlkit:language-id:17.0.4'
+    implementation 'com.google.mlkit:language-id:17.0.5'
     implementation platform('io.ktor:ktor-bom:2.3.6')
     implementation 'io.ktor:ktor-client-okhttp'
     implementation 'io.ktor:ktor-client-logging'
-    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.core:core-ktx:1.13.1'
     runtimeOnly 'org.slf4j:slf4j-android:1.7.36'
     implementation 'io.ktor:ktor-client-auth'
     implementation 'io.ktor:ktor-client-content-negotiation'
