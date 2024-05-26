@@ -93,6 +93,7 @@ import com.google.mlkit.nl.languageid.LanguageIdentifier
 import com.google.mlkit.nl.languageid.LanguageIdentifier.UNDETERMINED_LANGUAGE_TAG
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.utils.io.*
+import io.noties.markwon.Markwon
 import kotlinx.coroutines.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers.IO
@@ -150,6 +151,7 @@ class ChatFragmentModel(
     var isResponding: Boolean = false
     var autoscrollEnabled: Boolean = true
     var replyEditable: Editable? = null
+    var replyString: StringBuilder? = null
     var mediaPlayer: MediaPlayer? = null
 
     override fun onCleared() {
@@ -170,6 +172,7 @@ class ChatFragment : Fragment(), MenuProvider {
     private lateinit var binding: FragmentChatBinding
     private lateinit var audioPathname: String
     private lateinit var languageIdentifier: LanguageIdentifier
+    private lateinit var markwon: Markwon
 
     private var recordButtonPressTime = 0L
     private var _mediaRecorder: MediaRecorder? = null
@@ -240,6 +243,7 @@ class ChatFragment : Fragment(), MenuProvider {
         // Trigger lazy loading of OpenAI client
         GlobalScope.launch(IO) { openAi }
 
+        markwon = Markwon.create(requireActivity())
         var newestHistoryEditable: Editable? = null
         var newestHistoryExchange: Exchange? = null
         for (exchange in vmodel.chatHistory) {
@@ -589,18 +593,19 @@ class ChatFragment : Fragment(), MenuProvider {
                     addTextToView(lastPromptContainer(), prompt, PROMPT)
                     chatHistory.last().also { it.promptText = prompt }
                 }
-                val editable = addTextResponseToView(exchange)
-                exchange.responseText = editable
-                vmodel.replyEditable = editable
+                val textView = addTextResponseToView(exchange)
+                exchange.responseText = textView.editableText
+                vmodel.replyEditable = textView.editableText
+                vmodel.replyString = StringBuilder()
                 vmodel.autoscrollEnabled = true
                 scrollToBottom()
                 val sentenceFlow: Flow<String> = channelFlow {
                     openAi.chatCompletions(vmodel.chatHistory, appContext.mainPrefs.selectedModel)
                         .onEach { token ->
-                            val replyEditable = vmodel.replyEditable!!
-                            replyEditable.append(token)
-                            val fullSentences = replyEditable
-                                .substring(lastSpokenPos, replyEditable.length)
+                            val replyString = vmodel.replyString!!
+                            replyString.append(token)
+                            val fullSentences = replyString
+                                .substring(lastSpokenPos, replyString.length)
                                 .dropLastIncompleteSentence()
                             fullSentences.takeIf { it.isNotBlank() }?.also {
                                 Log.i("speech", "full sentences: $it")
@@ -609,6 +614,7 @@ class ChatFragment : Fragment(), MenuProvider {
                                 channel.send(fullSentences)
                                 lastSpokenPos += fullSentences.length
                             }
+                            markwon.setMarkdown(textView, replyString.toString())
                             scrollToBottom()
                         }
                         .onCompletion { exception ->
@@ -1110,9 +1116,9 @@ class ChatFragment : Fragment(), MenuProvider {
         addTextToView(promptContainer, exchange.promptText, PROMPT)
     }
 
-    private fun addTextResponseToView(exchange: Exchange): Editable {
+    private fun addTextResponseToView(exchange: Exchange): TextView {
         val responseContainer = addMessageContainerToView(RESPONSE)
-        return addTextToView(responseContainer, exchange.responseText, RESPONSE).editableText
+        return addTextToView(responseContainer, exchange.responseText, RESPONSE)
     }
 
     private fun addResponseToView(exchange: Exchange): Editable {
