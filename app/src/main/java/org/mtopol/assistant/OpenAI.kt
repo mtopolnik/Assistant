@@ -230,7 +230,7 @@ class OpenAI {
                 listOf(ContentPart.Text(exchange.promptText.toString())) +
                         exchange.promptImageUris.map { imgUri -> ContentPart.Image(readContentToDataUri(imgUri)) }
             ),
-            ChatMessage("assistant", exchange.responseText.toString()),
+            ChatMessage("assistant", exchange.replyMarkdown.toString()),
         )
     }
 

@@ -96,6 +96,7 @@ import io.ktor.utils.io.*
 import io.noties.markwon.Markwon
 import kotlinx.coroutines.*
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers.Default
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.android.awaitFrame
@@ -119,6 +120,7 @@ import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import kotlin.math.log2
 import kotlin.math.roundToLong
+import kotlin.system.measureTimeMillis
 
 private const val KEY_CHAT_HISTORY = "chat_history"
 
@@ -132,7 +134,6 @@ private const val DALLE_IMAGE_DIMENSION = 512
 private val sentenceDelimiterRegex = """(?<=\D[.!]['"]?)\s+|(?<=\d[.!]'?)\s+(?=\p{Lu})|(?<=.[;?]'?)\s+|\n+""".toRegex()
 private val speechImprovementRegex = """ ?[()] ?""".toRegex()
 private val whitespaceRegex = """\s+""".toRegex()
-private val markdownRemovalRegex = """`+""".toRegex()
 
 class ChatFragmentModel(
     savedState: SavedStateHandle
@@ -150,8 +151,9 @@ class ChatFragmentModel(
     var handleResponseJob: Job? = null
     var isResponding: Boolean = false
     var autoscrollEnabled: Boolean = true
-    var replyEditable: Editable? = null
-    var replyString: StringBuilder? = null
+    var replyUpdated = false
+    @SuppressLint("StaticFieldLeak")
+    var replyTextView: TextView? = null
     var mediaPlayer: MediaPlayer? = null
 
     override fun onCleared() {
@@ -177,24 +179,27 @@ class ChatFragment : Fragment(), MenuProvider {
     private var recordButtonPressTime = 0L
     private var _mediaRecorder: MediaRecorder? = null
 
-    private val permissionRequest = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
-        if (it.isNotEmpty()) Log.i("", "User granted us the requested permissions")
-        else Log.w("", "User did not grant us the requested permissions")
-    }
+    private val permissionRequest =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+            if (it.isNotEmpty()) Log.i("", "User granted us the requested permissions")
+            else Log.w("", "User did not grant us the requested permissions")
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.i("lifecycle", "onCreate ChatFragment")
-        requireActivity().onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                if (binding.imgZoomed.isVisible) return
-                startActivity(
-                    Intent(Intent.ACTION_MAIN).apply {
-                        addCategory(Intent.CATEGORY_HOME)
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    })
-            }
-        })
+        requireActivity().onBackPressedDispatcher.addCallback(
+            this,
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    if (binding.imgZoomed.isVisible) return
+                    startActivity(
+                        Intent(Intent.ACTION_MAIN).apply {
+                            addCategory(Intent.CATEGORY_HOME)
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        })
+                }
+            })
     }
 
     override fun onDestroy() {
@@ -225,7 +230,13 @@ class ChatFragment : Fragment(), MenuProvider {
                 }
                 val savedImgUris = withContext(IO) {
                     imgUris
-                        .mapNotNull { scaleAndSave(it, DALLE_IMAGE_DIMENSION, DALLE_IMAGE_DIMENSION) }
+                        .mapNotNull {
+                            scaleAndSave(
+                                it,
+                                DALLE_IMAGE_DIMENSION,
+                                DALLE_IMAGE_DIMENSION
+                            )
+                        }
                         .map { Uri.fromFile(it) }
                 }
                 addImagesToView(promptContainer, savedImgUris)
@@ -245,17 +256,17 @@ class ChatFragment : Fragment(), MenuProvider {
         }
 
         markwon = Markwon.create(requireActivity())
-        var newestHistoryEditable: Editable? = null
+        var newestHistoryTextView: TextView? = null
         var newestHistoryExchange: Exchange? = null
         for (exchange in vmodel.chatHistory) {
             newestHistoryExchange = exchange
             addPromptToView(exchange)
-            newestHistoryEditable = addResponseToView(exchange)
+            newestHistoryTextView = addResponseToView(exchange)
         }
-        if (vmodel.replyEditable != null) {
-            newestHistoryEditable!!.also {
-                vmodel.replyEditable = it
-                newestHistoryExchange!!.responseText = it
+        if (vmodel.replyTextView != null) {
+            newestHistoryTextView!!.also {
+                vmodel.replyTextView = it
+                newestHistoryExchange!!.replyText = it.text
             }
         }
         // Reduce the size of the scrollview when soft keyboard shown
@@ -292,11 +303,12 @@ class ChatFragment : Fragment(), MenuProvider {
         }
         val recordButton = binding.buttonRecord
         recordButton.setOnTouchListener(object : OnTouchListener {
-            private val hintView = inflater.inflate(R.layout.record_button_hint, null).also { hintView ->
-                MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED).also {
-                    hintView.measure(it, it)
+            private val hintView =
+                inflater.inflate(R.layout.record_button_hint, null).also { hintView ->
+                    MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED).also {
+                        hintView.measure(it, it)
+                    }
                 }
-            }
             private val hintWindow = PopupWindow(hintView, WRAP_CONTENT, WRAP_CONTENT).apply {
                 animationStyle = android.R.style.Animation_Toast
             }
@@ -308,6 +320,7 @@ class ChatFragment : Fragment(), MenuProvider {
                         startRecordingPrompt()
                         return true
                     }
+
                     MotionEvent.ACTION_UP -> {
                         if (System.currentTimeMillis() - recordButtonPressTime < MIN_HOLD_RECORD_BUTTON_MILLIS) {
                             showRecordingHint()
@@ -356,6 +369,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 MotionEvent.ACTION_DOWN -> {
                     showLanguageMenu(); true
                 }
+
                 else -> false
             }
         }
@@ -385,7 +399,14 @@ class ChatFragment : Fragment(), MenuProvider {
                     hadTextLastTime = editable.isNotEmpty()
                 }
 
-                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun beforeTextChanged(
+                    s: CharSequence?,
+                    start: Int,
+                    count: Int,
+                    after: Int
+                ) {
+                }
+
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             })
         }
@@ -436,7 +457,8 @@ class ChatFragment : Fragment(), MenuProvider {
                 updateText()
                 setOnClickListener {
                     val currOrdinal = appContext.mainPrefs.selectedModel.ordinal
-                    val nextOrdinal = (currOrdinal + 1) % if (gptOnlyMode) gptModels.size else OpenAiModel.entries.size
+                    val nextOrdinal =
+                        (currOrdinal + 1) % if (gptOnlyMode) gptModels.size else OpenAiModel.entries.size
                     appContext.mainPrefs.applyUpdate {
                         setSelectedModel(OpenAiModel.entries[nextOrdinal])
                     }
@@ -452,7 +474,8 @@ class ChatFragment : Fragment(), MenuProvider {
         val hasHistory = vmodel.chatHistory.isNotEmpty()
         menu.findItem(R.id.action_cancel).isVisible = responding
         menu.findItem(R.id.action_undo).isVisible = !responding
-        menu.findItem(R.id.action_speak_again).isEnabled = !appContext.mainPrefs.isMuted && !responding && hasHistory
+        menu.findItem(R.id.action_speak_again).isEnabled =
+            !appContext.mainPrefs.isMuted && !responding && hasHistory
     }
 
     private fun updateMuteItem(item: MenuItem) {
@@ -574,7 +597,7 @@ class ChatFragment : Fragment(), MenuProvider {
         // Clear the prompt and response text from the chat history entry
         lastEntry.apply {
             promptText = ""
-            responseText = ""
+            replyMarkdown = ""
         }
     }
 
@@ -587,27 +610,43 @@ class ChatFragment : Fragment(), MenuProvider {
                 vmodel.isResponding = true
                 vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
                 val chatHistory = vmodel.chatHistory
-                val exchange = if (chatHistory.isEmpty() || chatHistory.last().promptText.isNotEmpty()) {
-                    addMessageContainerToView(PROMPT).also { addTextToView(it, prompt, PROMPT) }
-                    Exchange(prompt).also { chatHistory.add(it) }
-                } else {
-                    addTextToView(lastPromptContainer(), prompt, PROMPT)
-                    chatHistory.last().also { it.promptText = prompt }
-                }
-                val textView = addTextResponseToView(exchange)
-                exchange.responseText = textView.editableText
-                vmodel.replyEditable = textView.editableText
-                vmodel.replyString = StringBuilder()
+                val exchange =
+                    if (chatHistory.isEmpty() || chatHistory.last().promptText.isNotEmpty()) {
+                        addMessageContainerToView(PROMPT).also { addTextToView(it, prompt, PROMPT) }
+                        Exchange(prompt).also { chatHistory.add(it) }
+                    } else {
+                        addTextToView(lastPromptContainer(), prompt, PROMPT)
+                        chatHistory.last().also { it.promptText = prompt }
+                    }
+                val replyMarkdown = StringBuilder()
+                exchange.replyMarkdown = replyMarkdown
+                vmodel.replyTextView = addTextResponseToView(exchange)
                 vmodel.autoscrollEnabled = true
                 scrollToBottom()
+                val markdownUpdateJob = launch {
+                    while (true) {
+                        val took = measureTimeMillis {
+                            if (vmodel.replyUpdated) {
+                                vmodel.replyUpdated = false
+                                withContext(Default) {
+                                    replyMarkdown.toString()
+                                        .let { markwon.parse(it) }
+                                        .let { markwon.render(it) }
+                                }.let { markwon.setParsedMarkdown(vmodel.replyTextView!!, it) }
+                            }
+                        }
+                        delay((100 - took).coerceAtLeast(0))
+                    }
+                }
                 val sentenceFlow: Flow<String> = channelFlow {
                     openAi.chatCompletions(vmodel.chatHistory, appContext.mainPrefs.selectedModel)
                         .onEach { token ->
-                            val replyString = vmodel.replyString!!
-                            replyString.append(token)
-                            val fullSentences = replyString
-                                .substring(lastSpokenPos, replyString.length)
-                                .dropLastIncompleteSentence()
+                            vmodel.replyUpdated = true
+                            replyMarkdown.append(token)
+                            val fullSentences = vmodel.replyTextView!!.text.let { replyText ->
+                                replyText.substring(lastSpokenPos, replyText.length)
+                                    .dropLastIncompleteSentence()
+                            }
                             fullSentences.takeIf { it.isNotBlank() }?.also {
                                 Log.i("speech", "full sentences: $it")
                             }
@@ -615,47 +654,57 @@ class ChatFragment : Fragment(), MenuProvider {
                                 channel.send(fullSentences)
                                 lastSpokenPos += fullSentences.length
                             }
-                            markwon.setMarkdown(textView, replyString.toString())
                             scrollToBottom()
                         }
                         .onCompletion { exception ->
-                            val replyEditable = vmodel.replyEditable!!
                             exception?.also { e ->
                                 when (e) {
                                     is CancellationException -> {}
                                     is ClientRequestException -> {
-                                        Log.e("lifecycle", "OpenAI error in chatCompletions flow", e)
+                                        Log.e(
+                                            "lifecycle",
+                                            "OpenAI error in chatCompletions flow",
+                                            e
+                                        )
                                         val message = e.message
                                         when {
                                             message.contains("` does not exist\"") ->
                                                 Toast.makeText(
                                                     appContext,
-                                                    getString(R.string.gpt4_unavailable), Toast.LENGTH_SHORT
+                                                    getString(R.string.gpt4_unavailable),
+                                                    Toast.LENGTH_SHORT
                                                 ).show()
+
                                             message.contains("image_url is only supported by certain models.") ->
                                                 Toast.makeText(
                                                     appContext,
-                                                    getString(R.string.gpt4_required), Toast.LENGTH_SHORT
+                                                    getString(R.string.gpt4_required),
+                                                    Toast.LENGTH_SHORT
                                                 ).show()
+
                                             else ->
                                                 showApiErrorToast(e)
                                         }
                                     }
+
                                     else -> {
                                         Log.e("lifecycle", "Error in chatCompletions flow", e)
                                         Toast.makeText(
                                             appContext,
-                                            getString(R.string.error_while_gpt_talking), Toast.LENGTH_SHORT
+                                            getString(R.string.error_while_gpt_talking),
+                                            Toast.LENGTH_SHORT
                                         )
                                             .show()
                                     }
                                 }
                             }
-                            if (lastSpokenPos < replyEditable.length) {
-                                channel.send(replyEditable.substring(lastSpokenPos, replyEditable.length))
+                            val textView = vmodel.replyTextView!!
+                            val replyText = textView.text
+                            if (lastSpokenPos < replyText.length) {
+                                channel.send(replyText.substring(lastSpokenPos, replyText.length))
                             }
-                            exchange.responseText = replyEditable.toString()
-                            vmodel.replyEditable = null
+                            markdownUpdateJob.apply { cancel(); join() }
+                            markwon.setMarkdown(textView, replyMarkdown.toString())
                         }
                         .launchIn(this)
                 }
@@ -670,7 +719,6 @@ class ChatFragment : Fragment(), MenuProvider {
                     var nextUtteranceId = 0L
                     sentenceFlow
                         .map { it.replace(speechImprovementRegex, ", ") }
-                        .map { it.replace(markdownRemovalRegex, "") }
                         .onEach { sentence ->
                             Log.i("speech", "Speak: $sentence")
                             tts.setSpokenLanguage(identifyLanguage(sentence))
@@ -725,24 +773,26 @@ class ChatFragment : Fragment(), MenuProvider {
                 vmodel.isResponding = true
                 vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
                 val chatHistory = vmodel.chatHistory
-                val exchange = if (chatHistory.isEmpty() || chatHistory.last().promptText.isNotEmpty()) {
-                    addMessageContainerToView(PROMPT).also { addTextToView(it, prompt, PROMPT) }
-                    Exchange(prompt).also { chatHistory.add(it) }
-                } else {
-                    addTextToView(lastPromptContainer(), prompt, PROMPT)
-                    chatHistory.last().also { it.promptText = prompt }
-                }
+                val exchange =
+                    if (chatHistory.isEmpty() || chatHistory.last().promptText.isNotEmpty()) {
+                        addMessageContainerToView(PROMPT).also { addTextToView(it, prompt, PROMPT) }
+                        Exchange(prompt).also { chatHistory.add(it) }
+                    } else {
+                        addTextToView(lastPromptContainer(), prompt, PROMPT)
+                        chatHistory.last().also { it.promptText = prompt }
+                    }
                 vmodel.autoscrollEnabled = true
                 scrollToBottom()
                 val responseContainer = addMessageContainerToView(RESPONSE)
                 val responseText = addTextToView(responseContainer, "", RESPONSE)
                 val editable = responseText.editableText
-                val imageUris = openAi.imageGeneration(prompt, appContext.mainPrefs.selectedModel, editable)
+                val imageUris =
+                    openAi.imageGeneration(prompt, appContext.mainPrefs.selectedModel, editable)
                 if (editable.isBlank()) {
                     responseContainer.removeView(responseText)
                 }
-                exchange.responseImageUris = imageUris
-                addImagesToView(responseContainer, exchange.responseImageUris)
+                exchange.replyImageUris = imageUris
+                addImagesToView(responseContainer, exchange.replyImageUris)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -762,7 +812,8 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun lastPromptContainer() = binding.viewChat.run { getChildAt(childCount - 1) } as LinearLayout
+    private fun lastPromptContainer() =
+        binding.viewChat.run { getChildAt(childCount - 1) } as LinearLayout
 
     private suspend fun MediaPlayer.play(file: File) {
         reset()
@@ -778,34 +829,47 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private suspend fun newTextToSpeech(): TextToSpeech = suspendCancellableCoroutine { continuation ->
-        Log.i("speech", "Create new TextToSpeech")
-        val tts = AtomicReference<TextToSpeech?>()
-        tts.set(TextToSpeech(requireContext()) { status ->
-            Log.i("speech", "TextToSpeech initialized")
-            continuation.resumeWith(
-                if (status == TextToSpeech.SUCCESS) {
-                    success(tts.get()!!)
-                } else {
-                    failure(Exception("Speech init failed with status code $status"))
-                }
-            )
-        })
-    }
+    private suspend fun newTextToSpeech(): TextToSpeech =
+        suspendCancellableCoroutine { continuation ->
+            Log.i("speech", "Create new TextToSpeech")
+            val tts = AtomicReference<TextToSpeech?>()
+            tts.set(TextToSpeech(requireContext()) { status ->
+                Log.i("speech", "TextToSpeech initialized")
+                continuation.resumeWith(
+                    if (status == TextToSpeech.SUCCESS) {
+                        success(tts.get()!!)
+                    } else {
+                        failure(Exception("Speech init failed with status code $status"))
+                    }
+                )
+            })
+        }
 
     private suspend fun TextToSpeech.speakToFile(sentence: String, utteranceIdNumeric: Long): File {
         val utteranceId = utteranceIdNumeric.toString()
         return suspendCancellableCoroutine { continuation: Continuation<File> ->
             val utteranceFile = File(appContext.externalCacheDir, "utterance-$utteranceId.wav")
-            setOnUtteranceProgressListener(UtteranceContinuationListener(utteranceId, continuation, utteranceFile))
-            if (synthesizeToFile(sentence, Bundle(), utteranceFile, utteranceId) == TextToSpeech.ERROR) {
+            setOnUtteranceProgressListener(
+                UtteranceContinuationListener(
+                    utteranceId,
+                    continuation,
+                    utteranceFile
+                )
+            )
+            if (synthesizeToFile(
+                    sentence,
+                    Bundle(),
+                    utteranceFile,
+                    utteranceId
+                ) == TextToSpeech.ERROR
+            ) {
                 continuation.resumeWith(failure(Exception("synthesizeToFile() failed to enqueue its request")))
             }
         }
     }
 
     private suspend fun speakLastResponse() {
-        val response = vmodel.chatHistory.lastOrNull()?.responseText?.toString() ?: return
+        val response = vmodel.chatHistory.lastOrNull()?.replyText?.toString() ?: return
         val utteranceId = "speak_again"
         vmodel.isResponding = true
         vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
@@ -813,8 +877,20 @@ class ChatFragment : Fragment(), MenuProvider {
         try {
             tts.setSpokenLanguage(identifyLanguage(response))
             suspendCancellableCoroutine { continuation ->
-                tts.setOnUtteranceProgressListener(UtteranceContinuationListener(utteranceId, continuation, Unit))
-                if (tts.speak(response, TextToSpeech.QUEUE_FLUSH, null, utteranceId) == TextToSpeech.ERROR) {
+                tts.setOnUtteranceProgressListener(
+                    UtteranceContinuationListener(
+                        utteranceId,
+                        continuation,
+                        Unit
+                    )
+                )
+                if (tts.speak(
+                        response,
+                        TextToSpeech.QUEUE_FLUSH,
+                        null,
+                        utteranceId
+                    ) == TextToSpeech.ERROR
+                ) {
                     val exception = Exception("speak() failed to enqueue its request")
                     // Kotlin compiler has an internal error on this:
 //                    continuation.resumeWith(failure(exception))
@@ -834,7 +910,12 @@ class ChatFragment : Fragment(), MenuProvider {
 
         // don't extract to fun, IDE inspection for permission checks will complain
         if (checkSelfPermission(activity, permission.RECORD_AUDIO) != PERMISSION_GRANTED) {
-            permissionRequest.launch(arrayOf(permission.RECORD_AUDIO, permission.WRITE_EXTERNAL_STORAGE))
+            permissionRequest.launch(
+                arrayOf(
+                    permission.RECORD_AUDIO,
+                    permission.WRITE_EXTERNAL_STORAGE
+                )
+            )
             return
         }
         vmodel.transcriptionJob?.cancel()
@@ -908,8 +989,10 @@ class ChatFragment : Fragment(), MenuProvider {
                 while (true) {
                     val frameTime = awaitFrame()
                     val mediaRecorder = _mediaRecorder ?: break
-                    val soundVolume = (log2(mediaRecorder.maxAmplitude.toDouble()) / 15).toFloat().coerceAtLeast(0f)
-                    val decayingPeak = lastPeak * (1f - 2 * nanosToSeconds(frameTime - lastPeakTime))
+                    val soundVolume = (log2(mediaRecorder.maxAmplitude.toDouble()) / 15).toFloat()
+                        .coerceAtLeast(0f)
+                    val decayingPeak =
+                        lastPeak * (1f - 2 * nanosToSeconds(frameTime - lastPeakTime))
                     lastRecordingVolume = if (decayingPeak > soundVolume) {
                         decayingPeak
                     } else {
@@ -950,6 +1033,9 @@ class ChatFragment : Fragment(), MenuProvider {
                 }
             } finally {
                 vmodel.withFragment { it.binding.recordingGlow.visibility = INVISIBLE }
+                if (vmodel.recordingGlowJob == coroutineContext[Job]!!) {
+                    vmodel.recordingGlowJob = null
+                }
             }
         }
     }
@@ -965,8 +1051,10 @@ class ChatFragment : Fragment(), MenuProvider {
                     return@launch
                 }
                 val prefs = appContext.mainPrefs
-                val promptContext = vmodel.chatHistory.joinToString("\n\n") { it.promptText.toString() }
-                val transcription = openAi.transcription(prefs.speechRecogLanguage, promptContext, audioPathname)
+                val promptContext =
+                    vmodel.chatHistory.joinToString("\n\n") { it.promptText.toString() }
+                val transcription =
+                    openAi.transcription(prefs.speechRecogLanguage, promptContext, audioPathname)
                 if (transcription.isEmpty()) {
                     return@launch
                 }
@@ -1000,9 +1088,11 @@ class ChatFragment : Fragment(), MenuProvider {
                 MotionEvent.ACTION_DOWN -> {
                     vibrate(); true
                 }
+
                 MotionEvent.ACTION_UP -> {
                     pointerUpAction(); true
                 }
+
                 else -> false
             }
         }
@@ -1066,16 +1156,14 @@ class ChatFragment : Fragment(), MenuProvider {
     private fun styleMessageContainer(box: View, backgroundFill: Int, backgroundBorder: Int) {
         val context = requireContext()
         (box.background as LayerDrawable).apply {
-            findDrawableByLayerId(R.id.background_fill).setTint(context.getColorCompat(backgroundFill))
+            findDrawableByLayerId(R.id.background_fill).setTint(
+                context.getColorCompat(
+                    backgroundFill
+                )
+            )
             (findDrawableByLayerId(R.id.background_border) as GradientDrawable)
                 .setStroke(1.dp, context.getColorCompat(backgroundBorder))
         }
-    }
-
-    private fun styleText(textView: TextView, textColor: Int, text: CharSequence) {
-        val context = requireContext()
-        textView.setTextColor(context.getColorCompat(textColor))
-        textView.text = text
     }
 
     private fun addMessageContainerToView(messageType: MessageType): LinearLayout {
@@ -1102,11 +1190,17 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun addTextToView(container: LinearLayout, text: CharSequence, messageType: MessageType): EditText {
+    private fun addTextToView(
+        container: LinearLayout,
+        text: CharSequence,
+        messageType: MessageType
+    ): EditText {
         val editText = LayoutInflater.from(requireContext())
             .inflate(R.layout.message_text, container, false) as EditText
-        val color = if (messageType == PROMPT) R.color.prompt_foreground else R.color.response_foreground
-        styleText(editText, color, text)
+        val color =
+            if (messageType == PROMPT) R.color.prompt_foreground else R.color.response_foreground
+        editText.setTextColor(requireContext().getColorCompat(color))
+        markwon.setMarkdown(editText, text.toString())
         container.addView(editText)
         return editText
     }
@@ -1119,14 +1213,14 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun addTextResponseToView(exchange: Exchange): TextView {
         val responseContainer = addMessageContainerToView(RESPONSE)
-        return addTextToView(responseContainer, exchange.responseText, RESPONSE)
+        return addTextToView(responseContainer, exchange.replyMarkdown, RESPONSE)
     }
 
-    private fun addResponseToView(exchange: Exchange): Editable {
+    private fun addResponseToView(exchange: Exchange): TextView {
         val responseContainer = addMessageContainerToView(RESPONSE)
-        val editable = addTextToView(responseContainer, exchange.responseText, RESPONSE).editableText
-        addImagesToView(responseContainer, exchange.responseImageUris)
-        return editable
+        val textView = addTextToView(responseContainer, exchange.replyMarkdown, RESPONSE)
+        addImagesToView(responseContainer, exchange.replyImageUris)
+        return textView
     }
 
     private inner class ImageViewListener(
@@ -1140,7 +1234,8 @@ class ChatFragment : Fragment(), MenuProvider {
             Intent().apply {
                 action = Intent.ACTION_SEND
                 type = "image/${imageFile.extension}"
-                putExtra(Intent.EXTRA_STREAM,
+                putExtra(
+                    Intent.EXTRA_STREAM,
                     FileProvider.getUriForFile(requireContext(), FILE_PROVIDER_AUTHORITY, imageFile)
                 )
             }.also {
@@ -1161,7 +1256,13 @@ class ChatFragment : Fragment(), MenuProvider {
                 visibility = VISIBLE
                 lifecycleScope.launch {
                     awaitBitmapMeasured()
-                    animateZoomEnter(imgOnScreenX, imgOnScreenY, viewWidth, focusInBitmapX, focusInBitmapY)
+                    animateZoomEnter(
+                        imgOnScreenX,
+                        imgOnScreenY,
+                        viewWidth,
+                        focusInBitmapX,
+                        focusInBitmapY
+                    )
                 }
             }
             return true
@@ -1355,8 +1456,9 @@ private fun nanosToSeconds(nanos: Long): Float = nanos.toFloat() / 1_000_000_000
 data class Exchange(
     var promptText: CharSequence,
     var promptImageUris: MutableList<Uri> = mutableListOf(),
-    var responseText: CharSequence = "",
-    var responseImageUris: List<Uri> = listOf()
+    var replyMarkdown: CharSequence = "",
+    var replyImageUris: List<Uri> = listOf(),
+    var replyText: CharSequence = "",
 ) : Parcelable
 
 fun Exchange(imageUris: List<Uri>) = Exchange("").apply { promptImageUris.addAll(imageUris) }
