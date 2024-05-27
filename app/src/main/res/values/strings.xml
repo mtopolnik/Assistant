@@ -57,7 +57,7 @@
     <string name="send">Send</string>
     <string name="prompt_hint">Message</string>
     <string name="gpt_3_5" translatable="false">GPT-3.5</string>
-    <string name="gpt_4" translatable="false">GPT-4</string>
+    <string name="gpt_4" translatable="false">GPT-4o</string>
     <string name="dall_e_2" translatable="false">DallE-2</string>
     <string name="dall_e_3" translatable="false">DallE-3</string>
     <string name="gpt4_unavailable">GPT-4 is not available with your API key.</string>
