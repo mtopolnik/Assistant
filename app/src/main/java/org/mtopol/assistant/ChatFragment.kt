@@ -208,6 +208,10 @@ class ChatFragment : Fragment(), MenuProvider {
         savedInstanceState: Bundle?
     ): View {
         Log.i("lifecycle", "onCreateView ChatFragment")
+
+        // Trigger lazy loading of OpenAI client
+        GlobalScope.launch(IO) { openAi }
+
         binding = FragmentChatBinding.inflate(inflater, container, false)
         vmodel.withFragmentLiveData.observe(viewLifecycleOwner) { it.invoke(this) }
         sharedImageViewModel.imgUriLiveData.observe(viewLifecycleOwner) { imgUris ->
@@ -239,9 +243,6 @@ class ChatFragment : Fragment(), MenuProvider {
                 setDisplayShowTitleEnabled(false)
             }
         }
-
-        // Trigger lazy loading of OpenAI client
-        GlobalScope.launch(IO) { openAi }
 
         markwon = Markwon.create(requireActivity())
         var newestHistoryEditable: Editable? = null
