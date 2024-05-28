@@ -295,7 +295,8 @@ class ChatFragment : Fragment(), MenuProvider {
 
         binding.scrollviewChat.apply {
             setOnScrollChangeListener { view, _, _, _, _ ->
-                vmodel.autoscrollEnabled = binding.viewChat.bottom <= view.height + view.scrollY
+                vmodel.autoscrollEnabled =
+                    binding.viewChat.bottom <= view.height + view.scrollY + SCROLL_MARGIN
             }
             viewTreeObserver.addOnGlobalLayoutListener {
                 scrollToBottom()
