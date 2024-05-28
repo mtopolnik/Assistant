@@ -120,15 +120,17 @@ import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import kotlin.math.log2
 import kotlin.math.roundToLong
-import kotlin.system.measureTimeMillis
 
 private const val KEY_CHAT_HISTORY = "chat_history"
 
-private const val MAX_RECORDING_TIME_MILLIS = 60_000L
+private const val MAX_RECORDING_TIME_MILLIS = 120_000L
 private const val STOP_RECORDING_DELAY_MILLIS = 300L
 private const val MIN_HOLD_RECORD_BUTTON_MILLIS = 400L
 private const val RECORD_HINT_DURATION_MILLIS = 3_000L
 private const val DALLE_IMAGE_DIMENSION = 512
+private const val SCROLL_MARGIN = 50
+private const val REPLY_VIEW_UPDATE_PERIOD_MILLIS = 100L
+
 
 @Suppress("RegExpUnnecessaryNonCapturingGroup")
 private val sentenceDelimiterRegex = """(?<=\D[.!]['"]?)\s+|(?<=\d[.!]'?)\s+(?=\p{Lu})|(?<=.[;?]'?)\s+|\n+""".toRegex()
@@ -151,7 +153,6 @@ class ChatFragmentModel(
     var handleResponseJob: Job? = null
     var isResponding: Boolean = false
     var autoscrollEnabled: Boolean = true
-    var replyUpdated = false
     @SuppressLint("StaticFieldLeak")
     var replyTextView: TextView? = null
     var mediaPlayer: MediaPlayer? = null
@@ -624,30 +625,31 @@ class ChatFragment : Fragment(), MenuProvider {
                 vmodel.replyTextView = addTextResponseToView(exchange)
                 vmodel.autoscrollEnabled = true
                 scrollToBottom()
-                val markdownUpdateJob = launch {
-                    while (true) {
-                        val took = measureTimeMillis {
-                            if (vmodel.replyUpdated) {
-                                vmodel.replyUpdated = false
-                                withContext(Default) {
-                                    replyMarkdown.toString()
-                                        .let { markwon.parse(it) }
-                                        .let { markwon.render(it) }
-                                }.let { markwon.setParsedMarkdown(vmodel.replyTextView!!, it) }
-                            }
-                        }
-                        delay((100 - took).coerceAtLeast(0))
-                    }
+
+                suspend fun updateReplyTextView(replyMarkdown: StringBuilder) {
+                    Log.i("scroll", "updateReplyTextView")
+                    withContext(Default) {
+                        replyMarkdown.toString()
+                            .let { markwon.parse(it) }
+                            .let { markwon.render(it) }
+                    }.let { markwon.setParsedMarkdown(vmodel.replyTextView!!, it) }
                 }
+
                 val sentenceFlow: Flow<String> = channelFlow {
+                    var replyTextUpdateTime = 0L
                     openAi.chatCompletions(vmodel.chatHistory, appContext.mainPrefs.selectedModel)
                         .onEach { token ->
-                            vmodel.replyUpdated = true
                             replyMarkdown.append(token)
-                            val fullSentences = vmodel.replyTextView!!.text.let { replyText ->
-                                replyText.substring(lastSpokenPos, replyText.length)
-                                    .dropLastIncompleteSentence()
+                            if (System.currentTimeMillis() - replyTextUpdateTime < REPLY_VIEW_UPDATE_PERIOD_MILLIS) {
+                                return@onEach
                             }
+                            updateReplyTextView(replyMarkdown)
+                            replyTextUpdateTime = System.currentTimeMillis()
+                            val fullSentences =
+                                vmodel.replyTextView!!.text.let { replyText ->
+                                    replyText.substring(lastSpokenPos, replyText.length)
+                                        .dropLastIncompleteSentence()
+                                }
                             fullSentences.takeIf { it.isNotBlank() }?.also {
                                 Log.i("speech", "full sentences: $it")
                             }
@@ -655,7 +657,6 @@ class ChatFragment : Fragment(), MenuProvider {
                                 channel.send(fullSentences)
                                 lastSpokenPos += fullSentences.length
                             }
-                            scrollToBottom()
                         }
                         .onCompletion { exception ->
                             exception?.also { e ->
@@ -699,17 +700,14 @@ class ChatFragment : Fragment(), MenuProvider {
                                     }
                                 }
                             }
-                            val textView = vmodel.replyTextView!!
-                            val replyText = textView.text
+                            updateReplyTextView(replyMarkdown)
+                            val replyText = vmodel.replyTextView!!.text
                             if (lastSpokenPos < replyText.length) {
                                 channel.send(replyText.substring(lastSpokenPos, replyText.length))
                             }
-                            markdownUpdateJob.apply { cancel(); join() }
-                            markwon.setMarkdown(textView, replyMarkdown.toString())
                         }
                         .launchIn(this)
-                }
-                sentenceFlow.onCompletion { exception ->
+                }.onCompletion { exception ->
                     exception?.also {
                         Log.e("speech", it.message ?: it.toString())
                     }
