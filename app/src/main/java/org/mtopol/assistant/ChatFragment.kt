@@ -645,11 +645,11 @@ class ChatFragment : Fragment(), MenuProvider {
                             }
                             updateReplyTextView(replyMarkdown)
                             replyTextUpdateTime = System.currentTimeMillis()
-                            val fullSentences =
-                                vmodel.replyTextView!!.text.let { replyText ->
-                                    replyText.substring(lastSpokenPos, replyText.length)
-                                        .dropLastIncompleteSentence()
-                                }
+                            val replyText = vmodel.replyTextView!!.text
+                            exchange.replyText = replyText
+                            val fullSentences = replyText
+                                .substring(lastSpokenPos, replyText.length)
+                                .dropLastIncompleteSentence()
                             fullSentences.takeIf { it.isNotBlank() }?.also {
                                 Log.i("speech", "full sentences: $it")
                             }
@@ -702,6 +702,7 @@ class ChatFragment : Fragment(), MenuProvider {
                             }
                             updateReplyTextView(replyMarkdown)
                             val replyText = vmodel.replyTextView!!.text
+                            exchange.replyText = replyText
                             if (lastSpokenPos < replyText.length) {
                                 channel.send(replyText.substring(lastSpokenPos, replyText.length))
                             }
