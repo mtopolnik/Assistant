@@ -82,6 +82,7 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStream
+import java.nio.ByteBuffer
 import java.security.MessageDigest
 import kotlin.Result.Companion.success
 
@@ -206,25 +207,40 @@ class OpenAI {
             setBody(jsonCodec.encodeToJsonElement(request))
         }
         HttpStatement(builder, apiClient).execute() { httpResponse ->
-            val channel: ByteReadChannel = httpResponse.body()
-                withContext(Dispatchers.IO) {
-                    while (!channel.isClosedForRead) {
-                        channel.readAvailable { buf ->
-                            audioTrack.write(buf, buf.remaining(), AudioTrack.WRITE_BLOCKING)
+            val channel = httpResponse.body<ByteReadChannel>()
+            val framesWritten = withContext(Dispatchers.IO) {
+                var totalBytesWritten = 0
+                var primed = false
+                while (!primed && !channel.isClosedForRead) {
+                    channel.read { buf ->
+                        totalBytesWritten += buf.remaining()
+                        audioTrack.write(buf, buf.remaining(), AudioTrack.WRITE_NON_BLOCKING)
+                        if (buf.remaining() != 0) {
+                            primed = true
                             audioTrack.play()
+                            audioTrack.write(buf, buf.remaining(), AudioTrack.WRITE_BLOCKING)
                         }
                     }
                 }
-                audioTrack.notificationMarkerPosition = audioTrack.bufferSizeInFrames - 1
-                suspendCancellableCoroutine { continuation ->
-                    audioTrack.setPlaybackPositionUpdateListener(object :
-                        OnPlaybackPositionUpdateListener {
-                        override fun onMarkerReached(t: AudioTrack) {
-                            continuation.resumeWith(success(Unit))
-                        }
-                        override fun onPeriodicNotification(t: AudioTrack) {}
-                    })
+                while (!channel.isClosedForRead) {
+                    channel.read { buf ->
+                        totalBytesWritten += buf.remaining()
+                        audioTrack.write(buf, buf.remaining(), AudioTrack.WRITE_BLOCKING)
+                    }
                 }
+                totalBytesWritten / 2// PCM-16 mono has 2 bytes per frame
+            }
+            audioTrack.notificationMarkerPosition = framesWritten
+            suspendCancellableCoroutine { continuation ->
+                audioTrack.setPlaybackPositionUpdateListener(object :
+                    OnPlaybackPositionUpdateListener {
+                    override fun onMarkerReached(t: AudioTrack) {
+                        audioTrack.stop()
+                        continuation.resumeWith(success(Unit))
+                    }
+                    override fun onPeriodicNotification(t: AudioTrack) {}
+                })
+            }
         }
     }
 

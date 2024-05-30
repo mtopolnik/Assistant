@@ -737,25 +737,20 @@ class ChatFragment : Fragment(), MenuProvider {
         val sampleRate = 22050
         val encoding = AudioFormat.ENCODING_PCM_16BIT
         val audioTrack = AudioTrack.Builder()
-            .setAudioAttributes(
-                AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build()
+            .setAudioAttributes(AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ASSISTANT)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build()
             )
-            .setAudioFormat(
-                AudioFormat.Builder()
-                    .setEncoding(encoding)
-                    .setSampleRate(sampleRate)
-                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                    .build()
+            .setAudioFormat(AudioFormat.Builder()
+                .setEncoding(encoding)
+                .setSampleRate(sampleRate)
+                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build()
             )
-            .setBufferSizeInBytes(
-                AudioTrack.getMinBufferSize(
-                    sampleRate, AudioFormat.CHANNEL_OUT_MONO, encoding
-                )
-            )
+            .setBufferSizeInBytes(2 * sampleRate / 5) // enaugh for 1/5 seconds
             .setTransferMode(AudioTrack.MODE_STREAM)
             .build()
         try {
+            audioTrack.play()
             sentenceFlow.collect { sentence -> openAi.speak(sentence, audioTrack) }
         } finally {
             audioTrack.stop()
