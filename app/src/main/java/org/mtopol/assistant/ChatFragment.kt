@@ -723,7 +723,7 @@ class ChatFragment : Fragment(), MenuProvider {
                         .map { it.replace(speechImprovementRegex, ", ") }
                         .onEach { sentence ->
                             Log.i("speech", "Speak: $sentence")
-                            tts.setSpokenLanguage(identifyLanguage(sentence))
+                            tts.identifyAndSetLanguage(sentence)
                             channel.send(tts.speakToFile(sentence, nextUtteranceId++))
                         }
                         .onCompletion {
@@ -877,7 +877,7 @@ class ChatFragment : Fragment(), MenuProvider {
         vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
         val tts = newTextToSpeech()
         try {
-            tts.setSpokenLanguage(identifyLanguage(response))
+            tts.identifyAndSetLanguage(response)
             suspendCancellableCoroutine { continuation ->
                 tts.setOnUtteranceProgressListener(
                     UtteranceContinuationListener(
@@ -1292,36 +1292,38 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private suspend fun identifyLanguage(text: String): String {
+    private suspend fun TextToSpeech.identifyAndSetLanguage(text: String) {
 
         fun isUserLanguage(language: String) = userLanguages.firstOrNull { it == language } != null
 
-        val languagesWithConfidence = languageIdentifier.identifyPossibleLanguages(text).await()
-        val languagesWithAdjustedConfidence = languagesWithConfidence
-            .map { lang ->
-                if (isUserLanguage(lang.languageTag)) {
-                    IdentifiedLanguage(lang.languageTag, (lang.confidence + 0.2f))
-                } else lang
+        withContext(Default) {
+            val languagesWithConfidence = languageIdentifier.identifyPossibleLanguages(text).await()
+            val languagesWithAdjustedConfidence = languagesWithConfidence
+                .map { lang ->
+                    if (isUserLanguage(lang.languageTag)) {
+                        IdentifiedLanguage(lang.languageTag, (lang.confidence + 0.2f))
+                    } else lang
+                }
+                .sortedByDescending { it.confidence }
+            run {
+                val unadjusted = languagesWithConfidence.joinToString {
+                    "${it.languageTag} ${(it.confidence * 100).roundToLong()}"
+                }
+                val adjusted = languagesWithAdjustedConfidence.joinToString {
+                    "${it.languageTag} ${(it.confidence * 100).roundToLong()}"
+                }
+                Log.i("speech", "Identified languages: $unadjusted, adjusted: $adjusted")
             }
-            .sortedByDescending { it.confidence }
-        run {
-            val unadjusted = languagesWithConfidence.joinToString {
-                "${it.languageTag} ${(it.confidence * 100).roundToLong()}"
+            val topLang = languagesWithAdjustedConfidence.first()
+            val langTags = languagesWithAdjustedConfidence.map { it.languageTag }
+            val identifiedLanguage = when {
+                topLang.languageTag != UNDETERMINED_LANGUAGE_TAG && topLang.confidence >= 0.8 -> topLang.languageTag
+                else -> langTags.firstOrNull { isUserLanguage(it) }
+                    ?: appContext.mainPrefs.speechRecogLanguage
+                    ?: userLanguages.first()
             }
-            val adjusted = languagesWithAdjustedConfidence.joinToString {
-                "${it.languageTag} ${(it.confidence * 100).roundToLong()}"
-            }
-            Log.i("speech", "Identified languages: $unadjusted, adjusted: $adjusted")
-        }
-        val topLang = languagesWithAdjustedConfidence.first()
-        val langTags = languagesWithAdjustedConfidence.map { it.languageTag }
-        return when {
-            topLang.languageTag != UNDETERMINED_LANGUAGE_TAG && topLang.confidence >= 0.8 -> topLang.languageTag
-            else -> langTags.firstOrNull { isUserLanguage(it) }
-                ?: appContext.mainPrefs.speechRecogLanguage
-                ?: userLanguages.first()
-        }.also {
-            Log.i("speech", "Chosen language: $it")
+            Log.i("speech", "Chosen language: $identifiedLanguage")
+            setSpokenLanguage(identifiedLanguage)
         }
     }
 
