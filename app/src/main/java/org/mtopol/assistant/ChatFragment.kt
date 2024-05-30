@@ -128,7 +128,6 @@ private const val STOP_RECORDING_DELAY_MILLIS = 300L
 private const val MIN_HOLD_RECORD_BUTTON_MILLIS = 400L
 private const val RECORD_HINT_DURATION_MILLIS = 3_000L
 private const val DALLE_IMAGE_DIMENSION = 512
-private const val SCROLL_MARGIN = 50
 private const val REPLY_VIEW_UPDATE_PERIOD_MILLIS = 100L
 
 
@@ -297,7 +296,7 @@ class ChatFragment : Fragment(), MenuProvider {
         binding.scrollviewChat.apply {
             setOnScrollChangeListener { view, _, _, _, _ ->
                 vmodel.autoscrollEnabled =
-                    binding.viewChat.bottom <= view.height + view.scrollY + SCROLL_MARGIN
+                    binding.viewChat.bottom <= view.height + view.scrollY
             }
             viewTreeObserver.addOnGlobalLayoutListener {
                 scrollToBottom()
@@ -643,7 +642,10 @@ class ChatFragment : Fragment(), MenuProvider {
                             if (System.currentTimeMillis() - replyTextUpdateTime < REPLY_VIEW_UPDATE_PERIOD_MILLIS) {
                                 return@onEach
                             }
-                            updateReplyTextView(replyMarkdown)
+                            vmodel.autoscrollEnabled.also {
+                                updateReplyTextView(replyMarkdown)
+                                vmodel.autoscrollEnabled = it
+                            }
                             replyTextUpdateTime = System.currentTimeMillis()
                             val replyText = vmodel.replyTextView!!.text
                             exchange.replyText = replyText
