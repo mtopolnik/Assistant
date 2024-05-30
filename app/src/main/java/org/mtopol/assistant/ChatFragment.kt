@@ -29,6 +29,9 @@ import android.content.pm.PackageManager.PERMISSION_GRANTED
 import android.graphics.PointF
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
+import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioTrack
 import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.net.Uri
@@ -710,52 +713,15 @@ class ChatFragment : Fragment(), MenuProvider {
                             }
                         }
                         .launchIn(this)
-                }.onCompletion { exception ->
-                    exception?.also {
-                        Log.e("speech", it.message ?: it.toString())
-                    }
                 }
-
-                val voiceFileFlow: Flow<File> = channelFlow {
-                    val tts = newTextToSpeech()
-                    var nextUtteranceId = 0L
-                    sentenceFlow
-                        .map { it.replace(speechImprovementRegex, ", ") }
-                        .onEach { sentence ->
-                            Log.i("speech", "Speak: $sentence")
-                            tts.identifyAndSetLanguage(sentence)
-                            channel.send(tts.speakToFile(sentence, nextUtteranceId++))
-                        }
-                        .onCompletion {
-                            tts.apply { stop(); shutdown() }
-                        }
-                        .launchIn(this)
-                }
-
-                val mediaPlayer = MediaPlayer().also {
-                    vmodel.mediaPlayer = it
-                    updateMediaPlayerVolume()
-                }
-                var cancelled = false
-                voiceFileFlow
-                    .onCompletion {
-                        mediaPlayer.apply {
-                            stop()
-                            release()
-                            vmodel.mediaPlayer = null
+                    .map { it.replace(speechImprovementRegex, ", ") }
+                    .onCompletion { exception ->
+                        exception?.also {
+                            Log.e("speech", it.message ?: it.toString())
                         }
                     }
-                    .collect {
-                        try {
-                            if (!cancelled) {
-                                mediaPlayer.play(it)
-                            }
-                        } catch (e: CancellationException) {
-                            cancelled = true
-                        } finally {
-                            it.delete()
-                        }
-                    }
+                speakWithOpenAi(sentenceFlow)
+//                speakWithAndroidSpeech(sentenceFlow)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -765,6 +731,77 @@ class ChatFragment : Fragment(), MenuProvider {
                 vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
             }
         }
+    }
+
+    private suspend fun speakWithOpenAi(sentenceFlow: Flow<String>) {
+        val sampleRate = 22050
+        val encoding = AudioFormat.ENCODING_PCM_16BIT
+        val audioTrack = AudioTrack.Builder()
+            .setAudioAttributes(
+                AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build()
+            )
+            .setAudioFormat(
+                AudioFormat.Builder()
+                    .setEncoding(encoding)
+                    .setSampleRate(sampleRate)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                    .build()
+            )
+            .setBufferSizeInBytes(
+                AudioTrack.getMinBufferSize(
+                    sampleRate, AudioFormat.CHANNEL_OUT_MONO, encoding
+                )
+            )
+            .setTransferMode(AudioTrack.MODE_STREAM)
+            .build()
+        try {
+            sentenceFlow.collect { sentence -> openAi.speak(sentence, audioTrack) }
+        } finally {
+            audioTrack.stop()
+            audioTrack.release()
+        }
+    }
+
+    private suspend fun speakWithAndroidSpeech(sentenceFlow: Flow<String>) {
+        val voiceFileFlow: Flow<File> = channelFlow {
+            val tts = newTextToSpeech()
+            var nextUtteranceId = 0L
+            sentenceFlow
+                .onEach { sentence ->
+                    Log.i("speech", "Speak: $sentence")
+                    tts.identifyAndSetLanguage(sentence)
+                    channel.send(tts.speakToFile(sentence, nextUtteranceId++))
+                }
+                .onCompletion {
+                    tts.apply { stop(); shutdown() }
+                }
+                .launchIn(this)
+        }
+        val mediaPlayer = MediaPlayer().also {
+            vmodel.mediaPlayer = it
+            updateMediaPlayerVolume()
+        }
+        var cancelled = false
+        voiceFileFlow
+            .onCompletion {
+                mediaPlayer.apply {
+                    stop()
+                    release()
+                    vmodel.mediaPlayer = null
+                }
+            }
+            .collect {
+                try {
+                    if (!cancelled) {
+                        mediaPlayer.play(it)
+                    }
+                } catch (e: CancellationException) {
+                    cancelled = true
+                } finally {
+                    it.delete()
+                }
+            }
     }
 
     private fun sendPromptAndReceiveImageResponse(prompt: CharSequence) {

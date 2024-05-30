@@ -48,7 +48,7 @@ dependencies {
     implementation 'androidx.navigation:navigation-ui-ktx:2.7.7'
 
     implementation 'com.google.mlkit:language-id:17.0.5'
-    implementation platform('io.ktor:ktor-bom:2.3.6')
+    implementation platform('io.ktor:ktor-bom:2.3.8')
     implementation 'io.ktor:ktor-client-okhttp'
     implementation 'io.ktor:ktor-client-logging'
     implementation 'androidx.core:core-ktx:1.13.1'

@@ -17,7 +17,12 @@
 
 package org.mtopol.assistant
 
+import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioTrack
+import android.media.AudioTrack.OnPlaybackPositionUpdateListener
 import android.net.Uri
+import android.os.Build
 import android.text.Editable
 import android.util.Base64
 import android.util.Log
@@ -65,6 +70,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import kotlinx.serialization.SerialName
@@ -77,6 +83,7 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStream
 import java.security.MessageDigest
+import kotlin.Result.Companion.success
 
 
 val openAi get() = openAiLazy.value
@@ -181,6 +188,44 @@ class OpenAI {
                 appendFile("file", audioPathname)
             })
         return response.body<String>().replace("\n", "")
+    }
+
+    suspend fun speak(text: CharSequence, audioTrack: AudioTrack) {
+        if (appContext.mainPrefs.openaiApiKey.isGptOnlyKey()) {
+            Toast.makeText(appContext, "Your API key doesn't allow text-to-speech", Toast.LENGTH_LONG).show()
+            return
+        }
+        val request = TextToSpeechRequest(
+            input = text.toString(), response_format = "pcm",
+            voice = "echo", model = "tts-1"
+        )
+        val builder = HttpRequestBuilder().apply {
+            method = HttpMethod.Post
+            url(path = "audio/speech")
+            contentType(ContentType.Application.Json)
+            setBody(jsonCodec.encodeToJsonElement(request))
+        }
+        HttpStatement(builder, apiClient).execute() { httpResponse ->
+            val channel: ByteReadChannel = httpResponse.body()
+                withContext(Dispatchers.IO) {
+                    while (!channel.isClosedForRead) {
+                        channel.readAvailable { buf ->
+                            audioTrack.write(buf, buf.remaining(), AudioTrack.WRITE_BLOCKING)
+                            audioTrack.play()
+                        }
+                    }
+                }
+                audioTrack.notificationMarkerPosition = audioTrack.bufferSizeInFrames - 1
+                suspendCancellableCoroutine { continuation ->
+                    audioTrack.setPlaybackPositionUpdateListener(object :
+                        OnPlaybackPositionUpdateListener {
+                        override fun onMarkerReached(t: AudioTrack) {
+                            continuation.resumeWith(success(Unit))
+                        }
+                        override fun onPeriodicNotification(t: AudioTrack) {}
+                    })
+                }
+        }
     }
 
     suspend fun imageGeneration(prompt: CharSequence, model: OpenAiModel, console: Editable): List<Uri> {
@@ -431,4 +476,12 @@ class ImageObject(
 @Serializable
 class ImageGenerationResponse(
     val data: List<ImageObject>
+)
+
+@Serializable
+class TextToSpeechRequest(
+    val input: String,
+    val response_format: String,
+    val voice: String,
+    val model: String,
 )
