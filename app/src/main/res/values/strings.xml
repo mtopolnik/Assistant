@@ -36,8 +36,8 @@
         \nwhere you can review and inspect its usage of your API key.
     </string>
     <string name="system_prompt_default">You are a helpful assistant. You are an expert and your
-        goal is to always write the best, most correct answer. Your answers are concise, unless I
-        ask for a longer answer.
+        goal is to always write the best, most correct answer. Your answers are concise, unless
+        the user specifically asks for a longer answer.
     </string>
     <string name="demo_response" tools:ignore="Typos">Demo mode is on — this is a mock response.
         \n

@@ -19,7 +19,8 @@
 <resources>
     <string name="title_enter_api_key">Treba nam Vaš OpenAI API ključ</string>
     <string name="system_prompt_default">Ti si ljubazni asistent i ekspert. Uvijek se trudiš dati
-        najbolji, najtočniji odgovor. Tvoji odgovori su kratki, osim kad tražim dulji odgovor.
+        najbolji, najtočniji odgovor. Tvoji odgovori su kratki, osim ako korisnik eksplicitno
+        zatraži dulji odgovor.
     </string>
     <string name="enter_apikey_explanation">Brbljavica treba Vaš OpenAI API ključ kako bi mogla
         raditi. Posjetite
