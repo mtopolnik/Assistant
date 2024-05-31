@@ -103,6 +103,7 @@ import kotlinx.coroutines.Dispatchers.Default
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.android.awaitFrame
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.launchIn
@@ -746,12 +747,37 @@ class ChatFragment : Fragment(), MenuProvider {
                 .setSampleRate(sampleRate)
                 .setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build()
             )
-            .setBufferSizeInBytes(2 * sampleRate / 5) // enaugh for 1/5 seconds
+            .setBufferSizeInBytes(sampleRate) // enough for 1 second
             .setTransferMode(AudioTrack.MODE_STREAM)
             .build()
         try {
-            audioTrack.play()
-            sentenceFlow.collect { sentence -> openAi.speak(sentence, audioTrack) }
+            coroutineScope {
+                val sentenceChannel = Channel<String>(Channel.UNLIMITED)
+                sentenceFlow
+                    .onEach { sentence -> sentenceChannel.send(sentence) }
+                    .onCompletion { sentenceChannel.close() }
+                    .launchIn(this)
+                val sentenceBuf = StringBuilder()
+                while (true) {
+                    var sentence = sentenceChannel.receiveCatching().getOrNull() ?: break
+                    sentenceBuf.append(sentence)
+                    while (true) {
+                        sentence = sentenceChannel.tryReceive().getOrNull() ?: break
+                        sentenceBuf.append(" ").append(sentence)
+                    }
+                    openAi.speak(sentenceBuf, audioTrack)
+                    sentenceBuf.clear()
+                }
+            }
+            var prevPos = audioTrack.playbackHeadPosition
+            while (true) {
+                delay(100)
+                val pos = audioTrack.playbackHeadPosition
+                if (pos == prevPos) {
+                    break
+                }
+                prevPos = pos
+            }
         } finally {
             audioTrack.stop()
             audioTrack.release()

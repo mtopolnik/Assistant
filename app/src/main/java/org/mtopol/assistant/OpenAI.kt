@@ -17,12 +17,8 @@
 
 package org.mtopol.assistant
 
-import android.media.AudioAttributes
-import android.media.AudioFormat
 import android.media.AudioTrack
-import android.media.AudioTrack.OnPlaybackPositionUpdateListener
 import android.net.Uri
-import android.os.Build
 import android.text.Editable
 import android.util.Base64
 import android.util.Log
@@ -70,7 +66,6 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import kotlinx.serialization.SerialName
@@ -84,7 +79,6 @@ import java.io.FileOutputStream
 import java.io.InputStream
 import java.nio.ByteBuffer
 import java.security.MessageDigest
-import kotlin.Result.Companion.success
 
 
 val openAi get() = openAiLazy.value
@@ -121,6 +115,7 @@ fun resetOpenAi(): Lazy<OpenAI> {
 
 class OpenAI {
     private val apiClient = createApiClient(appContext.mainPrefs.openaiApiKey)
+    private val apiClient2 = createApiClient(appContext.mainPrefs.openaiApiKey)
     private val blobClient = createBlobClient()
 
     private val demoMode = appContext.mainPrefs.openaiApiKey.trim().lowercase() == DEMO_API_KEY
@@ -192,6 +187,7 @@ class OpenAI {
     }
 
     suspend fun speak(text: CharSequence, audioTrack: AudioTrack) {
+        Log.i("speech", "Speak: $text")
         if (appContext.mainPrefs.openaiApiKey.isGptOnlyKey()) {
             Toast.makeText(appContext, "Your API key doesn't allow text-to-speech", Toast.LENGTH_LONG).show()
             return
@@ -206,40 +202,34 @@ class OpenAI {
             contentType(ContentType.Application.Json)
             setBody(jsonCodec.encodeToJsonElement(request))
         }
-        HttpStatement(builder, apiClient).execute() { httpResponse ->
+        HttpStatement(builder, apiClient2).execute() { httpResponse ->
             val channel = httpResponse.body<ByteReadChannel>()
-            val framesWritten = withContext(Dispatchers.IO) {
-                var totalBytesWritten = 0
+            withContext(Dispatchers.IO) {
                 var primed = false
                 while (!primed && !channel.isClosedForRead) {
-                    channel.read { buf ->
-                        totalBytesWritten += buf.remaining()
+                    channel.read(0) { buf ->
                         audioTrack.write(buf, buf.remaining(), AudioTrack.WRITE_NON_BLOCKING)
-                        if (buf.remaining() != 0) {
+                        if (buf.remaining() > 1) {
                             primed = true
                             audioTrack.play()
-                            audioTrack.write(buf, buf.remaining(), AudioTrack.WRITE_BLOCKING)
+                            val result = audioTrack.write(buf, buf.remaining(), AudioTrack.WRITE_BLOCKING)
+                            if (result <= 0) {
+                                Log.i("speech", "write() returned $result, buffer has ${buf.remaining()}")
+                            }
                         }
                     }
                 }
+                audioTrack.play()
                 while (!channel.isClosedForRead) {
-                    channel.read { buf ->
-                        totalBytesWritten += buf.remaining()
-                        audioTrack.write(buf, buf.remaining(), AudioTrack.WRITE_BLOCKING)
+                    channel.read(0) { buf ->
+                        if (buf.remaining() > 1) {
+                            val result = audioTrack.write(buf, buf.remaining(), AudioTrack.WRITE_BLOCKING)
+                            if (result <= 0) {
+                                Log.i("speech", "write() returned $result, buffer has ${buf.remaining()}")
+                            }
+                        }
                     }
                 }
-                totalBytesWritten / 2// PCM-16 mono has 2 bytes per frame
-            }
-            audioTrack.notificationMarkerPosition = framesWritten
-            suspendCancellableCoroutine { continuation ->
-                audioTrack.setPlaybackPositionUpdateListener(object :
-                    OnPlaybackPositionUpdateListener {
-                    override fun onMarkerReached(t: AudioTrack) {
-                        audioTrack.stop()
-                        continuation.resumeWith(success(Unit))
-                    }
-                    override fun onPeriodicNotification(t: AudioTrack) {}
-                })
             }
         }
     }
