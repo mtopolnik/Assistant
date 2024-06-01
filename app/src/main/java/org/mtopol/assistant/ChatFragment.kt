@@ -185,7 +185,6 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private val vmodel: ChatFragmentModel by viewModels()
     private val sharedImageViewModel: SharedImageViewModel by activityViewModels()
-    private var selectedVoice = Voice.BUILT_IN
     private lateinit var userLanguages: List<String>
     private lateinit var binding: FragmentChatBinding
     private lateinit var audioPathname: String
@@ -458,8 +457,8 @@ class ChatFragment : Fragment(), MenuProvider {
         Log.i("lifecycle", "onCreateMenu")
         menu.clear()
         menuInflater.inflate(R.menu.menu_main, menu)
-        voiceSubMenu = menu.findItem(R.id.submenu_voice).subMenu!!
-        selectVoice(selectedVoice.itemId)
+        val voiceItem = menu.findItem(R.id.submenu_voice)
+        voiceSubMenu = voiceItem.subMenu!!
         updateMuteItem(menu.findItem(R.id.action_sound_toggle))
 
         fun TextView.updateText() {
@@ -468,11 +467,21 @@ class ChatFragment : Fragment(), MenuProvider {
 
         val apiKey = requireContext().mainPrefs.openaiApiKey
         if (apiKey.isGpt3OnlyKey()) {
-            appContext.mainPrefs.applyUpdate { setSelectedModel(OpenAiModel.GPT_3) }
+            voiceItem.setEnabled(false)
+            appContext.mainPrefs.applyUpdate {
+                setSelectedModel(OpenAiModel.GPT_3)
+                setSelectedVoice(Voice.BUILT_IN)
+            }
         } else {
             val gptOnlyMode = apiKey.isGptOnlyKey()
-            if (gptOnlyMode && !appContext.mainPrefs.selectedModel.isGptModel()) {
-                appContext.mainPrefs.applyUpdate { setSelectedModel(OpenAiModel.GPT_3) }
+            if (gptOnlyMode) {
+                voiceItem.setEnabled(false)
+                appContext.mainPrefs.applyUpdate {
+                    if (!appContext.mainPrefs.selectedModel.isGptModel()) {
+                        setSelectedModel(OpenAiModel.GPT_3)
+                    }
+                    setSelectedVoice(Voice.BUILT_IN)
+                }
             }
             menu.findItem(R.id.action_gpt_toggle).apply {
                 isVisible = true
@@ -487,6 +496,11 @@ class ChatFragment : Fragment(), MenuProvider {
                     }
                     updateText()
                 }
+            }
+        }
+        appContext.mainPrefs.selectedVoice.itemId.also { selectedVoiceItemId ->
+            for (item in voiceSubMenu.children) {
+                item.setChecked(item.itemId == selectedVoiceItemId)
             }
         }
     }
@@ -573,7 +587,9 @@ class ChatFragment : Fragment(), MenuProvider {
         for (item in voiceSubMenu.children) {
             item.setChecked(item.itemId == itemId)
         }
-        selectedVoice = Voice.entries.first { it.itemId == itemId }
+        appContext.mainPrefs.applyUpdate {
+            setSelectedVoice(Voice.entries.first { it.itemId == itemId })
+        }
     }
 
     override fun onResume() {
@@ -761,7 +777,7 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private suspend fun speak(sentenceFlow: Flow<String>) {
-        if (selectedVoice == Voice.BUILT_IN) {
+        if (appContext.mainPrefs.selectedVoice == Voice.BUILT_IN) {
             speakWithAndroidSpeech(sentenceFlow)
         } else {
             speakWithOpenAi(sentenceFlow)
@@ -769,7 +785,7 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private suspend fun speakWithOpenAi(sentenceFlow: Flow<String>) {
-        var lastValidVoice = selectedVoice
+        var lastValidVoice = appContext.mainPrefs.selectedVoice
         val sampleRate = 22050
         val encoding = AudioFormat.ENCODING_PCM_16BIT
         val audioTrack = AudioTrack.Builder()
@@ -802,8 +818,10 @@ class ChatFragment : Fragment(), MenuProvider {
                             sentenceBuf.append(it)
                         }
                     }
-                    if (selectedVoice != Voice.BUILT_IN) {
-                        lastValidVoice = selectedVoice
+                    appContext.mainPrefs.selectedVoice.also { selectedVoice ->
+                        if (selectedVoice != Voice.BUILT_IN) {
+                            lastValidVoice = selectedVoice
+                        }
                     }
                     openAi.speak(sentenceBuf, audioTrack, lastValidVoice.name.lowercase())
                     sentenceBuf.clear()

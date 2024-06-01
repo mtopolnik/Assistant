@@ -55,6 +55,7 @@ private const val KEY_SPEECH_RECOG_LANGUAGE = "speech_recognition_language"
 private const val KEY_LANGUAGES = "languages"
 private const val KEY_IS_MUTED = "is_muted"
 private const val KEY_SELECTED_MODEL = "selected_model"
+private const val KEY_SELECTED_VOICE = "selected_voice"
 
 lateinit var appContext: Context
 lateinit var imageCache: File
@@ -154,6 +155,13 @@ val SharedPreferences.selectedModel: OpenAiModel get() =
 
 fun SharedPreferences.Editor.setSelectedModel(value: OpenAiModel): SharedPreferences.Editor =
     putString(KEY_SELECTED_MODEL, value.name)
+
+val SharedPreferences.selectedVoice: Voice get() =
+    getString(KEY_SELECTED_VOICE, Voice.BUILT_IN.name).let { Voice.valueOf(it!!)
+}
+
+fun SharedPreferences.Editor.setSelectedVoice(value: Voice): SharedPreferences.Editor =
+    putString(KEY_SELECTED_VOICE, value.name)
 
 fun SharedPreferences.configuredLanguages(): List<String> =
     getStringSet(KEY_LANGUAGES, null)?.let {
