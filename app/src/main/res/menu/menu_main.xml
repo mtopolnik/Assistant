@@ -64,6 +64,41 @@
             android:title="@string/action_about"
             app:showAsAction="never" />
     <item
+            android:id="@+id/submenu_voice"
+            android:title="@string/submenu_voice"
+            app:showAsAction="never">
+        <menu>
+            <item
+                android:id="@+id/voice_builtin"
+                android:title="@string/voice_builtin"
+                android:checkable="true" />
+            <item
+                android:id="@+id/voice_alloy"
+                android:title="@string/voice_alloy"
+                android:checkable="true" />
+            <item
+                android:id="@+id/voice_echo"
+                android:title="@string/voice_echo"
+                android:checkable="true" />
+            <item
+                android:id="@+id/voice_fable"
+                android:title="@string/voice_fable"
+                android:checkable="true" />
+            <item
+                android:id="@+id/voice_nova"
+                android:title="@string/voice_nova"
+                android:checkable="true" />
+            <item
+                android:id="@+id/voice_onyx"
+                android:title="@string/voice_onyx"
+                android:checkable="true" />
+            <item
+                android:id="@+id/voice_shimmer"
+                android:title="@string/voice_shimmer"
+                android:checkable="true" />
+        </menu>
+    </item>
+    <item
             android:id="@+id/action_edit_system_prompt"
             android:title="@string/action_edit_system_prompt"
             app:showAsAction="never" />

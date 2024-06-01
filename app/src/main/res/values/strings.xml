@@ -88,4 +88,12 @@
     <string name="add_language">Add language</string>
     <string name="drag_to_reorder">Drag to reorder</string>
     <string name="press_and_hold_while_talking">Press and hold while talking</string>
+    <string name="submenu_voice">Voice</string>
+    <string name="voice_builtin">built in</string>
+    <string name="voice_alloy" translatable="false">alloy</string>
+    <string name="voice_echo" translatable="false">echo</string>
+    <string name="voice_fable" translatable="false">fable</string>
+    <string name="voice_nova" translatable="false">nova</string>
+    <string name="voice_onyx" translatable="false">onyx</string>
+    <string name="voice_shimmer" translatable="false">shimmer</string>
 </resources>

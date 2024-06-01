@@ -53,6 +53,7 @@ import android.view.Menu
 import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.MotionEvent
+import android.view.SubMenu
 import android.view.View
 import android.view.View.*
 import android.view.ViewGroup
@@ -76,6 +77,7 @@ import androidx.core.net.toFile
 import androidx.core.view.MenuProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.children
 import androidx.core.view.doOnLayout
 import androidx.core.view.isVisible
 import androidx.core.view.postDelayed
@@ -97,6 +99,8 @@ import com.google.mlkit.nl.languageid.LanguageIdentifier.UNDETERMINED_LANGUAGE_T
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.utils.io.*
 import io.noties.markwon.Markwon
+import io.noties.markwon.SoftBreakAddsNewLinePlugin
+import io.noties.markwon.core.CorePlugin
 import kotlinx.coroutines.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers.Default
@@ -106,6 +110,7 @@ import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
@@ -169,16 +174,24 @@ enum class MessageType {
     PROMPT, RESPONSE
 }
 
+enum class Voice(val itemId: Int) {
+    BUILT_IN(R.id.voice_builtin),
+    ALLOY(R.id.voice_alloy), ECHO(R.id.voice_echo), FABLE(R.id.voice_fable),
+    NOVA(R.id.voice_nova), ONYX(R.id.voice_onyx), SHIMMER(R.id.voice_shimmer)
+}
+
 @SuppressLint("ClickableViewAccessibility")
 class ChatFragment : Fragment(), MenuProvider {
 
     private val vmodel: ChatFragmentModel by viewModels()
     private val sharedImageViewModel: SharedImageViewModel by activityViewModels()
+    private var selectedVoice = Voice.BUILT_IN
     private lateinit var userLanguages: List<String>
     private lateinit var binding: FragmentChatBinding
     private lateinit var audioPathname: String
     private lateinit var languageIdentifier: LanguageIdentifier
     private lateinit var markwon: Markwon
+    private lateinit var voiceSubMenu: SubMenu
 
     private var recordButtonPressTime = 0L
     private var _mediaRecorder: MediaRecorder? = null
@@ -259,7 +272,10 @@ class ChatFragment : Fragment(), MenuProvider {
             }
         }
 
-        markwon = Markwon.create(requireActivity())
+        markwon = Markwon.builder(context)
+            .usePlugin(CorePlugin.create())
+            .usePlugin(SoftBreakAddsNewLinePlugin.create())
+            .build();
         var newestHistoryTextView: TextView? = null
         var newestHistoryExchange: Exchange? = null
         for (exchange in vmodel.chatHistory) {
@@ -442,6 +458,8 @@ class ChatFragment : Fragment(), MenuProvider {
         Log.i("lifecycle", "onCreateMenu")
         menu.clear()
         menuInflater.inflate(R.menu.menu_main, menu)
+        voiceSubMenu = menu.findItem(R.id.submenu_voice).subMenu!!
+        selectVoice(selectedVoice.itemId)
         updateMuteItem(menu.findItem(R.id.action_sound_toggle))
 
         fun TextView.updateText() {
@@ -489,6 +507,10 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     override fun onMenuItemSelected(item: MenuItem): Boolean {
+        if (item in voiceSubMenu.children) {
+            selectVoice(item.itemId)
+            return true
+        }
         return when (item.itemId) {
             R.id.action_speak_again -> {
                 val previousResponseJob = vmodel.handleResponseJob?.apply { cancel() }
@@ -545,6 +567,13 @@ class ChatFragment : Fragment(), MenuProvider {
             }
             else -> false
         }
+    }
+
+    private fun selectVoice(itemId: Int) {
+        for (item in voiceSubMenu.children) {
+            item.setChecked(item.itemId == itemId)
+        }
+        selectedVoice = Voice.entries.first { it.itemId == itemId }
     }
 
     override fun onResume() {
@@ -694,7 +723,6 @@ class ChatFragment : Fragment(), MenuProvider {
                                                 showApiErrorToast(e)
                                         }
                                     }
-
                                     else -> {
                                         Log.e("lifecycle", "Error in chatCompletions flow", e)
                                         Toast.makeText(
@@ -720,8 +748,7 @@ class ChatFragment : Fragment(), MenuProvider {
                             Log.e("speech", it.message ?: it.toString())
                         }
                     }
-                speakWithOpenAi(sentenceFlow)
-//                speakWithAndroidSpeech(sentenceFlow)
+                speak(sentenceFlow)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -733,7 +760,16 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
+    private suspend fun speak(sentenceFlow: Flow<String>) {
+        if (selectedVoice == Voice.BUILT_IN) {
+            speakWithAndroidSpeech(sentenceFlow)
+        } else {
+            speakWithOpenAi(sentenceFlow)
+        }
+    }
+
     private suspend fun speakWithOpenAi(sentenceFlow: Flow<String>) {
+        var lastValidVoice = selectedVoice
         val sampleRate = 22050
         val encoding = AudioFormat.ENCODING_PCM_16BIT
         val audioTrack = AudioTrack.Builder()
@@ -766,7 +802,10 @@ class ChatFragment : Fragment(), MenuProvider {
                             sentenceBuf.append(it)
                         }
                     }
-                    openAi.speak(sentenceBuf, audioTrack)
+                    if (selectedVoice != Voice.BUILT_IN) {
+                        lastValidVoice = selectedVoice
+                    }
+                    openAi.speak(sentenceBuf, audioTrack, lastValidVoice.name.lowercase())
                     sentenceBuf.clear()
                 }
             }
@@ -932,36 +971,11 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private suspend fun speakLastResponse() {
         val response = vmodel.chatHistory.lastOrNull()?.replyText?.toString() ?: return
-        val utteranceId = "speak_again"
         vmodel.isResponding = true
         vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
-        val tts = newTextToSpeech()
         try {
-            tts.identifyAndSetLanguage(response)
-            suspendCancellableCoroutine { continuation ->
-                tts.setOnUtteranceProgressListener(
-                    UtteranceContinuationListener(
-                        utteranceId,
-                        continuation,
-                        Unit
-                    )
-                )
-                if (tts.speak(
-                        response,
-                        TextToSpeech.QUEUE_FLUSH,
-                        null,
-                        utteranceId
-                    ) == TextToSpeech.ERROR
-                ) {
-                    val exception = Exception("speak() failed to enqueue its request")
-                    // Kotlin compiler has an internal error on this:
-//                    continuation.resumeWith(failure(exception))
-                    // Workaround:
-                    throw exception
-                }
-            }
+            speak(flowOf(response))
         } finally {
-            tts.apply { stop(); shutdown() }
             vmodel.isResponding = false
             vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
         }

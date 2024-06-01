@@ -185,7 +185,7 @@ class OpenAI {
         return response.body<String>().replace("\n", "")
     }
 
-    suspend fun speak(text: CharSequence, audioTrack: AudioTrack) {
+    suspend fun speak(text: CharSequence, audioTrack: AudioTrack, voice: String) {
         Log.i("speech", "Speak: $text")
         if (appContext.mainPrefs.openaiApiKey.isGptOnlyKey()) {
             Toast.makeText(appContext, "Your API key doesn't allow text-to-speech", Toast.LENGTH_LONG).show()
@@ -193,7 +193,7 @@ class OpenAI {
         }
         val frameLen = Short.SIZE_BYTES // PCM-16 MONO has 1 short per frame
         val request = TextToSpeechRequest(
-            input = text.toString(), voice = "echo",
+            input = text.toString(), voice = voice,
             response_format = "pcm", model = "tts-1"
         )
         val builder = HttpRequestBuilder().apply {
