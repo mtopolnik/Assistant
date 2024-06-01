@@ -715,7 +715,6 @@ class ChatFragment : Fragment(), MenuProvider {
                         }
                         .launchIn(this)
                 }
-                    .map { it.replace(speechImprovementRegex, ", ") }
                     .onCompletion { exception ->
                         exception?.also {
                             Log.e("speech", it.message ?: it.toString())
@@ -759,11 +758,13 @@ class ChatFragment : Fragment(), MenuProvider {
                     .launchIn(this)
                 val sentenceBuf = StringBuilder()
                 while (true) {
-                    var sentence = sentenceChannel.receiveCatching().getOrNull() ?: break
-                    sentenceBuf.append(sentence)
+                    (sentenceChannel.receiveCatching().getOrNull() ?: break).also {
+                        sentenceBuf.append(it)
+                    }
                     while (true) {
-                        sentence = sentenceChannel.tryReceive().getOrNull() ?: break
-                        sentenceBuf.append(" ").append(sentence)
+                        (sentenceChannel.tryReceive().getOrNull() ?: break).also {
+                            sentenceBuf.append(it)
+                        }
                     }
                     openAi.speak(sentenceBuf, audioTrack)
                     sentenceBuf.clear()
@@ -789,6 +790,7 @@ class ChatFragment : Fragment(), MenuProvider {
             val tts = newTextToSpeech()
             var nextUtteranceId = 0L
             sentenceFlow
+                .map { it.replace(speechImprovementRegex, ", ") }
                 .onEach { sentence ->
                     Log.i("speech", "Speak: $sentence")
                     tts.identifyAndSetLanguage(sentence)

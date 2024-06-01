@@ -115,7 +115,6 @@ fun resetOpenAi(): Lazy<OpenAI> {
 
 class OpenAI {
     private val apiClient = createApiClient(appContext.mainPrefs.openaiApiKey)
-    private val apiClient2 = createApiClient(appContext.mainPrefs.openaiApiKey)
     private val blobClient = createBlobClient()
 
     private val demoMode = appContext.mainPrefs.openaiApiKey.trim().lowercase() == DEMO_API_KEY
@@ -192,9 +191,10 @@ class OpenAI {
             Toast.makeText(appContext, "Your API key doesn't allow text-to-speech", Toast.LENGTH_LONG).show()
             return
         }
+        val frameLen = Short.SIZE_BYTES // PCM-16 MONO has 1 short per frame
         val request = TextToSpeechRequest(
-            input = text.toString(), response_format = "pcm",
-            voice = "echo", model = "tts-1"
+            input = text.toString(), voice = "echo",
+            response_format = "pcm", model = "tts-1"
         )
         val builder = HttpRequestBuilder().apply {
             method = HttpMethod.Post
@@ -202,7 +202,7 @@ class OpenAI {
             contentType(ContentType.Application.Json)
             setBody(jsonCodec.encodeToJsonElement(request))
         }
-        HttpStatement(builder, apiClient2).execute() { httpResponse ->
+        HttpStatement(builder, apiClient).execute() { httpResponse ->
             val channel = httpResponse.body<ByteReadChannel>()
             withContext(Dispatchers.IO) {
 
