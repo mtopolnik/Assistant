@@ -205,28 +205,32 @@ class OpenAI {
         HttpStatement(builder, apiClient2).execute() { httpResponse ->
             val channel = httpResponse.body<ByteReadChannel>()
             withContext(Dispatchers.IO) {
+
+                fun ByteBuffer.writableLen() = remaining() / frameLen * frameLen
+
+                fun writeBlocking(buf: ByteBuffer) {
+                    val result = audioTrack.write(buf, buf.writableLen(), AudioTrack.WRITE_BLOCKING)
+                    if (result <= 0) {
+                        Log.i("speech", "write() returned $result, buffer has ${buf.remaining()}")
+                    }
+                }
+
                 var primed = false
                 while (!primed && !channel.isClosedForRead) {
                     channel.read(0) { buf ->
-                        audioTrack.write(buf, buf.remaining(), AudioTrack.WRITE_NON_BLOCKING)
-                        if (buf.remaining() > 1) {
+                        audioTrack.write(buf, buf.writableLen(), AudioTrack.WRITE_NON_BLOCKING)
+                        if (buf.writableLen() > 0) {
                             primed = true
                             audioTrack.play()
-                            val result = audioTrack.write(buf, buf.remaining(), AudioTrack.WRITE_BLOCKING)
-                            if (result <= 0) {
-                                Log.i("speech", "write() returned $result, buffer has ${buf.remaining()}")
-                            }
+                            writeBlocking(buf)
                         }
                     }
                 }
                 audioTrack.play()
                 while (!channel.isClosedForRead) {
                     channel.read(0) { buf ->
-                        if (buf.remaining() > 1) {
-                            val result = audioTrack.write(buf, buf.remaining(), AudioTrack.WRITE_BLOCKING)
-                            if (result <= 0) {
-                                Log.i("speech", "write() returned $result, buffer has ${buf.remaining()}")
-                            }
+                        if (buf.writableLen() > 0) {
+                            writeBlocking(buf)
                         }
                     }
                 }
