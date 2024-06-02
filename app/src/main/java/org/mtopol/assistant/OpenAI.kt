@@ -79,6 +79,7 @@ import java.io.FileOutputStream
 import java.io.InputStream
 import java.nio.ByteBuffer
 import java.security.MessageDigest
+import kotlin.math.min
 
 
 val openAi get() = openAiLazy.value
@@ -213,19 +214,23 @@ class OpenAI {
                     channel.read(minRemaining) { responseBuf ->
                         Log.i("speech", "before copy: responseBuf ${responseBuf.remaining()} audioBuf ${audioBuf.remaining()}")
                         val limitBackup = responseBuf.limit()
-                        responseBuf.limit(responseBuf.limit() - responseBuf.remaining() % frameLen)
+                        val safeToCopy = min(
+                            responseBuf.remaining() - responseBuf.remaining() % frameLen,
+                            audioBuf.remaining()
+                        )
+                        responseBuf.limit(responseBuf.position() + safeToCopy)
                         audioBuf.put(responseBuf)
                         responseBuf.limit(limitBackup)
                         Log.i("speech", "after copy: responseBuf ${responseBuf.remaining()} audioBuf ${audioBuf.remaining()}")
                         minRemaining = responseBuf.remaining() + responseBuf.remaining() % 2
                     }
-                    val bytesReady = audioBuf.position()
-                    audioBuf.flip()
-                    if (bytesReady > 0) {
+                    if (audioBuf.position() > 0) {
+                        audioBuf.flip()
                         return true
                     }
                     if (channel.isClosedForRead) {
                         Log.i("speech", "receive channel closed for read")
+                        audioBuf.flip()
                         return false
                     }
                 }
