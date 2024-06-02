@@ -824,6 +824,9 @@ class ChatFragment : Fragment(), MenuProvider {
                     .onEach { sentence -> sentenceChannel.send(sentence) }
                     .onCompletion {
                         sentenceChannel.close()
+                        if (appContext.mainPrefs.isMuted) {
+                            this@coroutineScope.cancel()
+                        }
                     }
                     .launchIn(this)
                 val sentenceBuf = StringBuilder()
@@ -868,6 +871,12 @@ class ChatFragment : Fragment(), MenuProvider {
                 val tts = newTextToSpeech()
                 var nextUtteranceId = 0L
                 sentenceFlow
+                    .onCompletion {
+                        if (appContext.mainPrefs.isMuted) {
+                            this@coroutineScope.cancel()
+                        }
+                    }
+                    .buffer(Channel.UNLIMITED)
                     .map { it.replace(speechImprovementRegex, ", ") }
                     .onEach { sentence ->
                         Log.i("speech", "Speak: $sentence")
