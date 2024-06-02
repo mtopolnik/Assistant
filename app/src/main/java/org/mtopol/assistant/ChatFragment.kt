@@ -109,6 +109,7 @@ import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.launchIn
@@ -163,7 +164,7 @@ class ChatFragmentModel(
     var autoscrollEnabled: Boolean = true
     @SuppressLint("StaticFieldLeak")
     var replyTextView: TextView? = null
-    var mediaPlayer: MediaPlayer? = null
+    var muteToggledCallback: (() -> Unit)? = null
 
     override fun onCleared() {
         Log.i("lifecycle", "Destroy ViewModel")
@@ -542,8 +543,8 @@ class ChatFragment : Fragment(), MenuProvider {
             R.id.action_sound_toggle -> {
                 appContext.mainPrefs.applyUpdate { setIsMuted(!appContext.mainPrefs.isMuted) }
                 updateMuteItem(item)
-                updateMediaPlayerVolume()
                 activity?.invalidateOptionsMenu()
+                vmodel.muteToggledCallback?.invoke()
                 true
             }
             R.id.action_cancel -> {
@@ -756,6 +757,9 @@ class ChatFragment : Fragment(), MenuProvider {
                             if (lastSpokenPos < replyText.length) {
                                 channel.send(replyText.substring(lastSpokenPos, replyText.length))
                             }
+                            if (appContext.mainPrefs.isMuted) {
+                                vmodel.handleResponseJob?.cancel()
+                            }
                         }
                         .launchIn(this)
                 }
@@ -801,12 +805,26 @@ class ChatFragment : Fragment(), MenuProvider {
             .setBufferSizeInBytes(sampleRate) // enough for 1 second
             .setTransferMode(AudioTrack.MODE_STREAM)
             .build()
+        val speakLatch = CompletableDeferred<Unit>()
+        if (!appContext.mainPrefs.isMuted) {
+            speakLatch.complete(Unit)
+        }
+        vmodel.muteToggledCallback = {
+            if (appContext.mainPrefs.isMuted) {
+                audioTrack.pause()
+            } else {
+                speakLatch.complete(Unit)
+                audioTrack.play()
+            }
+        }
         try {
             coroutineScope {
                 val sentenceChannel = Channel<String>(Channel.UNLIMITED)
                 sentenceFlow
                     .onEach { sentence -> sentenceChannel.send(sentence) }
-                    .onCompletion { sentenceChannel.close() }
+                    .onCompletion {
+                        sentenceChannel.close()
+                    }
                     .launchIn(this)
                 val sentenceBuf = StringBuilder()
                 while (true) {
@@ -818,6 +836,7 @@ class ChatFragment : Fragment(), MenuProvider {
                             sentenceBuf.append(it)
                         }
                     }
+                    speakLatch.await()
                     appContext.mainPrefs.selectedVoice.also { selectedVoice ->
                         if (selectedVoice != Voice.BUILT_IN) {
                             lastValidVoice = selectedVoice
@@ -837,51 +856,59 @@ class ChatFragment : Fragment(), MenuProvider {
                 prevPos = pos
             }
         } finally {
+            vmodel.muteToggledCallback = null
             audioTrack.stop()
             audioTrack.release()
         }
     }
 
     private suspend fun speakWithAndroidSpeech(sentenceFlow: Flow<String>) {
-        val voiceFileFlow: Flow<File> = channelFlow {
-            val tts = newTextToSpeech()
-            var nextUtteranceId = 0L
-            sentenceFlow
-                .map { it.replace(speechImprovementRegex, ", ") }
-                .onEach { sentence ->
-                    Log.i("speech", "Speak: $sentence")
-                    tts.identifyAndSetLanguage(sentence)
-                    channel.send(tts.speakToFile(sentence, nextUtteranceId++))
-                }
-                .onCompletion {
-                    tts.apply { stop(); shutdown() }
-                }
-                .launchIn(this)
-        }
-        val mediaPlayer = MediaPlayer().also {
-            vmodel.mediaPlayer = it
-            updateMediaPlayerVolume()
-        }
-        var cancelled = false
-        voiceFileFlow
-            .onCompletion {
-                mediaPlayer.apply {
-                    stop()
-                    release()
-                    vmodel.mediaPlayer = null
-                }
-            }
-            .collect {
-                try {
-                    if (!cancelled) {
-                        mediaPlayer.play(it)
+        coroutineScope {
+            val voiceFileFlow: Flow<File> = channelFlow {
+                val tts = newTextToSpeech()
+                var nextUtteranceId = 0L
+                sentenceFlow
+                    .map { it.replace(speechImprovementRegex, ", ") }
+                    .onEach { sentence ->
+                        Log.i("speech", "Speak: $sentence")
+                        tts.identifyAndSetLanguage(sentence)
+                        channel.send(tts.speakToFile(sentence, nextUtteranceId++))
                     }
-                } catch (e: CancellationException) {
-                    cancelled = true
-                } finally {
-                    it.delete()
+                    .onCompletion {
+                        tts.apply { stop(); shutdown() }
+                    }
+                    .launchIn(this)
+            }.buffer(3)
+            val mediaPlayer = MediaPlayer()
+            vmodel.muteToggledCallback = {
+                if (appContext.mainPrefs.isMuted) {
+                    mediaPlayer.pause()
+                } else {
+                    mediaPlayer.start()
                 }
             }
+            var cancelled = false
+            voiceFileFlow
+                .onCompletion {
+                    vmodel.muteToggledCallback = null
+                    mediaPlayer.apply {
+                        Log.i("speech", "stop media player")
+                        stop()
+                        release()
+                    }
+                }
+                .collect {
+                    try {
+                        if (!cancelled) {
+                            mediaPlayer.play(it)
+                        }
+                    } catch (e: CancellationException) {
+                        cancelled = true
+                    } finally {
+                        it.delete()
+                    }
+                }
+        }
     }
 
     private fun sendPromptAndReceiveImageResponse(prompt: CharSequence) {
@@ -943,8 +970,12 @@ class ChatFragment : Fragment(), MenuProvider {
                 Log.i("speech", "complete playing ${file.name}")
                 continuation.resumeWith(success(Unit))
             }
-            Log.i("speech", "start playing ${file.name}")
-            start()
+            if (appContext.mainPrefs.isMuted) {
+                Log.i("speech", "play ${file.name}, paused at start")
+            } else {
+                Log.i("speech", "start playing ${file.name}")
+                start()
+            }
         }
     }
 
@@ -1491,11 +1522,6 @@ class ChatFragment : Fragment(), MenuProvider {
                 language = Locale.forLanguageTag("hr")
             }
         }
-    }
-
-    private fun updateMediaPlayerVolume() {
-        val volume = if (appContext.mainPrefs.isMuted) 0f else 1f
-        vmodel.mediaPlayer?.setVolume(volume, volume)
     }
 
     private fun showApiErrorToast(e: ClientRequestException) {

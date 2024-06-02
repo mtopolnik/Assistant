@@ -204,34 +204,64 @@ class OpenAI {
         }
         HttpStatement(builder, apiClient).execute() { httpResponse ->
             val channel = httpResponse.body<ByteReadChannel>()
-            withContext(Dispatchers.IO) {
+            val audioBuf = ByteBuffer.allocate(16.shl(10))
 
-                fun ByteBuffer.writableLen() = remaining() / frameLen * frameLen
-
-                fun writeBlocking(buf: ByteBuffer) {
-                    val result = audioTrack.write(buf, buf.writableLen(), AudioTrack.WRITE_BLOCKING)
-                    if (result <= 0) {
-                        Log.i("speech", "write() returned $result, buffer has ${buf.remaining()}")
+            suspend fun read(): Boolean {
+                var minRemaining = 0
+                while (true) {
+                    Log.i("speech", "channel.read() minRemaining $minRemaining")
+                    channel.read(minRemaining) { responseBuf ->
+                        Log.i("speech", "before copy: responseBuf ${responseBuf.remaining()} audioBuf ${audioBuf.remaining()}")
+                        val limitBackup = responseBuf.limit()
+                        responseBuf.limit(responseBuf.limit() - responseBuf.remaining() % frameLen)
+                        audioBuf.put(responseBuf)
+                        responseBuf.limit(limitBackup)
+                        Log.i("speech", "after copy: responseBuf ${responseBuf.remaining()} audioBuf ${audioBuf.remaining()}")
+                        minRemaining = responseBuf.remaining() + responseBuf.remaining() % 2
+                    }
+                    val bytesReady = audioBuf.position()
+                    audioBuf.flip()
+                    if (bytesReady > 0) {
+                        return true
+                    }
+                    if (channel.isClosedForRead) {
+                        Log.i("speech", "receive channel closed for read")
+                        return false
                     }
                 }
+            }
 
-                var primed = false
-                while (!primed && !channel.isClosedForRead) {
-                    channel.read(0) { buf ->
-                        audioTrack.write(buf, buf.writableLen(), AudioTrack.WRITE_NON_BLOCKING)
-                        if (buf.writableLen() > 0) {
-                            primed = true
-                            audioTrack.play()
-                            writeBlocking(buf)
-                        }
-                    }
+            // prime the audioTrack's buffer before calling play()
+            while (read()) {
+                Log.i("speech", "prime audioTrack, audioBuf ${audioBuf.remaining()}")
+                val written = audioTrack.write(audioBuf, audioBuf.remaining(), AudioTrack.WRITE_NON_BLOCKING)
+                Log.i("speech", "audioTrack.write() $written, audioBuf ${audioBuf.remaining()}")
+                audioBuf.compact()
+                if (audioBuf.position() > 0) {
+                    Log.i("speech", "audioTrack primed")
+                    break
                 }
+            }
+            if (!appContext.mainPrefs.isMuted) {
+                Log.i("speech", "audioTrack.play()")
                 audioTrack.play()
-                while (!channel.isClosedForRead) {
-                    channel.read(0) { buf ->
-                        if (buf.writableLen() > 0) {
-                            writeBlocking(buf)
+            }
+            withContext(Dispatchers.IO) {
+                while (read()) {
+                    Log.i("speech", "blocking write, audioBuf ${audioBuf.remaining()}")
+                    while (true) {
+                        // audioTrack.write() won't fully drain the buffer if the track gets paused
+                        val result = audioTrack.write(audioBuf, audioBuf.remaining(), AudioTrack.WRITE_BLOCKING)
+                        Log.i("speech", "audioTrack.write() $result, audioBuf ${audioBuf.remaining()}")
+                        if (result < 0) {
+                            Log.e("speech", "audioTrack.write() returned $result, audioBuf ${audioBuf.remaining()}")
+                            break
                         }
+                        if (audioBuf.remaining() == 0) {
+                            audioBuf.clear()
+                            break
+                        }
+                        delay(100)
                     }
                 }
             }
@@ -370,8 +400,6 @@ private fun apiKeyHash(apiKey: String): String =
         MessageDigest.getInstance("SHA-256").digest(it)
     }.let {
         Base64.encodeToString(it, Base64.NO_WRAP)
-    }.also {
-        Log.i("hash", "API key hash: $it")
     }
 
 private const val DATA_LINE_PREFIX = "data:"
