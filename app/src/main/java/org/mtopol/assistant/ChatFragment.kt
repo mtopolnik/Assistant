@@ -476,7 +476,7 @@ class ChatFragment : Fragment(), MenuProvider {
         } else {
             val gptOnlyMode = apiKey.isGptOnlyKey()
             if (gptOnlyMode) {
-                voiceItem.setEnabled(false)
+                voiceItem.setVisible(false)
                 appContext.mainPrefs.applyUpdate {
                     if (!appContext.mainPrefs.selectedModel.isGptModel()) {
                         setSelectedModel(OpenAiModel.GPT_3)
