@@ -79,6 +79,7 @@ import java.io.FileOutputStream
 import java.io.InputStream
 import java.nio.ByteBuffer
 import java.security.MessageDigest
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.min
 
 
@@ -388,7 +389,6 @@ private fun createBlobClient(): HttpClient = HttpClient(OkHttp) {
 }
 
 private val GPT3_ONLY_KEY_HASHES = hashSetOf(
-    "fg15RZXuK/smtuoB/R0sV3KF1aJmU3HHZlwxx9MLp8U=",
     "DIkQ9HIwN3Ky+t53aMHyojOYAsXBFBnZQvnhbU2oyPs=",
 )
 
@@ -396,9 +396,21 @@ private val GPT_ONLY_KEY_HASHES = hashSetOf(
     "Ej1/kPkeX2/5AVBalQHV+Fg/5QSo9UjK+XgDWFhOQ10="
 )
 
-fun String.isGpt3OnlyKey() = GPT3_ONLY_KEY_HASHES.contains(apiKeyHash(this))
+fun String.isGpt3OnlyKey() = setContainsHashMemoized(this, GPT3_ONLY_KEY_HASHES, keyToIsGpt3Only)
+private val keyToIsGpt3Only = ConcurrentHashMap<String, Boolean>()
 
-fun String.isGptOnlyKey() = GPT_ONLY_KEY_HASHES.contains(apiKeyHash(this))
+fun String.isGptOnlyKey() = setContainsHashMemoized(this, GPT_ONLY_KEY_HASHES, keyToIsGptOnly)
+private val keyToIsGptOnly = ConcurrentHashMap<String, Boolean>()
+
+private fun setContainsHashMemoized(key: String, set: Set<String>, cache: MutableMap<String, Boolean>): Boolean {
+    cache[key]?.also {
+        return it
+    }
+    val hash = apiKeyHash(key)
+    return set.contains(hash).also {
+        cache[key] = it
+    }
+}
 
 private fun apiKeyHash(apiKey: String): String =
     apiKey.toByteArray(Charsets.UTF_8).let {
