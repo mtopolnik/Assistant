@@ -468,7 +468,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
         val apiKey = requireContext().mainPrefs.openaiApiKey
         if (apiKey.isGpt3OnlyKey()) {
-            voiceItem.setEnabled(false)
+            voiceItem.setVisible(false)
             appContext.mainPrefs.applyUpdate {
                 setSelectedModel(OpenAiModel.GPT_3)
                 setSelectedVoice(Voice.BUILT_IN)
