@@ -396,11 +396,22 @@ private val GPT_ONLY_KEY_HASHES = hashSetOf(
     "Ej1/kPkeX2/5AVBalQHV+Fg/5QSo9UjK+XgDWFhOQ10="
 )
 
+private val CHAT_ONLY_KEY_HASHES = hashSetOf(
+    "fg15RZXuK/smtuoB/R0sV3KF1aJmU3HHZlwxx9MLp8U=",
+)
+
+fun String.allowsOnlyGpt3() = isGpt3OnlyKey()
+fun String.allowsOnlyGpt() = isGpt3OnlyKey() || isGptOnlyKey()
+fun String.allowsImageGeneration() = !allowsOnlyGpt() && !isChatOnlyKey()
+
 fun String.isGpt3OnlyKey() = setContainsHashMemoized(this, GPT3_ONLY_KEY_HASHES, keyToIsGpt3Only)
 private val keyToIsGpt3Only = ConcurrentHashMap<String, Boolean>()
 
 fun String.isGptOnlyKey() = setContainsHashMemoized(this, GPT_ONLY_KEY_HASHES, keyToIsGptOnly)
 private val keyToIsGptOnly = ConcurrentHashMap<String, Boolean>()
+
+fun String.isChatOnlyKey() = setContainsHashMemoized(this, CHAT_ONLY_KEY_HASHES, keyToIsChatOnly)
+private val keyToIsChatOnly = ConcurrentHashMap<String, Boolean>()
 
 private fun setContainsHashMemoized(key: String, set: Set<String>, cache: MutableMap<String, Boolean>): Boolean {
     cache[key]?.also {

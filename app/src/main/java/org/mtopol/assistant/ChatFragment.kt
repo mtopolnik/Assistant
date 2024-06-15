@@ -467,23 +467,16 @@ class ChatFragment : Fragment(), MenuProvider {
         }
 
         val apiKey = requireContext().mainPrefs.openaiApiKey
-        if (apiKey.isGpt3OnlyKey()) {
+        if (apiKey.allowsOnlyGpt()) {
             voiceItem.setVisible(false)
             appContext.mainPrefs.applyUpdate {
-                setSelectedModel(OpenAiModel.GPT_3)
                 setSelectedVoice(Voice.BUILT_IN)
-            }
-        } else {
-            val gptOnlyMode = apiKey.isGptOnlyKey()
-            if (gptOnlyMode) {
-                voiceItem.setVisible(false)
-                appContext.mainPrefs.applyUpdate {
-                    if (!appContext.mainPrefs.selectedModel.isGptModel()) {
-                        setSelectedModel(OpenAiModel.GPT_3)
-                    }
-                    setSelectedVoice(Voice.BUILT_IN)
+                if (apiKey.allowsOnlyGpt3() || !appContext.mainPrefs.selectedModel.isGptModel()) {
+                    setSelectedModel(OpenAiModel.GPT_3)
                 }
             }
+        }
+        if (!apiKey.allowsOnlyGpt3()) {
             menu.findItem(R.id.action_gpt_toggle).apply {
                 isVisible = true
             }.actionView!!.findViewById<TextView>(R.id.textview_model_selector).apply {
@@ -491,7 +484,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 setOnClickListener {
                     val currOrdinal = appContext.mainPrefs.selectedModel.ordinal
                     val nextOrdinal =
-                        (currOrdinal + 1) % if (gptOnlyMode) gptModels.size else OpenAiModel.entries.size
+                        (currOrdinal + 1) % (if (apiKey.allowsImageGeneration()) OpenAiModel.entries.size else gptModels.size)
                     appContext.mainPrefs.applyUpdate {
                         setSelectedModel(OpenAiModel.entries[nextOrdinal])
                     }
