@@ -45,7 +45,7 @@ class AboutDialogFragment : DialogFragment() {
         val version =
             try { activity.packageManager?.getPackageInfo(activity.packageName, 0)?.versionName }
             catch (e: Exception) { null } ?: "??"
-        rootView.findViewById<TextView>(R.id.textview_about).apply {
+        rootView.findViewById<TextView>(R.id.textview_about)?.apply {
             text = getString(R.string.about_text, version)
         }
         return AlertDialog.Builder(activity)
