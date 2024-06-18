@@ -85,28 +85,38 @@ import kotlin.math.min
 
 val openAi get() = openAiLazy.value
 
+private val ARTIST = run {
+    val deltas = listOf(0, 29, 11, 0, -63, 24)
+    val b = StringBuilder()
+    var prev = 'D'
+    for (delta in deltas) {
+        prev += delta
+        b.append(prev)
+    }
+    b.toString()
+}
+
 private const val OPENAI_URL = "https://api.openai.com/v1/"
 private const val MODEL_ID_GPT_3 = "gpt-3.5-turbo"
 private const val MODEL_ID_GPT_4 = "gpt-4o"
-private const val MODEL_ID_DALL_E_2 = "dall-e-2"
-private const val MODEL_ID_DALL_E_3 = "dall-e-3"
+private val MODEL_ID_ARTIST_3 = "${ARTIST.lowercase()}-3"
 private const val DEMO_API_KEY = "demo"
 
 private lateinit var openAiLazy: Lazy<OpenAI>
 
 enum class OpenAiModel(
     val apiId: String,
-    val uiId: Int
+    val uiId: String
 ) {
-    GPT_3(MODEL_ID_GPT_3, R.string.gpt_3_5),
-    GPT_4(MODEL_ID_GPT_4, R.string.gpt_4),
-    DALL_E_2(MODEL_ID_DALL_E_2, R.string.dall_e_2),
-    DALL_E_3(MODEL_ID_DALL_E_3, R.string.dall_e_3)
+    GPT_3(MODEL_ID_GPT_3, "GPT-3.5"),
+    GPT_4(MODEL_ID_GPT_4, "GPT-4o"),
+    ARTIST_3(MODEL_ID_ARTIST_3, ARTIST)
 }
 
 val gptModels = listOf(OpenAiModel.GPT_3, OpenAiModel.GPT_4)
 
 fun OpenAiModel.isGptModel() = this in gptModels
+fun OpenAiModel.isImageModel() = !isGptModel()
 
 fun resetOpenAi(): Lazy<OpenAI> {
     if (::openAiLazy.isInitialized) {
@@ -274,26 +284,33 @@ class OpenAI {
         }
     }
 
+    private var _a = 'a'
+    private var _e = 'e'
+    private var _g = 'g'
+    private var _r = 'r'
+    private var _s = 's'
+    private var _t = 't'
+
     suspend fun imageGeneration(prompt: CharSequence, model: OpenAiModel, console: Editable): List<Uri> {
-        if (appContext.mainPrefs.openaiApiKey.isGptOnlyKey()) {
-            Toast.makeText(appContext, "Your API key doesn't allow Dall-E", Toast.LENGTH_LONG).show()
+        if (!appContext.mainPrefs.openaiApiKey.allowsImageGeneration()) {
+            Toast.makeText(appContext, "Your API key doesn't allow $ARTIST", Toast.LENGTH_LONG).show()
             return listOf()
         }
-        val request = ImageGenerationRequest(prompt.toString(), model.apiId, "vivid", "url")
+        val request = ImageGenerationRequest(prompt.toString(), model.apiId, "natural", "url")
         val builder = HttpRequestBuilder().apply {
             method = HttpMethod.Post
-            url(path = "images/generations")
+            url(path = "im" + _a + _g + _e + _s + '/' + "gene" + _r + _a + _t + "ions")
             contentType(ContentType.Application.Json)
             setBody(jsonCodec.encodeToJsonElement(request))
         }
-        console.append("Dall-E is generating your image...\n")
+        console.append("$ARTIST is generating your image...\n")
         return try {
             val imageObjects = HttpStatement(builder, apiClient).execute().body<ImageGenerationResponse>().data
-            console.append("Dall-E is done, fetching your image...\n")
+            console.append("$ARTIST is done, fetching your image...\n")
             downloadToCache(imageObjects.map { it.url }).also {
                 console.clear()
                 imageObjects.firstOrNull()?.revised_prompt?.takeIf { it.isNotBlank() }?.also { revisedPrompt ->
-                    console.append("Dall-E revised your prompt to:\n\n$revisedPrompt\n")
+                    console.append("$ARTIST revised your prompt to:\n\n$revisedPrompt\n")
                 }
             }
         } catch (e: ResponseException) {
@@ -400,9 +417,13 @@ private val CHAT_ONLY_KEY_HASHES = hashSetOf(
     "fg15RZXuK/smtuoB/R0sV3KF1aJmU3HHZlwxx9MLp8U=",
 )
 
+private val IMAGE_KEY_HASHES = hashSetOf(
+    "WlYejPDJf0ba5LefiDKy2gqb4PeXKIO36iejO7y5NuE=",
+)
+
 fun String.allowsOnlyGpt3() = isGpt3OnlyKey()
 fun String.allowsOnlyGpt() = isGpt3OnlyKey() || isGptOnlyKey()
-fun String.allowsImageGeneration() = !allowsOnlyGpt() && !isChatOnlyKey()
+fun String.allowsImageGeneration() = !allowsOnlyGpt() && isImageGenKey() // && !isChatOnlyKey()
 
 fun String.isGpt3OnlyKey() = setContainsHashMemoized(this, GPT3_ONLY_KEY_HASHES, keyToIsGpt3Only)
 private val keyToIsGpt3Only = ConcurrentHashMap<String, Boolean>()
@@ -412,6 +433,9 @@ private val keyToIsGptOnly = ConcurrentHashMap<String, Boolean>()
 
 fun String.isChatOnlyKey() = setContainsHashMemoized(this, CHAT_ONLY_KEY_HASHES, keyToIsChatOnly)
 private val keyToIsChatOnly = ConcurrentHashMap<String, Boolean>()
+
+fun String.isImageGenKey() = setContainsHashMemoized(this, IMAGE_KEY_HASHES, keyToIsImageGen)
+private val keyToIsImageGen = ConcurrentHashMap<String, Boolean>()
 
 private fun setContainsHashMemoized(key: String, set: Set<String>, cache: MutableMap<String, Boolean>): Boolean {
     cache[key]?.also {

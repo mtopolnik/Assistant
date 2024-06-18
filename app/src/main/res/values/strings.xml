@@ -56,10 +56,6 @@
     <string name="record">Record Voice</string>
     <string name="send">Send</string>
     <string name="prompt_hint">Message</string>
-    <string name="gpt_3_5" translatable="false">GPT-3.5</string>
-    <string name="gpt_4" translatable="false">GPT-4o</string>
-    <string name="dall_e_2" translatable="false">DallE-2</string>
-    <string name="dall_e_3" translatable="false">DallE-3</string>
     <string name="gpt4_unavailable">GPT-4 is not available with your API key.</string>
     <string name="gpt4_required">You need GPT-4 for vision</string>
     <string name="clear_chat_history">Clear Chat History</string>
@@ -76,6 +72,7 @@
     <string name="message_incorrect_api_key">Incorrect OpenAI API key. Delete it and enter a new one.</string>
     <string name="action_reset">Reset to Default</string>
     <string name="action_speak_again">Speak Again</string>
+    <string name="selected_model">Selected Model</string>
     <string name="demo_recognized_speech">Demo mode is on — this is a mock question.</string>
     <string name="close">Close</string>
     <string name="action_about">About</string>

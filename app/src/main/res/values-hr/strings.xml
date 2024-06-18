@@ -72,6 +72,7 @@
     <string name="message_incorrect_api_key">OpenAI API ključ ne radi. Poništi ga i upiši novi.</string>
     <string name="action_reset">Vrati na default</string>
     <string name="action_speak_again">Reci to ponovo</string>
+    <string name="selected_model">Odabrani model</string>
     <string name="demo_recognized_speech">Uključen je demo način rada — ovo je fejk pitanje.</string>
     <string name="close">Zatvori</string>
     <string name="action_about">O aplikaciji</string>

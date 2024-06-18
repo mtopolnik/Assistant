@@ -461,19 +461,26 @@ class ChatFragment : Fragment(), MenuProvider {
         val voiceItem = menu.findItem(R.id.submenu_voice)
         voiceSubMenu = voiceItem.subMenu!!
         updateMuteItem(menu.findItem(R.id.action_sound_toggle))
+        applyAccessRules(menu)
+    }
+
+    private fun applyAccessRules(menu: Menu) {
+        val mainPrefs = appContext.mainPrefs
 
         fun TextView.updateText() {
-            text = getString(appContext.mainPrefs.selectedModel.uiId)
+            text = mainPrefs.selectedModel.uiId
         }
 
-        val apiKey = requireContext().mainPrefs.openaiApiKey
+        val apiKey = mainPrefs.openaiApiKey
         if (apiKey.allowsOnlyGpt()) {
-            voiceItem.setVisible(false)
-            appContext.mainPrefs.applyUpdate {
+            menu.findItem(R.id.submenu_voice).setVisible(false)
+            mainPrefs.applyUpdate {
                 setSelectedVoice(Voice.BUILT_IN)
-                if (apiKey.allowsOnlyGpt3() || !appContext.mainPrefs.selectedModel.isGptModel()) {
-                    setSelectedModel(OpenAiModel.GPT_3)
-                }
+            }
+        }
+        if (apiKey.allowsOnlyGpt3() || (mainPrefs.selectedModel.isImageModel() && !apiKey.allowsImageGeneration())) {
+            mainPrefs.applyUpdate {
+                setSelectedModel(OpenAiModel.GPT_3)
             }
         }
         if (!apiKey.allowsOnlyGpt3()) {
@@ -482,17 +489,17 @@ class ChatFragment : Fragment(), MenuProvider {
             }.actionView!!.findViewById<TextView>(R.id.textview_model_selector).apply {
                 updateText()
                 setOnClickListener {
-                    val currOrdinal = appContext.mainPrefs.selectedModel.ordinal
+                    val currOrdinal = mainPrefs.selectedModel.ordinal
                     val nextOrdinal =
                         (currOrdinal + 1) % (if (apiKey.allowsImageGeneration()) OpenAiModel.entries.size else gptModels.size)
-                    appContext.mainPrefs.applyUpdate {
+                    mainPrefs.applyUpdate {
                         setSelectedModel(OpenAiModel.entries[nextOrdinal])
                     }
                     updateText()
                 }
             }
         }
-        appContext.mainPrefs.selectedVoice.itemId.also { selectedVoiceItemId ->
+        mainPrefs.selectedVoice.itemId.also { selectedVoiceItemId ->
             for (item in voiceSubMenu.children) {
                 item.setChecked(item.itemId == selectedVoiceItemId)
             }

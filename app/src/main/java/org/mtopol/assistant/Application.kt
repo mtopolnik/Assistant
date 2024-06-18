@@ -30,16 +30,12 @@ import android.graphics.PointF
 import android.graphics.RectF
 import android.net.Uri
 import android.os.Build
-import android.util.Base64
 import android.util.Log
 import android.widget.ImageView
 import androidx.core.content.ContextCompat
 import androidx.core.net.toFile
 import androidx.core.os.LocaleListCompat
 import androidx.preference.PreferenceManager
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream

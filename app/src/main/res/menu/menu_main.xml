@@ -22,7 +22,7 @@
         >
     <item
             android:id="@+id/action_gpt_toggle"
-            android:title="@string/gpt_4"
+            android:title="@string/selected_model"
             app:actionLayout="@layout/button_gpt_toggle"
             android:visible="false"
             app:showAsAction="always"
