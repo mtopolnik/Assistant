@@ -139,6 +139,7 @@ private const val MIN_HOLD_RECORD_BUTTON_MILLIS = 400L
 private const val RECORD_HINT_DURATION_MILLIS = 3_000L
 private const val DALLE_IMAGE_DIMENSION = 512
 private const val REPLY_VIEW_UPDATE_PERIOD_MILLIS = 100L
+private const val SCROLLVIEW_PADDING = 40
 
 
 @Suppress("RegExpUnnecessaryNonCapturingGroup")
@@ -243,7 +244,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 val promptContainer = if (isStartOfExchange) {
                     addMessageContainerToView(PROMPT)
                 } else {
-                    lastPromptContainer()
+                    lastMessageContainer()
                 }
                 val savedImgUris = withContext(IO) {
                     imgUris
@@ -315,8 +316,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
         binding.scrollviewChat.apply {
             setOnScrollChangeListener { view, _, _, _, _ ->
-                vmodel.autoscrollEnabled =
-                    binding.viewChat.bottom <= view.height + view.scrollY
+                vmodel.autoscrollEnabled = lastMessageContainer().height < view.height - SCROLLVIEW_PADDING
             }
             viewTreeObserver.addOnGlobalLayoutListener {
                 scrollToBottom()
@@ -631,7 +631,7 @@ class ChatFragment : Fragment(), MenuProvider {
         if (lastEntry.promptImageUris.isNotEmpty() && lastEntry.promptText.isNotEmpty()) {
             // The prompt contains both text and image. Remove just the text and leave the
             // image. This means the prompt view stays.
-            val promptContainer = lastPromptContainer()
+            val promptContainer = lastMessageContainer()
             promptContainer.apply { removeViewAt(childCount - 1) }
         } else {
             if (lastEntry.promptText.isNotEmpty()) {
@@ -666,7 +666,7 @@ class ChatFragment : Fragment(), MenuProvider {
                         addMessageContainerToView(PROMPT).also { addTextToView(it, prompt, PROMPT) }
                         Exchange(prompt).also { chatHistory.add(it) }
                     } else {
-                        addTextToView(lastPromptContainer(), prompt, PROMPT)
+                        addTextToView(lastMessageContainer(), prompt, PROMPT)
                         chatHistory.last().also { it.promptText = prompt }
                     }
                 val replyMarkdown = StringBuilder()
@@ -933,7 +933,7 @@ class ChatFragment : Fragment(), MenuProvider {
                         addMessageContainerToView(PROMPT).also { addTextToView(it, prompt, PROMPT) }
                         Exchange(prompt).also { chatHistory.add(it) }
                     } else {
-                        addTextToView(lastPromptContainer(), prompt, PROMPT)
+                        addTextToView(lastMessageContainer(), prompt, PROMPT)
                         chatHistory.last().also { it.promptText = prompt }
                     }
                 vmodel.autoscrollEnabled = true
@@ -967,7 +967,7 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun lastPromptContainer() =
+    private fun lastMessageContainer() =
         binding.viewChat.run { getChildAt(childCount - 1) } as LinearLayout
 
     private suspend fun MediaPlayer.play(file: File) {
