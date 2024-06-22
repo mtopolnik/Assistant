@@ -57,6 +57,7 @@ import android.view.SubMenu
 import android.view.View
 import android.view.View.*
 import android.view.ViewGroup
+import android.view.ViewTreeObserver.OnGlobalLayoutListener
 import android.view.animation.LinearInterpolator
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
@@ -315,11 +316,10 @@ class ChatFragment : Fragment(), MenuProvider {
         }
 
         binding.scrollviewChat.apply {
-            setOnScrollChangeListener { view, _, _, _, _ ->
-                vmodel.autoscrollEnabled = lastMessageContainer().height < view.height - SCROLLVIEW_PADDING
-            }
-            viewTreeObserver.addOnGlobalLayoutListener {
-                scrollToBottom()
+            setOnScrollChangeListener { view, _, newPos, _, oldPos ->
+                if (newPos < oldPos) {
+                    vmodel.autoscrollEnabled = false
+                }
             }
         }
         val recordButton = binding.buttonRecord
@@ -682,6 +682,14 @@ class ChatFragment : Fragment(), MenuProvider {
                             .let { markwon.parse(it) }
                             .let { markwon.render(it) }
                     }.let { markwon.setParsedMarkdown(vmodel.replyTextView!!, it) }
+                    binding.scrollviewChat.viewTreeObserver.also { observer ->
+                        observer.addOnGlobalLayoutListener(object : OnGlobalLayoutListener {
+                            override fun onGlobalLayout() {
+                                observer.removeOnGlobalLayoutListener(this)
+                                scrollToBottom()
+                            }
+                        })
+                    }
                 }
 
                 val sentenceFlow: Flow<String> = channelFlow {
@@ -1420,7 +1428,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 return@post
             }
             binding.appbarLayout.setExpanded(false, true)
-            binding.scrollviewChat.smoothScrollTo(0, binding.scrollviewChat.getChildAt(0).bottom)
+            binding.scrollviewChat.smoothScrollTo(0, lastMessageContainer().top)
         }
     }
 
