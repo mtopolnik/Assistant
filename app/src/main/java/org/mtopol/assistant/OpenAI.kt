@@ -85,7 +85,8 @@ import kotlin.math.min
 
 val openAi get() = openAiLazy.value
 
-private val ARTIST = run {
+private val ARTIST_LAZY = lazy {
+    Log.e("lifecycle", "lazy.value", Exception("diagnostic exception"))
     val deltas = listOf(0, 29, 11, 0, -63, 24)
     val b = StringBuilder()
     var prev = 'D'
@@ -99,18 +100,20 @@ private val ARTIST = run {
 private const val OPENAI_URL = "https://api.openai.com/v1/"
 private const val MODEL_ID_GPT_3 = "gpt-3.5-turbo"
 private const val MODEL_ID_GPT_4 = "gpt-4o"
-private val MODEL_ID_ARTIST_3 = "${ARTIST.lowercase()}-3"
 private const val DEMO_API_KEY = "demo"
 
 private lateinit var openAiLazy: Lazy<OpenAI>
 
 enum class OpenAiModel(
-    val apiId: String,
-    val uiId: String
+    private val apiIdLazy: Lazy<String>,
+    private val uiIdLazy: Lazy<String>
 ) {
-    GPT_3(MODEL_ID_GPT_3, "GPT-3.5"),
-    GPT_4(MODEL_ID_GPT_4, "GPT-4o"),
-    ARTIST_3(MODEL_ID_ARTIST_3, ARTIST)
+    GPT_3(lazy { MODEL_ID_GPT_3 }, lazy { "GPT-3.5" }),
+    GPT_4(lazy { MODEL_ID_GPT_4 }, lazy { "GPT-4o" }),
+    ARTIST_3(lazy { "${ARTIST_LAZY.value.lowercase()}-3" }, ARTIST_LAZY);
+    
+    val apiId get() = apiIdLazy.value
+    val uiId get() = uiIdLazy.value
 }
 
 val gptModels = listOf(OpenAiModel.GPT_3, OpenAiModel.GPT_4)
@@ -292,8 +295,9 @@ class OpenAI {
     private var _t = 't'
 
     suspend fun imageGeneration(prompt: CharSequence, model: OpenAiModel, console: Editable): List<Uri> {
+        val artist = ARTIST_LAZY.value
         if (!appContext.mainPrefs.openaiApiKey.allowsImageGeneration()) {
-            Toast.makeText(appContext, "Your API key doesn't allow $ARTIST", Toast.LENGTH_LONG).show()
+            Toast.makeText(appContext, "Your API key doesn't allow $artist", Toast.LENGTH_LONG).show()
             return listOf()
         }
         val request = ImageGenerationRequest(prompt.toString(), model.apiId, "natural", "url")
@@ -303,14 +307,14 @@ class OpenAI {
             contentType(ContentType.Application.Json)
             setBody(jsonCodec.encodeToJsonElement(request))
         }
-        console.append("$ARTIST is generating your image...\n")
+        console.append("$artist is generating your image...\n")
         return try {
             val imageObjects = HttpStatement(builder, apiClient).execute().body<ImageGenerationResponse>().data
-            console.append("$ARTIST is done, fetching your image...\n")
+            console.append("$artist is done, fetching your image...\n")
             downloadToCache(imageObjects.map { it.url }).also {
                 console.clear()
                 imageObjects.firstOrNull()?.revised_prompt?.takeIf { it.isNotBlank() }?.also { revisedPrompt ->
-                    console.append("$ARTIST revised your prompt to:\n\n$revisedPrompt\n")
+                    console.append("$artist revised your prompt to:\n\n$revisedPrompt\n")
                 }
             }
         } catch (e: ResponseException) {
@@ -415,6 +419,7 @@ private val GPT_ONLY_KEY_HASHES = hashSetOf(
 
 private val CHAT_ONLY_KEY_HASHES = hashSetOf(
     "fg15RZXuK/smtuoB/R0sV3KF1aJmU3HHZlwxx9MLp8U=",
+    "gK2ssryPn0jfcgUXiYLE03eKLx2RM6h9n9eJUoyDpV0=",
 )
 
 private val IMAGE_KEY_HASHES = hashSetOf(
@@ -447,7 +452,7 @@ private fun setContainsHashMemoized(key: String, set: Set<String>, cache: Mutabl
     }
 }
 
-private fun apiKeyHash(apiKey: String): String =
+ fun apiKeyHash(apiKey: String): String =
     apiKey.toByteArray(Charsets.UTF_8).let {
         MessageDigest.getInstance("SHA-256").digest(it)
     }.let {
