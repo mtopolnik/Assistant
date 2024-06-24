@@ -307,10 +307,10 @@ class OpenAI {
             contentType(ContentType.Application.Json)
             setBody(jsonCodec.encodeToJsonElement(request))
         }
-        console.append("$artist is generating your image...\n")
+        console.append("$artist is handling your prompt...\n")
         return try {
             val imageObjects = HttpStatement(builder, apiClient).execute().body<ImageGenerationResponse>().data
-            console.append("$artist is done, fetching your image...\n")
+            console.append("$artist is done, fetching the result...\n")
             downloadToCache(imageObjects.map { it.url }).also {
                 console.clear()
                 imageObjects.firstOrNull()?.revised_prompt?.takeIf { it.isNotBlank() }?.also { revisedPrompt ->
