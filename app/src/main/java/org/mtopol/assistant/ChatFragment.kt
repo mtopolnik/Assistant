@@ -491,7 +491,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 setOnClickListener {
                     val currOrdinal = mainPrefs.selectedModel.ordinal
                     val nextOrdinal =
-                        (currOrdinal + 1) % (if (apiKey.allowsImageGeneration()) OpenAiModel.entries.size else gptModels.size)
+                        (currOrdinal + 1) % (if (apiKey.allowsImageGeneration()) OpenAiModel.entries.size else chatModels.size)
                     mainPrefs.applyUpdate {
                         setSelectedModel(OpenAiModel.entries[nextOrdinal])
                     }

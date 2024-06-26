@@ -46,6 +46,7 @@ import kotlin.math.min
 const val FILE_PROVIDER_AUTHORITY = "org.mtopol.assistant.fileprovider"
 
 private const val KEY_OPENAI_API_KEY = "openai_api_key"
+private const val KEY_ANTHROPIC_API_KEY = "anthropic_api_key"
 private const val KEY_SYSTEM_PROMPT = "system_prompt"
 private const val KEY_SPEECH_RECOG_LANGUAGE = "speech_recognition_language"
 private const val KEY_LANGUAGES = "languages"
@@ -123,6 +124,9 @@ inline fun SharedPreferences.applyUpdate(block: SharedPreferences.Editor.() -> U
         }
     }
 }
+
+val SharedPreferences.anthropicApiKey: String get() =
+    ""
 
 val SharedPreferences.openaiApiKey: String get() = getString(KEY_OPENAI_API_KEY, "")!!
 

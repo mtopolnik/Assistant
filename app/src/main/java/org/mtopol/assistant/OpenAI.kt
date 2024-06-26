@@ -25,8 +25,10 @@ import android.util.Log
 import android.widget.Toast
 import androidx.core.net.toFile
 import io.ktor.client.HttpClient
+import io.ktor.client.HttpClientConfig
 import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.client.engine.okhttp.OkHttpConfig
 import io.ktor.client.plugins.HttpRequestRetry
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.ResponseException
@@ -46,6 +48,7 @@ import io.ktor.client.request.forms.append
 import io.ktor.client.request.forms.formData
 import io.ktor.client.request.forms.submitFormWithBinaryData
 import io.ktor.client.request.get
+import io.ktor.client.request.headers
 import io.ktor.client.request.setBody
 import io.ktor.client.request.url
 import io.ktor.client.statement.HttpResponse
@@ -98,8 +101,11 @@ private val ARTIST_LAZY = lazy {
 }
 
 private const val OPENAI_URL = "https://api.openai.com/v1/"
+private const val ANTHROPIC_URL = "https://api.anthropic.com/v1/"
 private const val MODEL_ID_GPT_3 = "gpt-3.5-turbo"
 private const val MODEL_ID_GPT_4 = "gpt-4o"
+private const val MODEL_ID_SONNET_3_5 = "claude-3-5-sonnet-20240620"
+private const val ANTHROPIC_VERSION = "2023-06-01"
 private const val DEMO_API_KEY = "demo"
 
 private lateinit var openAiLazy: Lazy<OpenAI>
@@ -110,15 +116,16 @@ enum class OpenAiModel(
 ) {
     GPT_3(lazy { MODEL_ID_GPT_3 }, lazy { "GPT-3.5" }),
     GPT_4(lazy { MODEL_ID_GPT_4 }, lazy { "GPT-4o" }),
+    CLAUDE_3_5_SONNET(lazy { MODEL_ID_SONNET_3_5 }, lazy { "Sonnet" }),
     ARTIST_3(lazy { "${ARTIST_LAZY.value.lowercase()}-3" }, ARTIST_LAZY);
-    
+
     val apiId get() = apiIdLazy.value
     val uiId get() = uiIdLazy.value
 }
 
-val gptModels = listOf(OpenAiModel.GPT_3, OpenAiModel.GPT_4)
+val chatModels = listOf(OpenAiModel.GPT_3, OpenAiModel.GPT_4, OpenAiModel.CLAUDE_3_5_SONNET)
 
-fun OpenAiModel.isGptModel() = this in gptModels
+fun OpenAiModel.isGptModel() = this in chatModels
 fun OpenAiModel.isImageModel() = !isGptModel()
 
 fun resetOpenAi(): Lazy<OpenAI> {
@@ -129,7 +136,8 @@ fun resetOpenAi(): Lazy<OpenAI> {
 }
 
 class OpenAI {
-    private val apiClient = createApiClient(appContext.mainPrefs.openaiApiKey)
+    private val apiClient = createOpenAiClient(appContext.mainPrefs.openaiApiKey)
+    private val anthropicClient = createAnthropicClient(appContext.mainPrefs.anthropicApiKey)
     private val blobClient = createBlobClient()
 
     private val demoMode = appContext.mainPrefs.openaiApiKey.trim().lowercase() == DEMO_API_KEY
@@ -142,11 +150,17 @@ class OpenAI {
             return mockResponse.toCharArray().asList().chunked(4).asFlow().map { delay(120); it.joinToString("") }
         }
         Log.i("client", "Model: ${model.apiId}")
-        val chatCompletionRequest = ChatCompletionRequest(
-            model = model.apiId,
-            messages = systemPrompt() + history.toDto().dropLast(1),
+        return if (model == OpenAiModel.CLAUDE_3_5_SONNET) claudeCompletions(
+            ClaudeCompletionRequest(
+                system = appContext.mainPrefs.systemPrompt,
+                messages = history.toClaudeDto().dropLast(1),
+            )
+        ) else chatCompletions(
+            ChatCompletionRequest(
+                model = model.apiId,
+                messages = systemPrompt() + history.toDto().dropLast(1),
+            )
         )
-        return chatCompletions(chatCompletionRequest)
     }
 
     fun translation(targetLanguage: String, text: String, model: OpenAiModel): Flow<String> {
@@ -176,6 +190,20 @@ class OpenAI {
             HttpStatement(builder, apiClient).execute { emitStreamingResponse(it) }
         }
             .map { chunk -> chunk.choices[0].delta.content }
+            .filterNotNull()
+    }
+
+    private fun claudeCompletions(request: ClaudeCompletionRequest): Flow<String> {
+        return flow<ClaudeResponseChunk> {
+            val builder = HttpRequestBuilder().apply {
+                method = HttpMethod.Post
+                url(path = "messages")
+                contentType(ContentType.Application.Json)
+                setBody(jsonCodec.encodeToJsonElement(request))
+            }
+            HttpStatement(builder, anthropicClient).execute { emitClaudeStream(it) }
+        }
+            .map { chunk -> chunk.delta.text }
             .filterNotNull()
     }
 
@@ -325,6 +353,7 @@ class OpenAI {
 
     fun close() {
         apiClient.close()
+        anthropicClient.close()
         blobClient.close()
     }
 
@@ -343,6 +372,13 @@ class OpenAI {
                         exchange.promptImageUris.map { imgUri -> ContentPart.Image(readContentToDataUri(imgUri)) }
             ),
             ChatMessage("assistant", exchange.replyMarkdown.toString()),
+        )
+    }
+
+    private fun List<Exchange>.toClaudeDto() = flatMap { exchange ->
+        listOf(
+            ClaudeMessage("user", exchange.promptText.toString()),
+            ClaudeMessage("assistant", exchange.replyMarkdown.toString()),
         )
     }
 
@@ -368,7 +404,7 @@ class OpenAI {
     }
 }
 
-private fun createApiClient(apiKey: String) = HttpClient(OkHttp) {
+private fun createOpenAiClient(apiKey: String) = HttpClient(OkHttp) {
     defaultRequest {
         url(OPENAI_URL)
     }
@@ -379,6 +415,21 @@ private fun createApiClient(apiKey: String) = HttpClient(OkHttp) {
             }
         }
     }
+    commonApiClientSetup()
+}
+
+private fun createAnthropicClient(apiKey: String) = HttpClient(OkHttp) {
+    defaultRequest {
+        url(ANTHROPIC_URL)
+        headers {
+            append("x-api-key", apiKey)
+            append("anthropic-version", ANTHROPIC_VERSION)
+        }
+    }
+    commonApiClientSetup()
+}
+
+private fun HttpClientConfig<OkHttpConfig>.commonApiClientSetup() {
     install(HttpTimeout) {
         connectTimeoutMillis = 4000
         socketTimeoutMillis = 30_000
@@ -394,7 +445,7 @@ private fun createApiClient(apiKey: String) = HttpClient(OkHttp) {
     }
     install(ContentEncoding)
     install(Logging) {
-        level = LogLevel.HEADERS
+        level = LogLevel.ALL
         logger = Logger.ANDROID
     }
     expectSuccess = true
@@ -466,10 +517,32 @@ private suspend inline fun <reified T> FlowCollector<T>.emitStreamingResponse(re
     val channel: ByteReadChannel = response.body()
     while (!channel.isClosedForRead) {
         val line = channel.readUTF8Line() ?: break
+        Log.i("http", line)
         if (line.startsWith(DONE_TOKEN)) {
              break
         }
         if (line.startsWith(DATA_LINE_PREFIX)) {
+            emit(jsonCodec.decodeFromString(line.removePrefix(DATA_LINE_PREFIX)))
+            yield()
+        }
+    }
+}
+
+private const val EVENT_LINE_PREFIX = "event:"
+private val EVENT_MESSAGE_STOP = "message_stop"
+private val EVENT_CONTENT_BLOCK_DELTA = "content_block_delta"
+
+private suspend inline fun <reified T> FlowCollector<T>.emitClaudeStream(response: HttpResponse) {
+    val channel: ByteReadChannel = response.body()
+    var event = ""
+    while (!channel.isClosedForRead) {
+        val line = channel.readUTF8Line() ?: break
+        if (line.startsWith(EVENT_LINE_PREFIX)) {
+            event = line.removePrefix(EVENT_LINE_PREFIX).trim()
+            if (event == EVENT_MESSAGE_STOP) {
+                break
+            }
+        } else if (line.startsWith(DATA_LINE_PREFIX) && event == EVENT_CONTENT_BLOCK_DELTA) {
             emit(jsonCodec.decodeFromString(line.removePrefix(DATA_LINE_PREFIX)))
             yield()
         }
@@ -579,4 +652,37 @@ class TextToSpeechRequest(
     val response_format: String,
     val voice: String,
     val model: String,
+)
+
+@Serializable
+class ClaudeCompletionRequest(
+    val model: String,
+    val system: String,
+    val messages: List<ClaudeMessage>,
+    val max_tokens: Int,
+    val stream: Boolean,
+)
+
+fun ClaudeCompletionRequest(system: String, messages: List<ClaudeMessage>) = ClaudeCompletionRequest(
+    model = MODEL_ID_SONNET_3_5,
+    system = system,
+    messages = messages,
+    max_tokens = 4096,
+    stream = true
+)
+
+@Serializable
+class ClaudeMessage(
+    val role: String,
+    val content: String,
+)
+
+@Serializable
+class ClaudeResponseChunk(
+    val delta: ClaudeDelta
+)
+
+@Serializable
+class ClaudeDelta(
+    val text: String
 )
