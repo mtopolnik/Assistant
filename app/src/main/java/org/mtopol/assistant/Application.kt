@@ -149,11 +149,11 @@ val SharedPreferences.isMuted: Boolean get() = getBoolean(KEY_IS_MUTED, false)
 fun SharedPreferences.Editor.setIsMuted(value: Boolean): SharedPreferences.Editor =
     putBoolean(KEY_IS_MUTED, value)
 
-val SharedPreferences.selectedModel: OpenAiModel get() =
-    getString(KEY_SELECTED_MODEL, OpenAiModel.GPT_3.name).let { OpenAiModel.valueOf(it!!)
+val SharedPreferences.selectedModel: AiModel get() =
+    getString(KEY_SELECTED_MODEL, AiModel.GPT_3.name).let { AiModel.valueOf(it!!)
 }
 
-fun SharedPreferences.Editor.setSelectedModel(value: OpenAiModel): SharedPreferences.Editor =
+fun SharedPreferences.Editor.setSelectedModel(value: AiModel): SharedPreferences.Editor =
     putString(KEY_SELECTED_MODEL, value.name)
 
 val SharedPreferences.selectedVoice: Voice get() =

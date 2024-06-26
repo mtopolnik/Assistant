@@ -140,8 +140,6 @@ private const val MIN_HOLD_RECORD_BUTTON_MILLIS = 400L
 private const val RECORD_HINT_DURATION_MILLIS = 3_000L
 private const val DALLE_IMAGE_DIMENSION = 512
 private const val REPLY_VIEW_UPDATE_PERIOD_MILLIS = 100L
-private const val SCROLLVIEW_PADDING = 40
-
 
 @Suppress("RegExpUnnecessaryNonCapturingGroup")
 private val sentenceDelimiterRegex = """(?<=\D[.!]['"]?)\s+|(?<=\d[.!]'?)\s+(?=\p{Lu})|(?<=.[;?]'?)\s+|\n+""".toRegex()
@@ -233,8 +231,8 @@ class ChatFragment : Fragment(), MenuProvider {
     ): View {
         Log.i("lifecycle", "onCreateView ChatFragment")
 
-        // Trigger lazy loading of OpenAI client
-        GlobalScope.launch(IO) { openAi }
+        // Trigger lazy loading of the API clients
+        GlobalScope.launch(IO) { openAi; anthropic }
 
         binding = FragmentChatBinding.inflate(inflater, container, false)
         vmodel.withFragmentLiveData.observe(viewLifecycleOwner) { it.invoke(this) }
@@ -480,7 +478,7 @@ class ChatFragment : Fragment(), MenuProvider {
         }
         if (apiKey.allowsOnlyGpt3() || (mainPrefs.selectedModel.isImageModel() && !apiKey.allowsImageGeneration())) {
             mainPrefs.applyUpdate {
-                setSelectedModel(OpenAiModel.GPT_3)
+                setSelectedModel(AiModel.GPT_3)
             }
         }
         if (!apiKey.allowsOnlyGpt3()) {
@@ -491,9 +489,9 @@ class ChatFragment : Fragment(), MenuProvider {
                 setOnClickListener {
                     val currOrdinal = mainPrefs.selectedModel.ordinal
                     val nextOrdinal =
-                        (currOrdinal + 1) % (if (apiKey.allowsImageGeneration()) OpenAiModel.entries.size else chatModels.size)
+                        (currOrdinal + 1) % (if (apiKey.allowsImageGeneration()) AiModel.entries.size else chatModels.size)
                     mainPrefs.applyUpdate {
-                        setSelectedModel(OpenAiModel.entries[nextOrdinal])
+                        setSelectedModel(AiModel.entries[nextOrdinal])
                     }
                     updateText()
                 }
@@ -576,7 +574,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 activity.mainPrefs.applyUpdate {
                     setOpenaiApiKey("")
                 }
-                resetOpenAi()
+                resetClients()
                 activity.navigateToApiKeyFragment()
                 true
             }
@@ -693,8 +691,14 @@ class ChatFragment : Fragment(), MenuProvider {
                 }
 
                 val sentenceFlow: Flow<String> = channelFlow {
+                    val selectedModel = appContext.mainPrefs.selectedModel
+                    val responseFlow = if (selectedModel == AiModel.CLAUDE_3_5_SONNET)
+                        anthropic.messages(vmodel.chatHistory, selectedModel)
+                    else
+                        openAi.chatCompletions(vmodel.chatHistory, selectedModel)
+
                     var replyTextUpdateTime = 0L
-                    openAi.chatCompletions(vmodel.chatHistory, appContext.mainPrefs.selectedModel)
+                    responseFlow
                         .onEach { token ->
                             replyMarkdown.append(token)
                             if (System.currentTimeMillis() - replyTextUpdateTime < REPLY_VIEW_UPDATE_PERIOD_MILLIS) {
@@ -968,7 +972,7 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun sendPromptAndReceiveResponse(prompt: String) {
-        if (appContext.mainPrefs.selectedModel.isGptModel()) {
+        if (appContext.mainPrefs.selectedModel.isChatModel()) {
             sendPromptAndReceiveTextResponse(prompt)
         } else {
             sendPromptAndReceiveImageResponse(prompt)

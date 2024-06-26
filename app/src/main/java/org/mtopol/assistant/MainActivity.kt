@@ -48,7 +48,7 @@ class MainActivity : AppCompatActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, true)
         super.onCreate(savedInstanceState)
         setContentView(ActivityMainBinding.inflate(layoutInflater).root)
-        resetOpenAi()
+        resetClients()
         if (mainPrefs.openaiApiKey.isBlank()) {
             if (savedInstanceState == null) {
                 navigateToApiKeyFragment()
