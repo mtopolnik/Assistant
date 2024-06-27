@@ -213,7 +213,6 @@ class ChatFragment : Fragment(), MenuProvider {
             this,
             object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
-                    if (binding.imgZoomed.isVisible) return
                     if (binding.drawerLayout.isDrawerOpen(GravityCompat.START)) {
                         binding.drawerLayout.closeDrawer(GravityCompat.START)
                     } else {
