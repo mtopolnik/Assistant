@@ -26,6 +26,9 @@
             android:id="@+id/action_play_store"
             android:title="@string/action_play_store" />
     <item
+            android:id="@+id/action_delete_anthropic_key"
+            android:title="@string/action_delete_openai_key" />
+    <item
             android:id="@+id/action_delete_openai_key"
             android:title="@string/action_delete_openai_key" />
     <item

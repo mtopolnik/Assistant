@@ -17,20 +17,13 @@
   -->
 
 <resources>
-    <string name="title_enter_api_key">Treba nam Vaš OpenAI API ključ</string>
-    <string name="system_prompt_default">Ti si ljubazni asistent i ekspert. Uvijek se trudiš dati
-        najbolji, najtočniji odgovor. Tvoji odgovori su kratki, osim ako korisnik eksplicitno
-        zatraži dulji odgovor.
-    </string>
-    <string name="enter_apikey_explanation">Brbljavica treba Vaš OpenAI API ključ kako bi mogla
-        raditi. Posjetite
-        \nhttps://platform.openai.com
-        \ni tamo kreirajte svoj korisnički račun, zatim kreirajte API ključ na
-        \nhttps://platform.openai.com/account/api-keys.
+    <string name="title_enter_api_key">Treba nam Vaš API ključ</string>
+    <string name="enter_apikey_explanation">Brbljavica treba Vaš API ključ kako bi mogla raditi.
+        \nPrihvaća Anthropic i OpenAI ključeve.
         \n
         \nMožete i upisati \"demo\" pa će aplikacija raditi u demo-načinu.
         \n
-        \nBrbljavica koristi Vaš API ključ isključivo kako bi pristupila OpenAI-jevom APIju
+        \nBrbljavica koristi Vaš API ključ isključivo kako bi pristupila javnom APIju
         kad zadate prompt. Ključ će biti pohranjen u standardnoj Androidovoj aplikacijskoj
         postavci, a Android može automatski napraviti njegovu sigurnosnu kopiju unutar Vašeg
         Google korisničkog računa, tako da Vam ključ bude dostupan i na drugim uređajima.
@@ -38,6 +31,10 @@
         \nBrbljavica je open-source applikacija, dostupna na
         \nhttps://github.com/mtopolnik/Assistant
         \nwgdje možete provjeriti točno na koji način koristi Vaš API ključ.
+    </string>
+    <string name="system_prompt_default">Ti si ljubazni asistent i ekspert. Uvijek se trudiš dati
+        najbolji, najtočniji odgovor. Tvoji odgovori su kratki, osim ako korisnik eksplicitno
+        zatraži dulji odgovor.
     </string>
     <string name="demo_response">Uključen je demo način rada — ovo je fejk odgovor.
         \n
@@ -67,7 +64,8 @@
     <string name="action_undo">Vrati na prethodno</string>
     <string name="action_edit_system_prompt">Sistemski prompt</string>
     <string name="title_edit_system_prompt">Uredi sistemski prompt</string>
-    <string name="action_delete_openai_key">Poništi API ključ</string>
+    <string name="action_delete_anthropic_key">Poništi Anthropic ključ</string>
+    <string name="action_delete_openai_key">Poništi OpenAI ključ</string>
     <string name="api_key_hint">Vaš OpenAI API ključ</string>
     <string name="error_while_gpt_talking">Negdje je zapelo dok je Brbljavica pričala.</string>
     <string name="translation_error">Negdje je zapelo dok smo prevodili.</string>

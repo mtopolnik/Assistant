@@ -17,16 +17,13 @@
   -->
 
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="title_enter_api_key">We Need Your OpenAI API key</string>
-    <string name="enter_apikey_explanation">Good Guy Pete needs your OpenAI key to work.
-        In order to obtain it, visit
-        \nhttps://platform.openai.com
-        \nand create an account. Then create an API key at
-        \nhttps://platform.openai.com/account/api-keys.
+    <string name="title_enter_api_key">We Need Your API key</string>
+    <string name="enter_apikey_explanation">Good Guy Pete needs your API key to work.
+        \nIt accepts Anthropic and OpenAI API keys.
         \n
         \nYou can also type in \"demo\" and enter the demo mode.
         \n
-        \nGood Guy Pete will use your API key strictly to access OpenAI API
+        \nGood Guy Pete will use your API key strictly to access the public API
         when you enter a prompt. Your key will be stored as a standard Android
         application preference and as such may get backed up to your Google account
         so that it is available on your other devices.
@@ -67,7 +64,8 @@
     <string name="action_undo">Undo</string>
     <string name="action_edit_system_prompt">Edit System Prompt</string>
     <string name="title_edit_system_prompt">Edit System Prompt</string>
-    <string name="action_delete_openai_key">Delete API Key</string>
+    <string name="action_delete_anthropic_key">Delete Anthropic Key</string>
+    <string name="action_delete_openai_key">Delete OpenAI Key</string>
     <string name="api_key_hint">Your OpenAI API key</string>
     <string name="error_while_gpt_talking">Something went wrong while Pete was talking</string>
     <string name="translation_error">Something went wrong while translating</string>

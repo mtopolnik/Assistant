@@ -83,7 +83,6 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.children
 import androidx.core.view.doOnLayout
-import androidx.core.view.isVisible
 import androidx.core.view.postDelayed
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -279,39 +278,9 @@ class ChatFragment : Fragment(), MenuProvider {
                 drawerToggle = ActionBarDrawerToggle(
                     activity, binding.drawerLayout, binding.toolbar, R.string.menu_open, R.string.menu_close)
                 binding.drawerLayout.addDrawerListener(drawerToggle)
-                binding.viewDrawer.apply {
-                    setNavigationItemSelectedListener { item ->
-                        when (item.itemId) {
-                            in voiceSubMenu.children.map { it.itemId } -> {
-                                selectVoice(item.itemId)
-                            }
-                            R.id.action_about -> {
-                                showAboutDialogFragment(requireActivity())
-                            }
-                            R.id.action_edit_system_prompt -> {
-                                findNavController().navigate(R.id.fragment_system_prompt)
-                            }
-                            R.id.action_play_store -> {
-                                requireContext().visitOnPlayStore()
-                            }
-                            R.id.action_delete_openai_key -> {
-                                activity.mainPrefs.applyUpdate {
-                                    setOpenaiApiKey("")
-                                }
-                                resetClients()
-                                activity.navigateToApiKeyFragment()
-                            }
-                        }
-                        binding.drawerLayout.closeDrawer(GravityCompat.START)
-                        true
-                    }
-                    menu.findItem(R.id.submenu_voice)?.also { voiceItem ->
-                        voiceSubMenu = voiceItem.subMenu!!
-                    }
-                }
             }
+            configureNavigationDrawerBehavior(activity)
         }
-
         markwon = Markwon.builder(context)
             .usePlugin(CorePlugin.create())
             .usePlugin(SoftBreakAddsNewLinePlugin.create())
@@ -600,12 +569,60 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun selectVoice(itemId: Int) {
-        for (item in voiceSubMenu.children) {
-            item.setChecked(item.itemId == itemId)
+    private fun configureNavigationDrawerBehavior(activity: MainActivity) {
+
+        fun onApiKeyDeleted() {
+            resetClients()
+            activity.mainPrefs.apply {
+                if (anthropicApiKey == "" && openaiApiKey == "") {
+                    activity.navigateToApiKeyFragment()
+                }
+            }
         }
-        appContext.mainPrefs.applyUpdate {
-            setSelectedVoice(Voice.entries.first { it.itemId == itemId })
+
+        fun selectVoice(itemId: Int) {
+            for (item in voiceSubMenu.children) {
+                item.setChecked(item.itemId == itemId)
+            }
+            appContext.mainPrefs.applyUpdate {
+                setSelectedVoice(Voice.entries.first { it.itemId == itemId })
+            }
+        }
+
+        binding.viewDrawer.apply {
+            setNavigationItemSelectedListener { item ->
+                when (item.itemId) {
+                    in voiceSubMenu.children.map { it.itemId } -> {
+                        selectVoice(item.itemId)
+                    }
+                    R.id.action_about -> {
+                        showAboutDialogFragment(requireActivity())
+                    }
+                    R.id.action_edit_system_prompt -> {
+                        findNavController().navigate(R.id.fragment_system_prompt)
+                    }
+                    R.id.action_play_store -> {
+                        requireContext().visitOnPlayStore()
+                    }
+                    R.id.action_delete_anthropic_key -> {
+                        activity.mainPrefs.applyUpdate {
+                            setAnthropicApiKey("")
+                        }
+                        onApiKeyDeleted()
+                    }
+                    R.id.action_delete_openai_key -> {
+                        activity.mainPrefs.applyUpdate {
+                            setOpenaiApiKey("")
+                        }
+                        onApiKeyDeleted()
+                    }
+                }
+                binding.drawerLayout.closeDrawer(GravityCompat.START)
+                true
+            }
+            menu.findItem(R.id.submenu_voice)?.also { voiceItem ->
+                voiceSubMenu = voiceItem.subMenu!!
+            }
         }
     }
 
