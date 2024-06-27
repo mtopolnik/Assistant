@@ -20,17 +20,17 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
-    <LinearLayout
-            android:id="@+id/chat_layout"
+    <androidx.drawerlayout.widget.DrawerLayout
+            android:id="@+id/drawer_layout"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:orientation="vertical"
-            android:background="@color/chat_background">
+            android:layout_height="match_parent">
 
-        <androidx.drawerlayout.widget.DrawerLayout
-                android:id="@+id/drawer_layout"
+        <LinearLayout
+                android:id="@+id/chat_layout"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent">
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:background="@color/chat_background">
 
             <androidx.coordinatorlayout.widget.CoordinatorLayout
                     android:id="@+id/coordinator_layout"
@@ -68,105 +68,105 @@
 
             </androidx.coordinatorlayout.widget.CoordinatorLayout>
 
-            <com.google.android.material.navigation.NavigationView
-                    android:id="@+id/view_drawer"
-                    android:layout_width="wrap_content"
-                    android:layout_height="match_parent"
-                    android:layout_gravity="start"
-                    app:menu="@menu/menu_drawer" />
-
-        </androidx.drawerlayout.widget.DrawerLayout>
-
-        <androidx.constraintlayout.widget.ConstraintLayout
-                android:id="@+id/prompt_section"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:layout_anchor="@id/scrollview_chat"
-                app:layout_anchorGravity="bottom"
-                android:layout_gravity="bottom"
-                android:padding="8dp">
-
-            <EditText
-                    android:id="@+id/edittext_prompt"
-                    android:layout_width="0dp"
+            <androidx.constraintlayout.widget.ConstraintLayout
+                    android:id="@+id/prompt_section"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintEnd_toStartOf="@id/button_send"
-                    app:layout_constraintWidth_default="spread"
-                    android:visibility="gone"
-                    android:hint="@string/prompt_hint"
-                    android:autofillHints=""
-                    android:inputType="textCapSentences|textMultiLine"
-                    android:privateImeOptions="inputType=textImeMultiLine"
-                    android:imeOptions="actionDone|flagNavigateNext"
-                    android:maxLines="7" />
+                    app:layout_anchor="@id/scrollview_chat"
+                    app:layout_anchorGravity="bottom"
+                    android:layout_gravity="bottom"
+                    android:padding="8dp">
 
-            <Button
-                    android:id="@+id/button_send"
-                    android:layout_width="58dp"
-                    android:layout_height="58dp"
-                    app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    style="?attr/materialIconButtonFilledStyle"
-                    app:icon="@drawable/baseline_send_28"
-                    app:iconSize="28dp"
-                    app:iconTint="?attr/colorOnPrimary"
-                    app:iconPadding="4dp"
-                    app:iconGravity="textEnd"
-                    app:backgroundTint="?attr/colorPrimary"
-                    android:visibility="gone"
-                    android:contentDescription="@string/send" />
+                <EditText
+                        android:id="@+id/edittext_prompt"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        app:layout_constraintBottom_toBottomOf="parent"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintEnd_toStartOf="@id/button_send"
+                        app:layout_constraintWidth_default="spread"
+                        android:visibility="gone"
+                        android:hint="@string/prompt_hint"
+                        android:autofillHints=""
+                        android:inputType="textCapSentences|textMultiLine"
+                        android:privateImeOptions="inputType=textImeMultiLine"
+                        android:imeOptions="actionDone|flagNavigateNext"
+                        android:maxLines="7" />
 
-            <Button
-                    android:id="@+id/button_keyboard"
-                    android:layout_width="58dp"
-                    android:layout_height="58dp"
-                    app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintStart_toStartOf="parent"
-                    style="?attr/materialIconButtonFilledStyle"
-                    app:icon="@drawable/baseline_keyboard_28"
-                    app:iconSize="28dp"
-                    app:iconTint="@color/on_keyboard_button"
-                    app:iconGravity="textEnd"
-                    app:backgroundTint="@color/keyboard_button"
-                    android:contentDescription="@string/send" />
+                <Button
+                        android:id="@+id/button_send"
+                        android:layout_width="58dp"
+                        android:layout_height="58dp"
+                        app:layout_constraintBottom_toBottomOf="parent"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        style="?attr/materialIconButtonFilledStyle"
+                        app:icon="@drawable/baseline_send_28"
+                        app:iconSize="28dp"
+                        app:iconTint="?attr/colorOnPrimary"
+                        app:iconPadding="4dp"
+                        app:iconGravity="textEnd"
+                        app:backgroundTint="?attr/colorPrimary"
+                        android:visibility="gone"
+                        android:contentDescription="@string/send" />
 
-            <Button
-                    android:id="@+id/button_record"
-                    android:layout_width="0dp"
-                    android:layout_height="58dp"
-                    app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintStart_toEndOf="@id/button_keyboard"
-                    app:layout_constraintEnd_toStartOf="@id/button_language"
-                    app:layout_constraintWidth_default="spread"
-                    style="?attr/materialIconButtonFilledStyle"
-                    app:icon="@drawable/baseline_mic_28"
-                    app:iconSize="28dp"
-                    app:iconTint="@color/primary_button_color_selector"
-                    app:iconGravity="textEnd"
-                    app:backgroundTint="?attr/colorPrimary"
-                    android:contentDescription="@string/record" />
+                <Button
+                        android:id="@+id/button_keyboard"
+                        android:layout_width="58dp"
+                        android:layout_height="58dp"
+                        app:layout_constraintBottom_toBottomOf="parent"
+                        app:layout_constraintStart_toStartOf="parent"
+                        style="?attr/materialIconButtonFilledStyle"
+                        app:icon="@drawable/baseline_keyboard_28"
+                        app:iconSize="28dp"
+                        app:iconTint="@color/on_keyboard_button"
+                        app:iconGravity="textEnd"
+                        app:backgroundTint="@color/keyboard_button"
+                        android:contentDescription="@string/send" />
 
-            <Button
-                    android:id="@+id/button_language"
-                    android:layout_width="58dp"
-                    android:layout_height="58dp"
-                    app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    style="?attr/materialIconButtonFilledStyle"
-                    app:icon="@drawable/baseline_record_voice_over_28"
-                    app:iconSize="28dp"
-                    app:iconTint="@color/on_keyboard_button"
-                    app:iconGravity="textEnd"
-                    app:backgroundTint="@color/keyboard_button"
-                    android:textSize="18dp"
-                    android:visibility="visible"
-                    android:contentDescription="@string/listen_language" />
+                <Button
+                        android:id="@+id/button_record"
+                        android:layout_width="0dp"
+                        android:layout_height="58dp"
+                        app:layout_constraintBottom_toBottomOf="parent"
+                        app:layout_constraintStart_toEndOf="@id/button_keyboard"
+                        app:layout_constraintEnd_toStartOf="@id/button_language"
+                        app:layout_constraintWidth_default="spread"
+                        style="?attr/materialIconButtonFilledStyle"
+                        app:icon="@drawable/baseline_mic_28"
+                        app:iconSize="28dp"
+                        app:iconTint="@color/primary_button_color_selector"
+                        app:iconGravity="textEnd"
+                        app:backgroundTint="?attr/colorPrimary"
+                        android:contentDescription="@string/record" />
 
-        </androidx.constraintlayout.widget.ConstraintLayout>
+                <Button
+                        android:id="@+id/button_language"
+                        android:layout_width="58dp"
+                        android:layout_height="58dp"
+                        app:layout_constraintBottom_toBottomOf="parent"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        style="?attr/materialIconButtonFilledStyle"
+                        app:icon="@drawable/baseline_record_voice_over_28"
+                        app:iconSize="28dp"
+                        app:iconTint="@color/on_keyboard_button"
+                        app:iconGravity="textEnd"
+                        app:backgroundTint="@color/keyboard_button"
+                        android:textSize="18dp"
+                        android:visibility="visible"
+                        android:contentDescription="@string/listen_language" />
 
-    </LinearLayout>
+            </androidx.constraintlayout.widget.ConstraintLayout>
+
+        </LinearLayout>
+
+        <com.google.android.material.navigation.NavigationView
+                android:id="@+id/view_drawer"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_gravity="start"
+                app:menu="@menu/menu_drawer" />
+
+    </androidx.drawerlayout.widget.DrawerLayout>
 
     <org.mtopol.assistant.TouchImageView
             android:id="@+id/img_zoomed"

@@ -281,27 +281,36 @@ class ChatFragment : Fragment(), MenuProvider {
                 drawerToggle = ActionBarDrawerToggle(
                     activity, binding.drawerLayout, binding.toolbar, R.string.menu_open, R.string.menu_close)
                 binding.drawerLayout.addDrawerListener(drawerToggle)
-                binding.viewDrawer.setNavigationItemSelectedListener { item ->
-                    when (item.itemId) {
-                        R.id.action_about -> {
-                            showAboutDialogFragment(requireActivity())
+                binding.viewDrawer.apply {
+                    setNavigationItemSelectedListener { item ->
+                        if (item in voiceSubMenu.children) {
+                            selectVoice(item.itemId)
+                            return@setNavigationItemSelectedListener true
                         }
-                        R.id.action_edit_system_prompt -> {
-                            findNavController().navigate(R.id.fragment_system_prompt)
-                        }
-                        R.id.action_play_store -> {
-                            requireContext().visitOnPlayStore()
-                        }
-                        R.id.action_delete_openai_key -> {
-                            activity.mainPrefs.applyUpdate {
-                                setOpenaiApiKey("")
+                        when (item.itemId) {
+                            R.id.action_about -> {
+                                showAboutDialogFragment(requireActivity())
                             }
-                            resetClients()
-                            activity.navigateToApiKeyFragment()
+                            R.id.action_edit_system_prompt -> {
+                                findNavController().navigate(R.id.fragment_system_prompt)
+                            }
+                            R.id.action_play_store -> {
+                                requireContext().visitOnPlayStore()
+                            }
+                            R.id.action_delete_openai_key -> {
+                                activity.mainPrefs.applyUpdate {
+                                    setOpenaiApiKey("")
+                                }
+                                resetClients()
+                                activity.navigateToApiKeyFragment()
+                            }
                         }
+                        binding.drawerLayout.closeDrawer(GravityCompat.START)
+                        true
                     }
-                    binding.drawerLayout.closeDrawer(GravityCompat.START)
-                    true
+                    menu.findItem(R.id.submenu_voice)?.also { voiceItem ->
+                        voiceSubMenu = voiceItem.subMenu!!
+                    }
                 }
             }
         }
@@ -495,10 +504,7 @@ class ChatFragment : Fragment(), MenuProvider {
         Log.i("lifecycle", "onCreateMenu")
         menu.clear()
         menuInflater.inflate(R.menu.menu_main, menu)
-        menu.findItem(R.id.submenu_voice)?.also { voiceItem ->
-            voiceSubMenu = voiceItem.subMenu!!
-            applyAccessRules(menu)
-        }
+        applyAccessRules(menu)
         updateMuteItem(menu.findItem(R.id.action_sound_toggle))
     }
 
@@ -560,10 +566,6 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     override fun onMenuItemSelected(item: MenuItem): Boolean {
-        if (item in voiceSubMenu.children) {
-            selectVoice(item.itemId)
-            return true
-        }
         return when (item.itemId) {
             R.id.action_speak_again -> {
                 val previousResponseJob = vmodel.handleResponseJob?.apply { cancel() }
