@@ -46,4 +46,8 @@
     <style name="OverflowPopupTheme" parent="Widget.Material3.PopupMenu.Overflow">
         <item name="android:background">@android:color/transparent</item>
     </style>
+
+    <style name="NavigationDrawerItem">
+        <item name="android:textSize">16sp</item>
+    </style>
 </resources>

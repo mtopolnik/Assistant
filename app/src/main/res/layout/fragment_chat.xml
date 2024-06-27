@@ -164,7 +164,11 @@
                 android:layout_width="wrap_content"
                 android:layout_height="match_parent"
                 android:layout_gravity="start"
-                app:menu="@menu/menu_drawer" />
+                app:menu="@menu/menu_drawer"
+                app:itemTextAppearance="@style/NavigationDrawerItem"
+                app:subheaderTextAppearance="@style/NavigationDrawerItem"
+                app:subheaderColor="@color/light_grey"
+                />
 
     </androidx.drawerlayout.widget.DrawerLayout>
 
