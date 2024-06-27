@@ -23,8 +23,8 @@
             android:id="@+id/action_edit_system_prompt"
             android:title="@string/action_edit_system_prompt" />
     <item
-            android:id="@+id/action_play_store"
-            android:title="@string/action_play_store" />
+            android:id="@+id/action_enter_api_key"
+            android:title="@string/action_enter_api_key" />
     <item
             android:id="@+id/action_delete_anthropic_key"
             android:title="@string/action_delete_anthropic_key" />
@@ -32,8 +32,8 @@
             android:id="@+id/action_delete_openai_key"
             android:title="@string/action_delete_openai_key" />
     <item
-            android:id="@+id/action_enter_api_key"
-            android:title="@string/action_enter_api_key" />
+            android:id="@+id/action_play_store"
+            android:title="@string/action_play_store" />
     <item
             android:id="@+id/submenu_voice"
             android:title="@string/submenu_voice">

@@ -66,9 +66,10 @@ enum class AiModel(
 }
 
 class OpenAiKey(val text: String) {
-    fun isEmpty() = text.isBlank()
+    fun isBlank() = text.isBlank()
+    fun isNotBlank() = text.isNotBlank()
     fun isDemoKey() = text.isDemoKey()
-    fun allowsGpt3() = text.isNotBlank() && !isDemoKey()
+    fun allowsGpt3() = isNotBlank() && !isDemoKey()
     fun allowsGpt4() = allowsGpt3() && !text.isGpt3OnlyKey()
     fun allowsTts() = allowsGpt4() && !text.isGptOnlyKey()
     fun allowsArtist() = text.isImageGenKey()
@@ -88,12 +89,14 @@ class ApiKeyWallet(prefs: SharedPreferences) {
             if (isDemo()) models.add(AiModel.DEMO)
             if (openaiKey.allowsGpt3()) models.add(AiModel.GPT_3)
             if (openaiKey.allowsGpt4()) models.add(AiModel.GPT_4)
-            if (anthropicKey.isNotBlank()) models.add(AiModel.CLAUDE_3_5_SONNET)
+            if (hasAnthropicKey()) models.add(AiModel.CLAUDE_3_5_SONNET)
             if (openaiKey.allowsArtist()) models.add(AiModel.ARTIST_3)
         }
     }
 
-    fun isEmpty() = anthropicKey == "" && openaiKey.isEmpty()
+    fun hasAnthropicKey() = anthropicKey.isNotBlank()
+    fun hasOpenaiKey() = openaiKey.isNotBlank()
+    fun isEmpty() = !hasAnthropicKey() && !hasOpenaiKey()
     fun allowsTts() = openaiKey.allowsTts()
     fun isDemo() = openaiKey.isDemoKey()
 }

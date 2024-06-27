@@ -149,7 +149,7 @@ class OpenAI {
             delay(2000)
             return mockRecognizedSpeech
         }
-        if (appContext.mainPrefs.openaiApiKey.isEmpty()) {
+        if (appContext.mainPrefs.openaiApiKey.isBlank()) {
             Toast.makeText(appContext, "Your OpenAI key is missing", Toast.LENGTH_LONG).show()
             return ""
         }

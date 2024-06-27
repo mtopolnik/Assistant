@@ -417,7 +417,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
                 override fun afterTextChanged(editable: Editable) {
                     if (editable.isEmpty() && hadTextLastTime) {
-                        if (!appContext.mainPrefs.openaiApiKey.isEmpty()) {
+                        if (!appContext.mainPrefs.openaiApiKey.isBlank()) {
                             hideKeyboard()
                             switchToVoice()
                         }
@@ -438,7 +438,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             })
         }
-        if (appContext.mainPrefs.openaiApiKey.isEmpty()) {
+        if (appContext.mainPrefs.openaiApiKey.isBlank()) {
             switchToTyping()
         }
         return binding.root
@@ -477,7 +477,7 @@ class ChatFragment : Fragment(), MenuProvider {
         updateMuteItem(menu.findItem(R.id.action_sound_toggle))
     }
 
-    private fun applyAccessRules(menu: Menu) {
+    private fun applyAccessRules(mainMenu: Menu) {
         val mainPrefs = appContext.mainPrefs
 
         fun TextView.updateText() {
@@ -498,7 +498,12 @@ class ChatFragment : Fragment(), MenuProvider {
                     }
                 }
             }
-            menu.findItem(R.id.action_gpt_toggle)
+            binding.viewDrawer.menu.apply {
+                findItem(R.id.action_delete_anthropic_key).setVisible(wallet.hasAnthropicKey())
+                findItem(R.id.action_delete_openai_key).setVisible(wallet.hasOpenaiKey())
+            }
+
+            mainMenu.findItem(R.id.action_gpt_toggle)
                 .actionView!!
                 .findViewById<TextView>(R.id.textview_model_selector).apply {
                     updateText()
