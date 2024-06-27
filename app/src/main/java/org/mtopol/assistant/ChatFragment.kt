@@ -276,18 +276,15 @@ class ChatFragment : Fragment(), MenuProvider {
             activity.setSupportActionBar(binding.toolbar)
             activity.supportActionBar?.apply {
                 setDisplayShowTitleEnabled(false)
-                setDisplayHomeAsUpEnabled(true)
-                setHomeButtonEnabled(true)
                 drawerToggle = ActionBarDrawerToggle(
                     activity, binding.drawerLayout, binding.toolbar, R.string.menu_open, R.string.menu_close)
                 binding.drawerLayout.addDrawerListener(drawerToggle)
                 binding.viewDrawer.apply {
                     setNavigationItemSelectedListener { item ->
-                        if (item in voiceSubMenu.children) {
-                            selectVoice(item.itemId)
-                            return@setNavigationItemSelectedListener true
-                        }
                         when (item.itemId) {
+                            in voiceSubMenu.children.map { it.itemId } -> {
+                                selectVoice(item.itemId)
+                            }
                             R.id.action_about -> {
                                 showAboutDialogFragment(requireActivity())
                             }
