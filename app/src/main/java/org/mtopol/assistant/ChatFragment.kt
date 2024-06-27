@@ -26,6 +26,7 @@ import android.content.Context
 import android.content.Context.VIBRATOR_SERVICE
 import android.content.Intent
 import android.content.pm.PackageManager.PERMISSION_GRANTED
+import android.content.res.Configuration
 import android.graphics.PointF
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
@@ -70,11 +71,13 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.PopupMenu
 import androidx.core.content.ContextCompat.checkSelfPermission
 import androidx.core.content.FileProvider
 import androidx.core.net.toFile
+import androidx.core.view.GravityCompat
 import androidx.core.view.MenuProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -191,6 +194,7 @@ class ChatFragment : Fragment(), MenuProvider {
     private lateinit var audioPathname: String
     private lateinit var languageIdentifier: LanguageIdentifier
     private lateinit var markwon: Markwon
+    private lateinit var drawerToggle: ActionBarDrawerToggle
     private lateinit var voiceSubMenu: SubMenu
 
     private var recordButtonPressTime = 0L
@@ -210,11 +214,15 @@ class ChatFragment : Fragment(), MenuProvider {
             object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
                     if (binding.imgZoomed.isVisible) return
-                    startActivity(
-                        Intent(Intent.ACTION_MAIN).apply {
-                            addCategory(Intent.CATEGORY_HOME)
-                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                        })
+                    if (binding.drawerLayout.isDrawerOpen(GravityCompat.START)) {
+                        binding.drawerLayout.closeDrawer(GravityCompat.START)
+                    } else {
+                        startActivity(
+                            Intent(Intent.ACTION_MAIN).apply {
+                                addCategory(Intent.CATEGORY_HOME)
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                            })
+                    }
                 }
             })
     }
@@ -264,11 +272,38 @@ class ChatFragment : Fragment(), MenuProvider {
                 }
             }
         }
-        val context: Context = (requireActivity() as AppCompatActivity).also { activity ->
+        val context: Context = (requireActivity() as MainActivity).also { activity ->
             activity.addMenuProvider(this, viewLifecycleOwner)
             activity.setSupportActionBar(binding.toolbar)
             activity.supportActionBar?.apply {
                 setDisplayShowTitleEnabled(false)
+                setDisplayHomeAsUpEnabled(true)
+                setHomeButtonEnabled(true)
+                drawerToggle = ActionBarDrawerToggle(
+                    activity, binding.drawerLayout, binding.toolbar, R.string.menu_open, R.string.menu_close)
+                binding.drawerLayout.addDrawerListener(drawerToggle)
+                binding.viewDrawer.setNavigationItemSelectedListener { item ->
+                    when (item.itemId) {
+                        R.id.action_about -> {
+                            showAboutDialogFragment(requireActivity())
+                        }
+                        R.id.action_edit_system_prompt -> {
+                            findNavController().navigate(R.id.fragment_system_prompt)
+                        }
+                        R.id.action_play_store -> {
+                            requireContext().visitOnPlayStore()
+                        }
+                        R.id.action_delete_openai_key -> {
+                            activity.mainPrefs.applyUpdate {
+                                setOpenaiApiKey("")
+                            }
+                            resetClients()
+                            activity.navigateToApiKeyFragment()
+                        }
+                    }
+                    binding.drawerLayout.closeDrawer(GravityCompat.START)
+                    true
+                }
             }
         }
 
@@ -446,6 +481,11 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        drawerToggle.syncState()
+    }
+
     override fun onDestroyView() {
         super.onDestroyView()
         Log.i("lifecycle", "onDestroyView ChatFragment")
@@ -456,10 +496,11 @@ class ChatFragment : Fragment(), MenuProvider {
         Log.i("lifecycle", "onCreateMenu")
         menu.clear()
         menuInflater.inflate(R.menu.menu_main, menu)
-        val voiceItem = menu.findItem(R.id.submenu_voice)
-        voiceSubMenu = voiceItem.subMenu!!
+        menu.findItem(R.id.submenu_voice)?.also { voiceItem ->
+            voiceSubMenu = voiceItem.subMenu!!
+            applyAccessRules(menu)
+        }
         updateMuteItem(menu.findItem(R.id.action_sound_toggle))
-        applyAccessRules(menu)
     }
 
     private fun applyAccessRules(menu: Menu) {
@@ -557,27 +598,6 @@ class ChatFragment : Fragment(), MenuProvider {
                 clearChat()
                 true
             }
-            R.id.action_about -> {
-                showAboutDialogFragment(requireActivity())
-                true
-            }
-            R.id.action_edit_system_prompt -> {
-                findNavController().navigate(R.id.fragment_system_prompt)
-                true
-            }
-            R.id.action_play_store -> {
-                requireContext().visitOnPlayStore()
-                true
-            }
-            R.id.action_delete_openai_key -> {
-                val activity = requireActivity() as MainActivity
-                activity.mainPrefs.applyUpdate {
-                    setOpenaiApiKey("")
-                }
-                resetClients()
-                activity.navigateToApiKeyFragment()
-                true
-            }
             else -> false
         }
     }
@@ -602,6 +622,11 @@ class ChatFragment : Fragment(), MenuProvider {
         Log.i("lifecycle", "onPause ChatFragment")
         vmodel.recordingGlowJob?.cancel()
         runBlocking { stopRecording() }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        drawerToggle.onConfigurationChanged(newConfig)
     }
 
     private suspend fun undoLastPrompt() {

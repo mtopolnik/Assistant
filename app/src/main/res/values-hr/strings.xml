@@ -52,6 +52,8 @@
         \n© 2023-2024 Marko Topolnik
     </string>
     <string name="app_name">GPT Brbljavica</string>
+    <string name="menu_open">Otvori meni</string>
+    <string name="menu_close">Zatvori meni</string>
     <string name="action_settings">Postavke</string>
     <string name="record">Snimi glas</string>
     <string name="send">Šalji</string>

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+  ~ Copyright (c) 2023 Marko Topolnik.
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+            android:id="@+id/action_about"
+            android:title="@string/action_about" />
+    <item
+            android:id="@+id/submenu_voice"
+            android:title="@string/submenu_voice">
+        <menu>
+            <item
+                    android:id="@+id/voice_builtin"
+                    android:title="@string/voice_builtin"
+                    android:checkable="true" />
+            <item
+                    android:id="@+id/voice_alloy"
+                    android:title="@string/voice_alloy"
+                    android:checkable="true" />
+            <item
+                    android:id="@+id/voice_echo"
+                    android:title="@string/voice_echo"
+                    android:checkable="true" />
+            <item
+                    android:id="@+id/voice_fable"
+                    android:title="@string/voice_fable"
+                    android:checkable="true" />
+            <item
+                    android:id="@+id/voice_nova"
+                    android:title="@string/voice_nova"
+                    android:checkable="true" />
+            <item
+                    android:id="@+id/voice_onyx"
+                    android:title="@string/voice_onyx"
+                    android:checkable="true" />
+            <item
+                    android:id="@+id/voice_shimmer"
+                    android:title="@string/voice_shimmer"
+                    android:checkable="true" />
+        </menu>
+    </item>
+    <item
+            android:id="@+id/action_edit_system_prompt"
+            android:title="@string/action_edit_system_prompt" />
+    <item
+            android:id="@+id/action_play_store"
+            android:title="@string/action_play_store" />
+    <item
+            android:id="@+id/action_delete_openai_key"
+            android:title="@string/action_delete_openai_key" />
+</menu>

@@ -52,6 +52,8 @@
         \n© 2023-2024 Marko Topolnik
     </string>
     <string name="app_name">Good Guy Pete</string>
+    <string name="menu_open">Open menu</string>
+    <string name="menu_close">Close menu</string>
     <string name="action_settings">Settings</string>
     <string name="record">Record Voice</string>
     <string name="send">Send</string>
