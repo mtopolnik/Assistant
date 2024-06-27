@@ -55,7 +55,7 @@ class MainActivity : AppCompatActivity() {
             }
             return
         }
-        // This point reached only when API key is present
+        // This point reached only when an API key is present
         handleImageIntent(intent)
     }
 
@@ -71,10 +71,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val navController get() =
-        (supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as NavHostFragment).navController
+        (supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as NavHostFragment?)?.navController
 
     fun navigateToApiKeyFragment() {
-        navController.navigate(R.id.fragment_api_key, null,
+        navController?.navigate(R.id.fragment_api_key, null,
             NavOptions.Builder().setPopUpTo(R.id.fragment_chat, true).build())
     }
 
@@ -138,7 +138,7 @@ class MainActivity : AppCompatActivity() {
         }
         if (imageUris != null) {
             sharedImageViewModel.imgUriLiveData.value = imageUris
-            navController.popBackStack(R.id.fragment_chat, false)
+            navController?.popBackStack(R.id.fragment_chat, false)
         }
     }
 }

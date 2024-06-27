@@ -78,7 +78,6 @@ import kotlin.math.min
 val openAi get() = openAiLazy.value
 
 private const val OPENAI_URL = "https://api.openai.com/v1/"
-private const val DEMO_API_KEY = "demo"
 
 const val MODEL_ID_GPT_3 = "gpt-3.5-turbo"
 const val MODEL_ID_GPT_4 = "gpt-4o"
@@ -96,7 +95,7 @@ class OpenAI {
     private val apiClient = createOpenAiClient(appContext.mainPrefs.openaiApiKey)
     private val blobClient = createBlobClient()
 
-    private val demoMode = appContext.mainPrefs.openaiApiKey.text.trim().lowercase() == DEMO_API_KEY
+    private val demoMode = appContext.mainPrefs.openaiApiKey.isDemoKey()
 
     private val mockRecognizedSpeech = appContext.getString(R.string.demo_recognized_speech)
     private val mockResponse = appContext.getString(R.string.demo_response)

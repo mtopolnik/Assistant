@@ -627,7 +627,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 binding.drawerLayout.closeDrawer(GravityCompat.START)
                 true
             }
-            menu.findItem(R.id.submenu_voice)!!.also { voiceItem ->
+            menu.findItem(R.id.submenu_voice)?.also { voiceItem ->
                 voiceMenuItem = voiceItem
             }
         }

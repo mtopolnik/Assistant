@@ -35,6 +35,8 @@ import kotlinx.serialization.json.Json
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 
+private const val DEMO_API_KEY = "demo"
+
 val ARTIST_LAZY = lazy {
     Log.e("lifecycle", "lazy.value", Exception("diagnostic exception"))
     val deltas = listOf(0, 29, 11, 0, -63, 24)
@@ -51,6 +53,7 @@ enum class AiModel(
     private val apiIdLazy: Lazy<String>,
     private val uiIdLazy: Lazy<String>
 ) {
+    DEMO(lazy { "demo" }, lazy { "Demo" }),
     GPT_3(lazy { MODEL_ID_GPT_3 }, lazy { "GPT-3.5" }),
     GPT_4(lazy { MODEL_ID_GPT_4 }, lazy { "GPT-4o" }),
     CLAUDE_3_5_SONNET(lazy { MODEL_ID_SONNET_3_5 }, lazy { "Sonnet" }),
@@ -64,9 +67,10 @@ enum class AiModel(
 
 class OpenAiKey(val text: String) {
     fun isEmpty() = text.isBlank()
-    fun allowsGpt3() = text.isNotBlank()
-    fun allowsGpt4() = text.isNotBlank() && !text.isGpt3OnlyKey()
-    fun allowsTts() = text.isNotBlank() && !text.isGpt3OnlyKey() && !text.isGptOnlyKey()
+    fun isDemoKey() = text.isDemoKey()
+    fun allowsGpt3() = text.isNotBlank() && !isDemoKey()
+    fun allowsGpt4() = allowsGpt3() && !text.isGpt3OnlyKey()
+    fun allowsTts() = allowsGpt4() && !text.isGptOnlyKey()
     fun allowsArtist() = text.isImageGenKey()
 
     override fun toString() = text
@@ -81,19 +85,21 @@ class ApiKeyWallet(prefs: SharedPreferences) {
         anthropicKey = prefs.anthropicApiKey
         openaiKey = prefs.openaiApiKey
         supportedModels = mutableListOf<AiModel>().also { models ->
+            if (isDemo()) models.add(AiModel.DEMO)
             if (openaiKey.allowsGpt3()) models.add(AiModel.GPT_3)
             if (openaiKey.allowsGpt4()) models.add(AiModel.GPT_4)
             if (anthropicKey.isNotBlank()) models.add(AiModel.CLAUDE_3_5_SONNET)
             if (openaiKey.allowsArtist()) models.add(AiModel.ARTIST_3)
         }
-        Log.i("key", "supportedModels $supportedModels")
     }
 
     fun isEmpty() = anthropicKey == "" && openaiKey.isEmpty()
     fun allowsTts() = openaiKey.allowsTts()
+    fun isDemo() = openaiKey.isDemoKey()
 }
 
-fun String.looksLikeApiKey() = looksLikeAnthropicKey() || looksLikeOpenAiKey()
+fun String.isDemoKey() = this.trim().lowercase() == DEMO_API_KEY
+fun String.looksLikeApiKey() = isDemoKey() || looksLikeAnthropicKey() || looksLikeOpenAiKey()
 fun String.looksLikeAnthropicKey() = length == 108 && startsWith("sk-ant-api")
 fun String.looksLikeOpenAiKey() = length == 51 && startsWith("sk-")
 
