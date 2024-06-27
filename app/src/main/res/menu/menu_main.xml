@@ -24,7 +24,6 @@
             android:id="@+id/action_gpt_toggle"
             android:title="@string/selected_model"
             app:actionLayout="@layout/button_gpt_toggle"
-            android:visible="false"
             app:showAsAction="always"
             tools:ignore="AlwaysShowAction" />
     <item

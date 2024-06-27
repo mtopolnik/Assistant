@@ -54,7 +54,6 @@ import android.view.Menu
 import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.MotionEvent
-import android.view.SubMenu
 import android.view.View
 import android.view.View.*
 import android.view.ViewGroup
@@ -143,7 +142,6 @@ private const val RECORD_HINT_DURATION_MILLIS = 3_000L
 private const val DALLE_IMAGE_DIMENSION = 512
 private const val REPLY_VIEW_UPDATE_PERIOD_MILLIS = 100L
 
-@Suppress("RegExpUnnecessaryNonCapturingGroup")
 private val sentenceDelimiterRegex = """(?<=\D[.!]['"]?)\s+|(?<=\d[.!]'?)\s+(?=\p{Lu})|(?<=.[;?]'?)\s+|\n+""".toRegex()
 private val speechImprovementRegex = """ ?[()] ?""".toRegex()
 private val whitespaceRegex = """\s+""".toRegex()
@@ -194,7 +192,7 @@ class ChatFragment : Fragment(), MenuProvider {
     private lateinit var languageIdentifier: LanguageIdentifier
     private lateinit var markwon: Markwon
     private lateinit var drawerToggle: ActionBarDrawerToggle
-    private lateinit var voiceSubMenu: SubMenu
+    private lateinit var voiceMenuItem: MenuItem
 
     private var recordButtonPressTime = 0L
     private var _mediaRecorder: MediaRecorder? = null
@@ -404,8 +402,7 @@ class ChatFragment : Fragment(), MenuProvider {
         updateLanguageButton()
         binding.buttonKeyboard.onClickWithVibrate {
             switchToTyping()
-            (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
-                .showSoftInput(binding.edittextPrompt, InputMethodManager.SHOW_IMPLICIT)
+            showKeyboard()
         }
         binding.buttonSend.onClickWithVibrate {
             val prompt = binding.edittextPrompt.text.toString()
@@ -420,7 +417,10 @@ class ChatFragment : Fragment(), MenuProvider {
 
                 override fun afterTextChanged(editable: Editable) {
                     if (editable.isEmpty() && hadTextLastTime) {
-                        switchToVoice()
+                        if (!appContext.mainPrefs.openaiApiKey.isEmpty()) {
+                            hideKeyboard()
+                            switchToVoice()
+                        }
                     } else if (editable.isNotEmpty() && !hadTextLastTime) {
                         switchToTyping()
                     }
@@ -437,6 +437,9 @@ class ChatFragment : Fragment(), MenuProvider {
 
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             })
+        }
+        if (appContext.mainPrefs.openaiApiKey.isEmpty()) {
+            switchToTyping()
         }
         return binding.root
     }
@@ -481,36 +484,36 @@ class ChatFragment : Fragment(), MenuProvider {
             text = mainPrefs.selectedModel.uiId
         }
 
-        val apiKey = mainPrefs.openaiApiKey
-        if (apiKey.allowsOnlyGpt()) {
-            menu.findItem(R.id.submenu_voice).setVisible(false)
-            mainPrefs.applyUpdate {
-                setSelectedVoice(Voice.BUILT_IN)
-            }
-        }
-        if (apiKey.allowsOnlyGpt3() || (mainPrefs.selectedModel.isImageModel() && !apiKey.allowsImageGeneration())) {
-            mainPrefs.applyUpdate {
-                setSelectedModel(AiModel.GPT_3)
-            }
-        }
-        if (!apiKey.allowsOnlyGpt3()) {
-            menu.findItem(R.id.action_gpt_toggle).apply {
-                isVisible = true
-            }.actionView!!.findViewById<TextView>(R.id.textview_model_selector).apply {
-                updateText()
-                setOnClickListener {
-                    val currOrdinal = mainPrefs.selectedModel.ordinal
-                    val nextOrdinal =
-                        (currOrdinal + 1) % (if (apiKey.allowsImageGeneration()) AiModel.entries.size else chatModels.size)
-                    mainPrefs.applyUpdate {
-                        setSelectedModel(AiModel.entries[nextOrdinal])
-                    }
-                    updateText()
+        ApiKeyWallet(mainPrefs).also { wallet ->
+            if (!wallet.allowsTts()) {
+                voiceMenuItem.setVisible(false)
+                mainPrefs.applyUpdate {
+                    setSelectedVoice(Voice.BUILT_IN)
                 }
             }
+            wallet.supportedModels.also { models ->
+                if (models.isNotEmpty() && mainPrefs.selectedModel !in models) {
+                    mainPrefs.applyUpdate {
+                        setSelectedModel(models[0])
+                    }
+                }
+            }
+            menu.findItem(R.id.action_gpt_toggle)
+                .actionView!!
+                .findViewById<TextView>(R.id.textview_model_selector).apply {
+                    updateText()
+                    setOnClickListener {
+                        val currIndex = wallet.supportedModels.indexOf(mainPrefs.selectedModel)
+                        val nextIndex = (currIndex + 1) % wallet.supportedModels.size
+                        mainPrefs.applyUpdate {
+                            setSelectedModel(wallet.supportedModels[nextIndex])
+                        }
+                        updateText()
+                    }
+                }
         }
         mainPrefs.selectedVoice.itemId.also { selectedVoiceItemId ->
-            for (item in voiceSubMenu.children) {
+            for (item in voiceMenuItem.subMenu!!.children) {
                 item.setChecked(item.itemId == selectedVoiceItemId)
             }
         }
@@ -570,21 +573,21 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun configureNavigationDrawerBehavior(activity: MainActivity) {
+        val mainPrefs = appContext.mainPrefs
 
         fun onApiKeyDeleted() {
             resetClients()
-            activity.mainPrefs.apply {
-                if (anthropicApiKey == "" && openaiApiKey == "") {
-                    activity.navigateToApiKeyFragment()
-                }
+            activity.invalidateOptionsMenu()
+            if (ApiKeyWallet(mainPrefs).isEmpty()) {
+                activity.navigateToApiKeyFragment()
             }
         }
 
         fun selectVoice(itemId: Int) {
-            for (item in voiceSubMenu.children) {
+            for (item in voiceMenuItem.subMenu!!.children) {
                 item.setChecked(item.itemId == itemId)
             }
-            appContext.mainPrefs.applyUpdate {
+            mainPrefs.applyUpdate {
                 setSelectedVoice(Voice.entries.first { it.itemId == itemId })
             }
         }
@@ -592,7 +595,7 @@ class ChatFragment : Fragment(), MenuProvider {
         binding.viewDrawer.apply {
             setNavigationItemSelectedListener { item ->
                 when (item.itemId) {
-                    in voiceSubMenu.children.map { it.itemId } -> {
+                    in voiceMenuItem.subMenu!!.children.map { it.itemId } -> {
                         selectVoice(item.itemId)
                     }
                     R.id.action_about -> {
@@ -605,23 +608,27 @@ class ChatFragment : Fragment(), MenuProvider {
                         requireContext().visitOnPlayStore()
                     }
                     R.id.action_delete_anthropic_key -> {
-                        activity.mainPrefs.applyUpdate {
+                        mainPrefs.applyUpdate {
                             setAnthropicApiKey("")
                         }
                         onApiKeyDeleted()
                     }
                     R.id.action_delete_openai_key -> {
-                        activity.mainPrefs.applyUpdate {
+                        mainPrefs.applyUpdate {
                             setOpenaiApiKey("")
                         }
+                        switchToTyping()
                         onApiKeyDeleted()
+                    }
+                    R.id.action_enter_api_key -> {
+                        activity.navigateToApiKeyFragment()
                     }
                 }
                 binding.drawerLayout.closeDrawer(GravityCompat.START)
                 true
             }
-            menu.findItem(R.id.submenu_voice)?.also { voiceItem ->
-                voiceSubMenu = voiceItem.subMenu!!
+            menu.findItem(R.id.submenu_voice)!!.also { voiceItem ->
+                voiceMenuItem = voiceItem
             }
         }
     }
@@ -1299,8 +1306,6 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun switchToVoice() {
         binding.edittextPrompt.editableText.clear()
-        (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
-            .hideSoftInputFromWindow(binding.root.windowToken, 0)
         viewScope.launch {
             delay(100)
             binding.apply {
@@ -1314,6 +1319,16 @@ class ChatFragment : Fragment(), MenuProvider {
                 }
             }
         }
+    }
+
+    private fun showKeyboard() {
+        (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+            .showSoftInput(binding.edittextPrompt, InputMethodManager.SHOW_IMPLICIT)
+    }
+
+    private fun hideKeyboard() {
+        (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+            .hideSoftInputFromWindow(binding.root.windowToken, 0)
     }
 
     private fun FragmentChatBinding.showRecordingGlow() {

@@ -49,7 +49,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(ActivityMainBinding.inflate(layoutInflater).root)
         resetClients()
-        if (mainPrefs.openaiApiKey.isBlank()) {
+        if (ApiKeyWallet(mainPrefs).isEmpty()) {
             if (savedInstanceState == null) {
                 navigateToApiKeyFragment()
             }

@@ -25,18 +25,13 @@ import android.util.Log
 import android.widget.Toast
 import androidx.core.net.toFile
 import io.ktor.client.HttpClient
-import io.ktor.client.HttpClientConfig
 import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
-import io.ktor.client.engine.okhttp.OkHttpConfig
-import io.ktor.client.plugins.HttpRequestRetry
-import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.ResponseException
 import io.ktor.client.plugins.auth.Auth
 import io.ktor.client.plugins.auth.providers.BearerTokens
 import io.ktor.client.plugins.auth.providers.bearer
 import io.ktor.client.plugins.compression.ContentEncoding
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.logging.ANDROID
 import io.ktor.client.plugins.logging.LogLevel
@@ -48,7 +43,6 @@ import io.ktor.client.request.forms.append
 import io.ktor.client.request.forms.formData
 import io.ktor.client.request.forms.submitFormWithBinaryData
 import io.ktor.client.request.get
-import io.ktor.client.request.headers
 import io.ktor.client.request.setBody
 import io.ktor.client.request.url
 import io.ktor.client.statement.HttpResponse
@@ -56,7 +50,6 @@ import io.ktor.client.statement.HttpStatement
 import io.ktor.http.ContentType
 import io.ktor.http.HttpMethod
 import io.ktor.http.contentType
-import io.ktor.serialization.kotlinx.json.json
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.core.writeFully
 import io.ktor.utils.io.readUTF8Line
@@ -73,7 +66,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.encodeToJsonElement
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -81,8 +73,6 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStream
 import java.nio.ByteBuffer
-import java.security.MessageDigest
-import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.min
 
 val openAi get() = openAiLazy.value
@@ -106,7 +96,7 @@ class OpenAI {
     private val apiClient = createOpenAiClient(appContext.mainPrefs.openaiApiKey)
     private val blobClient = createBlobClient()
 
-    private val demoMode = appContext.mainPrefs.openaiApiKey.trim().lowercase() == DEMO_API_KEY
+    private val demoMode = appContext.mainPrefs.openaiApiKey.text.trim().lowercase() == DEMO_API_KEY
 
     private val mockRecognizedSpeech = appContext.getString(R.string.demo_recognized_speech)
     private val mockResponse = appContext.getString(R.string.demo_response)
@@ -160,6 +150,10 @@ class OpenAI {
             delay(2000)
             return mockRecognizedSpeech
         }
+        if (appContext.mainPrefs.openaiApiKey.isEmpty()) {
+            Toast.makeText(appContext, "Your OpenAI key is missing", Toast.LENGTH_LONG).show()
+            return ""
+        }
         val response = apiClient.submitFormWithBinaryData(
             url = "audio/transcriptions",
             formData = formData {
@@ -177,7 +171,7 @@ class OpenAI {
 
     suspend fun speak(text: CharSequence, audioTrack: AudioTrack, voice: String) {
         Log.i("speech", "Speak: $text")
-        if (appContext.mainPrefs.openaiApiKey.isGptOnlyKey()) {
+        if (!appContext.mainPrefs.openaiApiKey.allowsTts()) {
             Toast.makeText(appContext, "Your API key doesn't allow text-to-speech", Toast.LENGTH_LONG).show()
             return
         }
@@ -271,7 +265,7 @@ class OpenAI {
 
     suspend fun imageGeneration(prompt: CharSequence, model: AiModel, console: Editable): List<Uri> {
         val artist = ARTIST_LAZY.value
-        if (!appContext.mainPrefs.openaiApiKey.allowsImageGeneration()) {
+        if (!appContext.mainPrefs.openaiApiKey.allowsArtist()) {
             Toast.makeText(appContext, "Your API key doesn't allow $artist", Toast.LENGTH_LONG).show()
             return listOf()
         }
@@ -343,14 +337,14 @@ class OpenAI {
     }
 }
 
-private fun createOpenAiClient(apiKey: String) = HttpClient(OkHttp) {
+private fun createOpenAiClient(apiKey: OpenAiKey) = HttpClient(OkHttp) {
     defaultRequest {
         url(OPENAI_URL)
     }
     install(Auth) {
         bearer {
             loadTokens {
-                BearerTokens(accessToken = apiKey, refreshToken = "")
+                BearerTokens(accessToken = apiKey.text, refreshToken = "")
             }
         }
     }
@@ -365,48 +359,6 @@ private fun createBlobClient(): HttpClient = HttpClient(OkHttp) {
     }
     expectSuccess = true
 }
-
-private val GPT3_ONLY_KEY_HASHES = hashSetOf(
-    "DIkQ9HIwN3Ky+t53aMHyojOYAsXBFBnZQvnhbU2oyPs=",
-)
-
-private val GPT_ONLY_KEY_HASHES = hashSetOf(
-    "Ej1/kPkeX2/5AVBalQHV+Fg/5QSo9UjK+XgDWFhOQ10="
-)
-
-private val IMAGE_KEY_HASHES = hashSetOf(
-    "WlYejPDJf0ba5LefiDKy2gqb4PeXKIO36iejO7y5NuE=",
-)
-
-fun String.allowsOnlyGpt3() = isGpt3OnlyKey()
-fun String.allowsOnlyGpt() = isGpt3OnlyKey() || isGptOnlyKey()
-fun String.allowsImageGeneration() = !allowsOnlyGpt() && isImageGenKey()
-
-fun String.isGpt3OnlyKey() = setContainsHashMemoized(this, GPT3_ONLY_KEY_HASHES, keyToIsGpt3Only)
-private val keyToIsGpt3Only = ConcurrentHashMap<String, Boolean>()
-
-fun String.isGptOnlyKey() = setContainsHashMemoized(this, GPT_ONLY_KEY_HASHES, keyToIsGptOnly)
-private val keyToIsGptOnly = ConcurrentHashMap<String, Boolean>()
-
-fun String.isImageGenKey() = setContainsHashMemoized(this, IMAGE_KEY_HASHES, keyToIsImageGen)
-private val keyToIsImageGen = ConcurrentHashMap<String, Boolean>()
-
-private fun setContainsHashMemoized(key: String, set: Set<String>, cache: MutableMap<String, Boolean>): Boolean {
-    cache[key]?.also {
-        return it
-    }
-    val hash = apiKeyHash(key)
-    return set.contains(hash).also {
-        cache[key] = it
-    }
-}
-
-fun apiKeyHash(apiKey: String): String =
-    apiKey.toByteArray(Charsets.UTF_8).let {
-        MessageDigest.getInstance("SHA-256").digest(it)
-    }.let {
-        Base64.encodeToString(it, Base64.NO_WRAP)
-    }
 
 private const val DATA_LINE_PREFIX = "data:"
 private const val DONE_TOKEN = "$DATA_LINE_PREFIX [DONE]"

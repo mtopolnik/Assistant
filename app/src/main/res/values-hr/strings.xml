@@ -19,7 +19,7 @@
 <resources>
     <string name="title_enter_api_key">Treba nam Vaš API ključ</string>
     <string name="enter_apikey_explanation">Brbljavica treba Vaš API ključ kako bi mogla raditi.
-        \nPrihvaća Anthropic i OpenAI ključeve.
+        Prihvaća Anthropic i OpenAI ključeve.
         \n
         \nMožete i upisati \"demo\" pa će aplikacija raditi u demo-načinu.
         \n
@@ -66,10 +66,11 @@
     <string name="title_edit_system_prompt">Uredi sistemski prompt</string>
     <string name="action_delete_anthropic_key">Poništi Anthropic ključ</string>
     <string name="action_delete_openai_key">Poništi OpenAI ključ</string>
-    <string name="api_key_hint">Vaš OpenAI API ključ</string>
+    <string name="action_enter_api_key">Unesi API ključ</string>
+    <string name="api_key_hint">Vaš API ključ</string>
     <string name="error_while_gpt_talking">Negdje je zapelo dok je Brbljavica pričala.</string>
     <string name="translation_error">Negdje je zapelo dok smo prevodili.</string>
-    <string name="message_incorrect_api_key">OpenAI API ključ ne radi. Poništi ga i upiši novi.</string>
+    <string name="message_incorrect_api_key">API ključ ne radi. Poništi ga i upiši novi.</string>
     <string name="action_reset">Vrati na default</string>
     <string name="action_speak_again">Reci to ponovo</string>
     <string name="selected_model">Odabrani model</string>

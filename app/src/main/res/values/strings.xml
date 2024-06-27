@@ -18,8 +18,8 @@
 
 <resources xmlns:tools="http://schemas.android.com/tools">
     <string name="title_enter_api_key">We Need Your API key</string>
-    <string name="enter_apikey_explanation">Good Guy Pete needs your API key to work.
-        \nIt accepts Anthropic and OpenAI API keys.
+    <string name="enter_apikey_explanation">Good Guy Pete needs your API key to work. It accepts
+        Anthropic and OpenAI keys.
         \n
         \nYou can also type in \"demo\" and enter the demo mode.
         \n
@@ -66,10 +66,11 @@
     <string name="title_edit_system_prompt">Edit System Prompt</string>
     <string name="action_delete_anthropic_key">Delete Anthropic Key</string>
     <string name="action_delete_openai_key">Delete OpenAI Key</string>
-    <string name="api_key_hint">Your OpenAI API key</string>
+    <string name="action_enter_api_key">Enter an API key</string>
+    <string name="api_key_hint">Your API key</string>
     <string name="error_while_gpt_talking">Something went wrong while Pete was talking</string>
     <string name="translation_error">Something went wrong while translating</string>
-    <string name="message_incorrect_api_key">Incorrect OpenAI API key. Delete it and enter a new one.</string>
+    <string name="message_incorrect_api_key">Incorrect API key. Delete it and enter a new one.</string>
     <string name="action_reset">Reset to Default</string>
     <string name="action_speak_again">Speak Again</string>
     <string name="selected_model">Selected Model</string>

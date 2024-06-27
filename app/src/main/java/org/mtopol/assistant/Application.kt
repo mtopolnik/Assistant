@@ -125,13 +125,12 @@ inline fun SharedPreferences.applyUpdate(block: SharedPreferences.Editor.() -> U
     }
 }
 
-val SharedPreferences.anthropicApiKey: String get() =
-    getString(KEY_ANTHROPIC_API_KEY, "")!!
+val SharedPreferences.anthropicApiKey: String get() = getString(KEY_ANTHROPIC_API_KEY, "")!!
 
 fun SharedPreferences.Editor.setAnthropicApiKey(apiKey: String): SharedPreferences.Editor =
     putString(KEY_ANTHROPIC_API_KEY, apiKey)
 
-val SharedPreferences.openaiApiKey: String get() = getString(KEY_OPENAI_API_KEY, "")!!
+val SharedPreferences.openaiApiKey: OpenAiKey get() = OpenAiKey(getString(KEY_OPENAI_API_KEY, "")!!)
 
 fun SharedPreferences.Editor.setOpenaiApiKey(apiKey: String): SharedPreferences.Editor =
     putString(KEY_OPENAI_API_KEY, apiKey)

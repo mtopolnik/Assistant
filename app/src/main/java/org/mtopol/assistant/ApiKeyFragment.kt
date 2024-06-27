@@ -38,9 +38,13 @@ class ApiKeyFragment : Fragment() {
         }
         binding.buttonApikeyOk.setOnClickListener {
             val apiKey = binding.edittextApiKey.text.toString().trim()
-            if (apiKey.isNotEmpty()) {
+            if (apiKey.looksLikeApiKey()) {
                 requireContext().mainPrefs.applyUpdate {
-                    setOpenaiApiKey(apiKey)
+                    if (apiKey.looksLikeAnthropicKey()) {
+                        setAnthropicApiKey(apiKey)
+                    } else {
+                        setOpenaiApiKey(apiKey)
+                    }
                 }
                 resetClients()
                 findNavController().navigate(R.id.fragment_chat, null,
