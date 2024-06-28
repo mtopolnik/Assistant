@@ -51,8 +51,10 @@ class ApiKeyFragment : Fragment() {
             } else {
                 Toast.makeText(appContext, "This doesn't look like an API key", Toast.LENGTH_LONG).show()
             }
-            findNavController().navigate(R.id.fragment_chat, null,
-                NavOptions.Builder().setPopUpTo(R.id.fragment_api_key, true).build())
+            if (ApiKeyWallet(requireContext().mainPrefs).isNotEmpty()) {
+                findNavController().navigate(R.id.fragment_chat, null,
+                    NavOptions.Builder().setPopUpTo(R.id.fragment_api_key, true).build())
+            }
         }
         return binding.root
     }

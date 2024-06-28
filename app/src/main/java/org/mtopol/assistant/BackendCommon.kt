@@ -96,7 +96,8 @@ class ApiKeyWallet(prefs: SharedPreferences) {
 
     fun hasAnthropicKey() = anthropicKey.isNotBlank()
     fun hasOpenaiKey() = openaiKey.isNotBlank()
-    fun isEmpty() = !hasAnthropicKey() && !hasOpenaiKey()
+    fun isNotEmpty() = hasAnthropicKey() || hasOpenaiKey()
+    fun isEmpty() = !isNotEmpty()
     fun allowsTts() = openaiKey.allowsTts()
     fun isDemo() = openaiKey.isDemoKey()
 }
