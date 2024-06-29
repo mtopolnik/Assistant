@@ -248,7 +248,6 @@ class OpenAI {
                             audioBuf.clear()
                             break
                         }
-                        delay(100)
                     }
                 }
             }
