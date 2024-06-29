@@ -28,8 +28,13 @@ import android.graphics.BitmapFactory
 import android.graphics.Point
 import android.graphics.PointF
 import android.graphics.RectF
+import android.media.AudioAttributes
 import android.net.Uri
 import android.os.Build
+import android.os.VibrationAttributes
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.util.Log
 import android.widget.ImageView
 import androidx.core.content.ContextCompat
@@ -269,4 +274,32 @@ fun scaleAndSave(uri: Uri, widthLimit: Int, heightLimit: Int): File? {
     return File.createTempFile("shared-", fileSuffix, imageCache).also { imageFile ->
         FileOutputStream(imageFile).use { scaledBitmap.compress(compressFormat, 85, it) }
     }
+}
+
+fun vibrate() {
+    val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        (appContext.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
+    } else {
+        @Suppress("DEPRECATION")
+        appContext.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+    }
+
+    val durationMilis = 20L
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        vibrator.vibrate(
+            VibrationEffect.createPredefined(VibrationEffect.EFFECT_HEAVY_CLICK),
+            VibrationAttributes.Builder().setUsage(VibrationAttributes.USAGE_MEDIA).build()
+        )
+    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        @Suppress("DEPRECATION")
+        vibrator.vibrate(
+            VibrationEffect.createPredefined(VibrationEffect.EFFECT_HEAVY_CLICK),
+            AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).build()
+        )
+    } else
+        @Suppress("DEPRECATION")
+        vibrator.vibrate(
+            VibrationEffect.createOneShot(durationMilis, VibrationEffect.DEFAULT_AMPLITUDE),
+            AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).build()
+        )
 }
