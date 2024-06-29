@@ -17,7 +17,10 @@
 
 package org.mtopol.assistant
 
+import android.net.Uri
+import android.util.Base64
 import android.util.Log
+import androidx.core.net.toFile
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
@@ -33,14 +36,18 @@ import io.ktor.http.HttpMethod
 import io.ktor.http.contentType
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.readUTF8Line
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.encodeToJsonElement
+import java.io.ByteArrayOutputStream
 
 const val MODEL_ID_SONNET_3_5 = "claude-3-5-sonnet-20240620"
 
@@ -67,7 +74,7 @@ class Anthropic {
             system = appContext.mainPrefs.systemPrompt,
             messages = history.toDto().dropLast(1),
         )
-        return flow<ClaudeResponseChunk> {
+        return flow<ResponseChunk> {
             val builder = HttpRequestBuilder().apply {
                 method = HttpMethod.Post
                 url(path = "messages")
@@ -84,12 +91,76 @@ class Anthropic {
         anthropicClient.close()
     }
 
-    private fun List<Exchange>.toDto() = flatMap { exchange ->
+    private suspend fun List<Exchange>.toDto() = flatMap { exchange ->
         listOf(
-            ClaudeMessage("user", exchange.promptText.toString()),
-            ClaudeMessage("assistant", exchange.replyMarkdown.toString()),
+            Message("user",
+                exchange.promptImageUris.map { imgUri ->
+                    ContentPart.Image("image/${imgUri.toFile().extension}", readContentToBase64(imgUri))
+                } + listOf(ContentPart.Text(exchange.promptText.toString()))
+            ),
+            Message("assistant", listOf(ContentPart.Text(exchange.replyMarkdown.toString()))),
         )
     }
+
+    @Serializable
+    class Message(
+        val role: String,
+        val content: List<ContentPart>,
+    )
+
+    @Serializable
+    sealed class ContentPart {
+        @Serializable
+        @SerialName("text")
+        class Text(val text: String) : ContentPart()
+
+        @Serializable
+        @SerialName("image")
+        class Image(val source: ImageSource) : ContentPart()
+
+        companion object {
+            fun Image(format: String, data: String) = Image(
+                ImageSource(
+                    type = "base64",
+                    media_type = format,
+                    data = data)
+            )
+        }
+    }
+
+    @Serializable
+    class ImageSource(
+        val type: String,
+        val media_type: String,
+        val data: String
+    )
+
+    @Serializable
+    class ResponseChunk(
+        val delta: Delta
+    )
+
+    @Serializable
+    class Delta(
+        val text: String
+    )
+
+    @Serializable
+    class ClaudeMessageRequest(
+        val model: String,
+        val system: String,
+        val messages: List<Message>,
+        val max_tokens: Int,
+        val stream: Boolean,
+    )
+
+    private fun ClaudeMessageRequest(system: String, messages: List<Message>) = ClaudeMessageRequest(
+        model = MODEL_ID_SONNET_3_5,
+        system = system,
+        messages = messages,
+        max_tokens = 4096,
+        stream = true
+    )
 }
 
 private fun createAnthropicClient(apiKey: String) = HttpClient(OkHttp) {
@@ -125,35 +196,14 @@ private suspend inline fun <reified T> FlowCollector<T>.emitStreamingResponse(re
     }
 }
 
-@Serializable
-private class ClaudeMessageRequest(
-    val model: String,
-    val system: String,
-    val messages: List<ClaudeMessage>,
-    val max_tokens: Int,
-    val stream: Boolean,
-)
+private suspend fun readContentToBase64(uri: Uri): String = withContext(Dispatchers.IO) {
+    try {
+        val bytes = uri.inputStream().use { input ->
+            ByteArrayOutputStream().also { input.copyTo(it) }.toByteArray()
+        }
+        Base64.encodeToString(bytes, Base64.NO_WRAP)
+    } catch (e: Exception) {
+        "R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=="
+    }
+}
 
-private fun ClaudeMessageRequest(system: String, messages: List<ClaudeMessage>) = ClaudeMessageRequest(
-    model = MODEL_ID_SONNET_3_5,
-    system = system,
-    messages = messages,
-    max_tokens = 4096,
-    stream = true
-)
-
-@Serializable
-private class ClaudeMessage(
-    val role: String,
-    val content: String,
-)
-
-@Serializable
-private class ClaudeResponseChunk(
-    val delta: ClaudeDelta
-)
-
-@Serializable
-private class ClaudeDelta(
-    val text: String
-)
