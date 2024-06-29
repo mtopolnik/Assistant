@@ -333,6 +333,91 @@ class OpenAI {
             Uri.fromFile(imageFile)
         }
     }
+
+    @Serializable
+    class ChatCompletionRequest(
+        val model: String,
+        val messages: List<ChatMessage>,
+        val max_tokens: Int? = null,
+        val stream: Boolean
+    )
+
+    private fun ChatCompletionRequest(model: String, messages: List<ChatMessage>) =
+        ChatCompletionRequest(
+            model,
+            messages,
+            max_tokens = if (model == MODEL_ID_GPT_3) null else 4096,
+            stream = true)
+
+    @Serializable
+    class ChatMessage(
+        val role: String,
+        val content: List<ContentPart> = listOf()
+    )
+
+    private fun ChatMessage(role: String, content: String): ChatMessage = ChatMessage(role, listOf(ContentPart.Text(content)))
+
+    @Serializable
+    sealed class ContentPart {
+        @Serializable
+        @SerialName("text")
+        class Text(val text: String) : ContentPart()
+
+        @Serializable
+        @SerialName("image")
+        class Image(val image_url: ImageUrl) : ContentPart()
+
+        companion object {
+            fun Image(imgUrl: String) = Image(ImageUrl(imgUrl))
+        }
+    }
+
+    @Serializable
+    class ImageUrl(
+        val url: String
+    )
+
+    @Serializable
+    class ChatCompletionChunk(
+        val choices: List<ChatChunk>,
+    )
+
+    @Serializable
+    class ChatChunk(
+        val delta: ChatDelta,
+    )
+
+    @Serializable
+    class ChatDelta(
+        val content: String? = null
+    )
+
+    @Serializable
+    class ImageGenerationRequest(
+        val prompt: String,
+        val model: String,
+        val style: String,
+        val response_format: String
+    )
+
+    @Serializable
+    class ImageObject(
+        val url: String,
+        val revised_prompt: String = ""
+    )
+
+    @Serializable
+    class ImageGenerationResponse(
+        val data: List<ImageObject>
+    )
+
+    @Serializable
+    class TextToSpeechRequest(
+        val input: String,
+        val response_format: String,
+        val voice: String,
+        val model: String,
+    )
 }
 
 private fun createOpenAiClient(apiKey: OpenAiKey) = HttpClient(OkHttp) {
@@ -390,88 +475,3 @@ private fun FormBuilder.appendFile(key: String, pathname: String) {
         }
     }
 }
-
-@Serializable
-class ChatCompletionRequest(
-    val model: String,
-    val messages: List<ChatMessage>,
-    val max_tokens: Int? = null,
-    val stream: Boolean
-)
-
-fun ChatCompletionRequest(model: String, messages: List<ChatMessage>) =
-    ChatCompletionRequest(
-        model,
-        messages,
-        max_tokens = if (model == MODEL_ID_GPT_3) null else 4096,
-        stream = true)
-
-@Serializable
-class ChatMessage(
-    val role: String,
-    val content: List<ContentPart> = listOf()
-)
-
-fun ChatMessage(role: String, content: String): ChatMessage = ChatMessage(role, listOf(ContentPart.Text(content)))
-
-@Serializable
-sealed class ContentPart {
-    @Serializable
-    @SerialName("text")
-    class Text(val text: String) : ContentPart()
-
-    @Serializable
-    @SerialName("image_url")
-    class Image(val image_url: ImageUrl) : ContentPart()
-
-    companion object {
-        fun Image(imgUrl: String) = Image(ImageUrl(imgUrl))
-    }
-}
-
-@Serializable
-class ImageUrl(
-    val url: String
-)
-
-@Serializable
-class ChatCompletionChunk(
-    val choices: List<ChatChunk>,
-)
-
-@Serializable
-class ChatChunk(
-    val delta: ChatDelta,
-)
-
-@Serializable
-class ChatDelta(
-    val content: String? = null
-)
-
-@Serializable
-class ImageGenerationRequest(
-    val prompt: String,
-    val model: String,
-    val style: String,
-    val response_format: String
-)
-
-@Serializable
-class ImageObject(
-    val url: String,
-    val revised_prompt: String = ""
-)
-
-@Serializable
-class ImageGenerationResponse(
-    val data: List<ImageObject>
-)
-
-@Serializable
-class TextToSpeechRequest(
-    val input: String,
-    val response_format: String,
-    val voice: String,
-    val model: String,
-)
