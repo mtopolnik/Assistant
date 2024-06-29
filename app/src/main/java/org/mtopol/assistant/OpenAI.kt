@@ -190,10 +190,10 @@ class OpenAI {
             val audioBuf = ByteBuffer.allocate(16.shl(10))
 
             suspend fun read(): Boolean {
-                var minRemaining = 0
+                var remaining = 0
                 while (true) {
-                    Log.i("speech", "channel.read() minRemaining $minRemaining")
-                    channel.read(minRemaining) { responseBuf ->
+                    Log.i("speech", "channel.read() remaining $remaining")
+                    channel.read(remaining) { responseBuf ->
                         Log.i("speech", "before copy: responseBuf ${responseBuf.remaining()} audioBuf ${audioBuf.remaining()}")
                         val limitBackup = responseBuf.limit()
                         val safeToCopy = min(
@@ -204,7 +204,7 @@ class OpenAI {
                         audioBuf.put(responseBuf)
                         responseBuf.limit(limitBackup)
                         Log.i("speech", "after copy: responseBuf ${responseBuf.remaining()} audioBuf ${audioBuf.remaining()}")
-                        minRemaining = responseBuf.remaining() + responseBuf.remaining() % 2
+                        remaining = responseBuf.remaining() + responseBuf.remaining() % 2
                     }
                     if (audioBuf.position() > 0) {
                         audioBuf.flip()
