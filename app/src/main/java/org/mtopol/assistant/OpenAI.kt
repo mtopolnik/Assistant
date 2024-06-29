@@ -364,7 +364,7 @@ class OpenAI {
         class Text(val text: String) : ContentPart()
 
         @Serializable
-        @SerialName("image")
+        @SerialName("image_url")
         class Image(val image_url: ImageUrl) : ContentPart()
 
         companion object {
