@@ -49,12 +49,16 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(ActivityMainBinding.inflate(layoutInflater).root)
         resetClients()
-        if (ApiKeyWallet(mainPrefs).isEmpty()) {
+        val apiKeyWallet = ApiKeyWallet(mainPrefs)
+        Log.i("lifecycle", "supported models: ${apiKeyWallet.supportedModels}")
+        if (apiKeyWallet.isEmpty()) {
+            Log.i("lifecycle", "wallet is empty")
             if (savedInstanceState == null) {
                 navigateToApiKeyFragment()
             }
             return
         }
+        Log.i("lifecycle", "wallet is not empty")
         // This point reached only when an API key is present
         handleImageIntent(intent)
     }
