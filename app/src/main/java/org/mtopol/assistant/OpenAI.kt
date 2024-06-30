@@ -248,6 +248,7 @@ class OpenAI {
                             audioBuf.clear()
                             break
                         }
+                        yield()
                     }
                 }
             }
