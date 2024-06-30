@@ -78,6 +78,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.children
 import androidx.core.view.doOnLayout
+import androidx.core.view.isVisible
 import androidx.core.view.postDelayed
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -208,6 +209,8 @@ class ChatFragment : Fragment(), MenuProvider {
                 override fun handleOnBackPressed() {
                     if (binding.drawerLayout.isDrawerOpen(GravityCompat.START)) {
                         binding.drawerLayout.closeDrawer(GravityCompat.START)
+                    } else if (binding.imgZoomed.isVisible) {
+                        exitFullScreen()
                     } else {
                         startActivity(
                             Intent(Intent.ACTION_MAIN).apply {
@@ -443,15 +446,19 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private inner class ExitFullScreenListener() : GestureDetector.SimpleOnGestureListener() {
         override fun onSingleTapUp(e: MotionEvent): Boolean {
-            lifecycleScope.launch {
-                binding.imgZoomed.apply {
-                    animateZoomExit()
-                    setImageURI(null)
-                    visibility = INVISIBLE
-                }
-                binding.chatLayout.visibility = VISIBLE
-            }
+            exitFullScreen()
             return true
+        }
+    }
+
+    private fun exitFullScreen() {
+        lifecycleScope.launch {
+            binding.imgZoomed.apply {
+                animateZoomExit()
+                setImageURI(null)
+                visibility = INVISIBLE
+            }
+            binding.chatLayout.visibility = VISIBLE
         }
     }
 
