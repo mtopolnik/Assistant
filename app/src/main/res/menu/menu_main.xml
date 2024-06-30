@@ -34,7 +34,7 @@
             android:enabled="false"
             app:showAsAction="always" />
     <item
-            android:id="@+id/action_sound_toggle"
+            android:id="@+id/action_toggle_sound"
             android:title="@string/action_mute"
             android:icon="@drawable/baseline_volume_up_24"
             android:checkable="true"

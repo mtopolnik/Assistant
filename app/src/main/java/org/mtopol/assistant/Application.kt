@@ -48,6 +48,12 @@ import java.io.InputStream
 import java.util.*
 import kotlin.math.min
 
+import android.media.MediaCodec
+import android.media.MediaExtractor
+import android.media.MediaFormat
+import kotlinx.coroutines.Dispatchers.IO
+import kotlinx.coroutines.withContext
+
 const val FILE_PROVIDER_AUTHORITY = "org.mtopol.assistant.fileprovider"
 
 private const val KEY_OPENAI_API_KEY = "openai_api_key"
@@ -56,6 +62,7 @@ private const val KEY_SYSTEM_PROMPT = "system_prompt"
 private const val KEY_SPEECH_RECOG_LANGUAGE = "speech_recognition_language"
 private const val KEY_LANGUAGES = "languages"
 private const val KEY_IS_MUTED = "is_muted"
+private const val KEY_IS_SEND_AUDIO_PROMPT = "is_send_audio_prompt"
 private const val KEY_SELECTED_MODEL = "selected_model"
 private const val KEY_SELECTED_VOICE = "selected_voice"
 
@@ -139,6 +146,11 @@ val SharedPreferences.openaiApiKey: OpenAiKey get() = OpenAiKey(getString(KEY_OP
 
 fun SharedPreferences.Editor.setOpenaiApiKey(apiKey: String): SharedPreferences.Editor =
     putString(KEY_OPENAI_API_KEY, apiKey)
+
+val SharedPreferences.isSendAudioPrompt: Boolean get() = getBoolean(KEY_IS_SEND_AUDIO_PROMPT, false)
+
+fun SharedPreferences.Editor.setIsSendAudioPrompt(value: Boolean): SharedPreferences.Editor =
+    putBoolean(KEY_IS_SEND_AUDIO_PROMPT, value)
 
 val SharedPreferences.systemPrompt: String get() = getString(KEY_SYSTEM_PROMPT,
     appContext.getString(R.string.system_prompt_default))!!
@@ -302,4 +314,67 @@ fun vibrate() {
             VibrationEffect.createOneShot(durationMilis, VibrationEffect.DEFAULT_AMPLITUDE),
             AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).build()
         )
+}
+
+suspend fun convertAacToPcm(inputPath: String, outputPath: String) = withContext(IO) {
+    val bufTimeoutMicros = 10_000L
+
+    val extractor = MediaExtractor()
+    val codec = MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_AUDIO_AAC)
+    val bufferInfo = MediaCodec.BufferInfo()
+    val outputFile = FileOutputStream(File(outputPath))
+    try {
+        extractor.setDataSource(inputPath)
+        val trackIndex = selectTrack(extractor)
+        extractor.selectTrack(trackIndex)
+        val format = extractor.getTrackFormat(trackIndex)
+        codec.configure(format, null, null, 0)
+        codec.start()
+
+        var sawInputEOS = false
+        var sawOutputEOS = false
+
+        while (!sawOutputEOS) {
+            if (!sawInputEOS) {
+                val inputBufferIndex = codec.dequeueInputBuffer(bufTimeoutMicros)
+                if (inputBufferIndex >= 0) {
+                    val inputBuffer = codec.getInputBuffer(inputBufferIndex)!!
+                    val sampleSize = extractor.readSampleData(inputBuffer, 0)
+                    if (sampleSize < 0) {
+                        codec.queueInputBuffer(inputBufferIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                        sawInputEOS = true
+                    } else {
+                        codec.queueInputBuffer(inputBufferIndex, 0, sampleSize, extractor.sampleTime, 0)
+                        extractor.advance()
+                    }
+                }
+            }
+            val outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, bufTimeoutMicros)
+            if (outputBufferIndex >= 0) {
+                val outputBuffer = codec.getOutputBuffer(outputBufferIndex)!!
+                outputFile.channel.write(outputBuffer)
+                codec.releaseOutputBuffer(outputBufferIndex, false)
+                if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+                    sawOutputEOS = true
+                }
+            }
+        }
+    } finally {
+        codec.stop()
+        codec.release()
+        extractor.release()
+        outputFile.close()
+    }
+}
+
+private fun selectTrack(extractor: MediaExtractor): Int {
+    val numTracks = extractor.trackCount
+    for (i in 0 until numTracks) {
+        val format = extractor.getTrackFormat(i)
+        val mime = format.getString(MediaFormat.KEY_MIME)
+        if (mime?.startsWith("audio/") == true) {
+            return i
+        }
+    }
+    throw RuntimeException("No audio track found")
 }

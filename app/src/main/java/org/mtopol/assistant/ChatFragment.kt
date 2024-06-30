@@ -364,7 +364,7 @@ class ChatFragment : Fragment(), MenuProvider {
                             } finally {
                                 binding.buttonRecord.isEnabled = true
                             }
-                            transcribeAndSendPrompt()
+                            sendRecordedPrompt()
                         }
                         return true
                     }
@@ -478,7 +478,7 @@ class ChatFragment : Fragment(), MenuProvider {
         menu.clear()
         menuInflater.inflate(R.menu.menu_main, menu)
         applyAccessRules(menu)
-        updateMuteItem(menu.findItem(R.id.action_sound_toggle))
+        updateMuteItem(menu.findItem(R.id.action_toggle_sound))
     }
 
     private fun applyAccessRules(mainMenu: Menu) {
@@ -558,7 +558,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 activity?.invalidateOptionsMenu()
                 true
             }
-            R.id.action_sound_toggle -> {
+            R.id.action_toggle_sound -> {
                 appContext.mainPrefs.applyUpdate { setIsMuted(!appContext.mainPrefs.isMuted) }
                 updateMuteItem(item)
                 activity?.invalidateOptionsMenu()
@@ -632,12 +632,21 @@ class ChatFragment : Fragment(), MenuProvider {
                     R.id.action_enter_api_key -> {
                         activity.navigateToApiKeyFragment()
                     }
+                    R.id.action_toggle_send_audio_prompt -> {
+                        appContext.mainPrefs.applyUpdate {
+                            setIsSendAudioPrompt(!appContext.mainPrefs.isSendAudioPrompt)
+                        }
+                        item.isChecked = appContext.mainPrefs.isSendAudioPrompt
+                    }
                 }
                 binding.drawerLayout.closeDrawer(GravityCompat.START)
                 true
             }
             menu.findItem(R.id.submenu_voice)?.also { voiceItem ->
                 voiceMenuItem = voiceItem
+            }
+            menu.findItem(R.id.action_toggle_send_audio_prompt)?.also { item ->
+                item.isChecked = appContext.mainPrefs.isSendAudioPrompt
             }
         }
     }
@@ -1175,7 +1184,7 @@ class ChatFragment : Fragment(), MenuProvider {
             vmodel.withFragment { it.binding.showRecordingGlow() }
             launch {
                 delay(MAX_RECORDING_TIME_MILLIS)
-                transcribeAndSendPrompt()
+                sendRecordedPrompt()
             }
             try {
                 var lastPeak = 0f
@@ -1235,6 +1244,15 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
+    private fun sendRecordedPrompt() {
+        val mainPrefs = appContext.mainPrefs
+        if (mainPrefs.isSendAudioPrompt && mainPrefs.selectedModel == AiModel.GPT_4) {
+            sendAudioPrompt()
+        } else {
+            transcribeAndSendPrompt()
+        }
+    }
+
     private fun transcribeAndSendPrompt() {
         val recordingGlowJob = vmodel.recordingGlowJob
         val previousTranscriptionJob = vmodel.transcriptionJob?.apply { cancel() }
@@ -1260,12 +1278,12 @@ class ChatFragment : Fragment(), MenuProvider {
                 throw e
             } catch (e: Exception) {
                 Log.e("speech", "Text-to-speech error", e)
-                vmodel.withFragment {
+                vmodel.withFragment { fragment ->
                     if (e is ClientRequestException) {
                         showApiErrorToast(e)
                     } else {
                         Toast.makeText(
-                            it.activity,
+                            fragment.activity,
                             "Something went wrong while OpenAI was listening to you",
                             Toast.LENGTH_SHORT
                         ).show()
@@ -1273,6 +1291,28 @@ class ChatFragment : Fragment(), MenuProvider {
                 }
             } finally {
                 recordingGlowJob?.cancel()
+            }
+        }
+    }
+
+    private fun sendAudioPrompt() {
+        val recordingGlowJob = vmodel.recordingGlowJob
+        vmodel.viewModelScope.launch {
+            val recordingSuccess = stopRecording()
+            recordingGlowJob?.cancel()
+            if (!recordingSuccess) {
+                return@launch
+            }
+            val pcmPathname = audioPathname.replaceAfterLast('.', "pcm")
+            Log.i("chat", "Converting recorded AAC to PCM")
+            try {
+                convertAacToPcm(audioPathname, pcmPathname)
+                Log.i("chat", "PCM saved: ${File(pcmPathname).length()} bytes")
+                vmodel.withFragment {
+                    sendPromptAndReceiveTextResponse(PromptPart.Audio(Uri.fromFile(File(pcmPathname))))
+                }
+            } catch (e: Exception) {
+                Log.e("chat", "Conversion failed", e)
             }
         }
     }
