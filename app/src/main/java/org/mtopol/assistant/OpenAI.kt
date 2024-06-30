@@ -365,15 +365,20 @@ class OpenAI {
 
         @Serializable
         @SerialName("image_url")
-        class Image(val image_url: ImageUrl) : ContentPart()
+        class Image(val image_url: DataUrl) : ContentPart()
+
+        @Serializable
+        @SerialName("audio_url")
+        class Audio(val audio_url: DataUrl) : ContentPart()
 
         companion object {
-            fun Image(imgUrl: String) = Image(ImageUrl(imgUrl))
+            fun Image(imgUrl: String) = Audio(DataUrl(imgUrl))
+            fun Audio(audioUrl: String) = Audio(DataUrl(audioUrl))
         }
     }
 
     @Serializable
-    class ImageUrl(
+    class DataUrl(
         val url: String
     )
 
