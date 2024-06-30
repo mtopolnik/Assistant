@@ -17,7 +17,6 @@
 
 package org.mtopol.assistant
 
-import android.net.Uri
 import android.util.Base64
 import android.util.Log
 import androidx.core.net.toFile
@@ -93,13 +92,24 @@ class Anthropic {
 
     private suspend fun List<Exchange>.toDto() = flatMap { exchange ->
         listOf(
-            Message("user",
-                exchange.promptImageUris.map { imgUri ->
-                    ContentPart.Image("image/${imgUri.toFile().extension}", readContentToBase64(imgUri))
-                } + listOf(ContentPart.Text(exchange.promptText.toString()))
-            ),
+            Message("user", exchange.promptParts.mapNotNull { it.toContentPart() }),
             Message("assistant", listOf(ContentPart.Text(exchange.replyMarkdown.toString()))),
         )
+    }
+
+    private suspend fun PromptPart.toContentPart(): ContentPart? = withContext(Dispatchers.IO) {
+        when (this@toContentPart) {
+            is PromptPart.Text -> ContentPart.Text(text.toString())
+            is PromptPart.Image -> try {
+                val bytes = uri.inputStream().use { input ->
+                    ByteArrayOutputStream().also { input.copyTo(it) }.toByteArray()
+                }
+                ContentPart.Image("image/${uri.toFile().extension}", Base64.encodeToString(bytes, Base64.NO_WRAP))
+            } catch (e: Exception) {
+                ContentPart.Image("image/gif", "R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==")
+            }
+            is PromptPart.Audio -> null
+        }
     }
 
     @Serializable
@@ -193,17 +203,6 @@ private suspend inline fun <reified T> FlowCollector<T>.emitStreamingResponse(re
             emit(jsonCodec.decodeFromString(line.removePrefix(DATA_LINE_PREFIX)))
             yield()
         }
-    }
-}
-
-private suspend fun readContentToBase64(uri: Uri): String = withContext(Dispatchers.IO) {
-    try {
-        val bytes = uri.inputStream().use { input ->
-            ByteArrayOutputStream().also { input.copyTo(it) }.toByteArray()
-        }
-        Base64.encodeToString(bytes, Base64.NO_WRAP)
-    } catch (e: Exception) {
-        "R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=="
     }
 }
 

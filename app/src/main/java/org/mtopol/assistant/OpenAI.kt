@@ -304,23 +304,30 @@ class OpenAI {
 
     private suspend fun List<Exchange>.toDto() = flatMap { exchange ->
         listOf(
-            ChatMessage(
-                "user",
-                exchange.promptImageUris.map { imgUri -> ContentPart.Image(readContentToDataUri(imgUri)) } +
-                        listOf(ContentPart.Text(exchange.promptText.toString()))
-            ),
+            ChatMessage("user", exchange.promptParts.map { it.toContentPart() }),
             ChatMessage("assistant", exchange.replyMarkdown.toString()),
         )
     }
 
-    private suspend fun readContentToDataUri(uri: Uri): String = withContext(Dispatchers.IO) {
-        try {
+    private suspend fun PromptPart.toContentPart() = withContext(Dispatchers.IO) {
+
+        fun read(mediaType: String, uri: Uri): String {
             val bytes = uri.inputStream().use { input ->
                 ByteArrayOutputStream().also { input.copyTo(it) }.toByteArray()
             }
-            "data:image/${uri.toFile().extension};base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
-        } catch (e: Exception) {
-            "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=="
+            return "data:$mediaType/${uri.toFile().extension};base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
+        }
+
+        when (this@toContentPart) {
+            is PromptPart.Text -> ContentPart.Text(text.toString())
+            is PromptPart.Image -> ContentPart.Image(
+                try { read("image", uri) }
+                catch (e: Exception) { "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" }
+            )
+            is PromptPart.Audio -> ContentPart.Audio(
+                try { read("audio", uri) }
+                catch (e: Exception) { "data:audio/pcm;base64,bXAzIGJ5dGVzIGhlcmUK" }
+            )
         }
     }
 
@@ -372,7 +379,7 @@ class OpenAI {
         class Audio(val audio_url: DataUrl) : ContentPart()
 
         companion object {
-            fun Image(imgUrl: String) = Audio(DataUrl(imgUrl))
+            fun Image(imgUrl: String) = Image(DataUrl(imgUrl))
             fun Audio(audioUrl: String) = Audio(DataUrl(audioUrl))
         }
     }

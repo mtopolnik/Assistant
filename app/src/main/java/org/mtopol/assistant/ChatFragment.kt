@@ -239,7 +239,7 @@ class ChatFragment : Fragment(), MenuProvider {
         sharedImageViewModel.imgUriLiveData.observe(viewLifecycleOwner) { imgUris ->
             lifecycleScope.launch {
                 val lastExchange = vmodel.chatHistory.lastOrNull()
-                val isStartOfExchange = lastExchange == null || lastExchange.promptText.isNotEmpty()
+                val isStartOfExchange = lastExchange == null || lastExchange.promptParts.isEmpty()
                 val promptContainer = if (isStartOfExchange) {
                     addMessageContainerToView(PROMPT)
                 } else {
@@ -257,10 +257,11 @@ class ChatFragment : Fragment(), MenuProvider {
                         .map { Uri.fromFile(it) }
                 }
                 addImagesToView(promptContainer, savedImgUris)
+                val typedUris = savedImgUris.map { PromptPart.Image(it) }
                 if (isStartOfExchange) {
-                    vmodel.chatHistory.add(Exchange(savedImgUris))
+                    vmodel.chatHistory.add(Exchange(typedUris))
                 } else {
-                    lastExchange!!.promptImageUris.addAll(savedImgUris)
+                    lastExchange!!.promptParts.addAll(typedUris)
                 }
             }
         }
@@ -674,13 +675,13 @@ class ChatFragment : Fragment(), MenuProvider {
 
         // Determine where the prompt text is and remove it
         val lastEntry = vmodel.chatHistory.last()
-        if (lastEntry.promptImageUris.isNotEmpty() && lastEntry.promptText.isNotEmpty()) {
+        if (lastEntry.promptParts.isNotEmpty() && lastEntry.promptParts.last() is PromptPart.Text) {
             // The prompt contains both text and image. Remove just the text and leave the
             // image. This means the prompt view stays.
             val promptContainer = lastMessageContainer()
             promptContainer.apply { removeViewAt(childCount - 1) }
         } else {
-            if (lastEntry.promptText.isNotEmpty()) {
+            if (lastEntry.promptText() != null) {
                 // The prompt contains just text and no image. Remove the prompt view.
                 binding.viewChat.apply { removeViewAt(childCount - 1) }
             }
@@ -689,16 +690,16 @@ class ChatFragment : Fragment(), MenuProvider {
 
         // Put the prompt text back into the edit box
         promptBox.editableText.apply {
-            replace(0, length, lastEntry.promptText)
+            replace(0, length, lastEntry.promptText() ?: "")
         }
         // Clear the prompt and response text from the chat history entry
         lastEntry.apply {
-            promptText = ""
+            removePromptText()
             replyMarkdown = ""
         }
     }
 
-    private fun sendPromptAndReceiveTextResponse(prompt: CharSequence) {
+    private fun sendPromptAndReceiveTextResponse(finalPart: PromptPart) {
         var lastSpokenPos = 0
         val previousResponseJob = vmodel.handleResponseJob?.apply { cancel() }
         vmodel.handleResponseJob = vmodel.viewModelScope.launch {
@@ -707,13 +708,14 @@ class ChatFragment : Fragment(), MenuProvider {
                 vmodel.isResponding = true
                 vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
                 val chatHistory = vmodel.chatHistory
+                val promptText = if (finalPart is PromptPart.Text) finalPart.text else "<recorded audio>"
                 val exchange =
-                    if (chatHistory.isEmpty() || chatHistory.last().promptText.isNotEmpty()) {
-                        addMessageContainerToView(PROMPT).also { addTextToView(it, prompt, PROMPT) }
-                        Exchange(prompt).also { chatHistory.add(it) }
+                    if (chatHistory.isEmpty() || chatHistory.last().hasFinalPromptPart()) {
+                        addMessageContainerToView(PROMPT).also { layout -> addTextToView(layout, promptText, PROMPT) }
+                        Exchange(finalPart).also { chatHistory.add(it) }
                     } else {
-                        addTextToView(lastMessageContainer(), prompt, PROMPT)
-                        chatHistory.last().also { it.promptText = prompt }
+                        addTextToView(lastMessageContainer(), promptText, PROMPT)
+                        chatHistory.last().also { it.promptParts.add(finalPart) }
                     }
                 val replyMarkdown = StringBuilder()
                 exchange.replyMarkdown = replyMarkdown
@@ -989,12 +991,12 @@ class ChatFragment : Fragment(), MenuProvider {
                 vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
                 val chatHistory = vmodel.chatHistory
                 val exchange =
-                    if (chatHistory.isEmpty() || chatHistory.last().promptText.isNotEmpty()) {
+                    if (chatHistory.isEmpty() || chatHistory.last().promptText() != null) {
                         addMessageContainerToView(PROMPT).also { addTextToView(it, prompt, PROMPT) }
-                        Exchange(prompt).also { chatHistory.add(it) }
+                        Exchange(PromptPart.Text(prompt)).also { chatHistory.add(it) }
                     } else {
                         addTextToView(lastMessageContainer(), prompt, PROMPT)
-                        chatHistory.last().also { it.promptText = prompt }
+                        chatHistory.last().also { it.promptParts += PromptPart.Text(prompt) }
                     }
                 vmodel.autoscrollEnabled = true
                 scrollToBottom()
@@ -1021,7 +1023,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun sendPromptAndReceiveResponse(prompt: String) {
         if (appContext.mainPrefs.selectedModel.isChatModel()) {
-            sendPromptAndReceiveTextResponse(prompt)
+            sendPromptAndReceiveTextResponse(PromptPart.Text(prompt))
         } else {
             sendPromptAndReceiveImageResponse(prompt)
         }
@@ -1126,6 +1128,8 @@ class ChatFragment : Fragment(), MenuProvider {
             }
             mediaRecorder.apply {
                 setAudioSource(MediaRecorder.AudioSource.MIC)
+                setAudioChannels(1)
+                setAudioSamplingRate(22050)
                 setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
                 setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
                 setOutputFile(audioPathname)
@@ -1246,7 +1250,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 }
                 val prefs = appContext.mainPrefs
                 val promptContext =
-                    vmodel.chatHistory.joinToString("\n\n") { it.promptText.toString() }
+                    vmodel.chatHistory.joinToString("\n\n") { it.promptText().toString() }
                 val transcription =
                     openAi.transcription(prefs.speechRecogLanguage, promptContext, audioPathname)
                 if (transcription.isEmpty()) {
@@ -1409,8 +1413,8 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun addPromptToView(exchange: Exchange) {
         val promptContainer = addMessageContainerToView(PROMPT)
-        addImagesToView(promptContainer, exchange.promptImageUris)
-        addTextToView(promptContainer, exchange.promptText, PROMPT)
+        addImagesToView(promptContainer, exchange.promptParts.mapNotNull { (it as? PromptPart.Image)?.uri })
+        exchange.promptText()?.also { addTextToView(promptContainer, it, PROMPT) }
     }
 
     private fun addTextResponseToView(exchange: Exchange): TextView {
@@ -1633,12 +1637,33 @@ class UtteranceContinuationListener<T>(
 private fun nanosToSeconds(nanos: Long): Float = nanos.toFloat() / 1_000_000_000
 
 @Parcelize
+sealed class PromptPart : Parcelable {
+    @Parcelize
+    class Text(var text: CharSequence) : PromptPart()
+    @Parcelize
+    class Image(val uri: Uri) : PromptPart()
+    @Parcelize
+    class Audio(val uri: Uri) : PromptPart()
+}
+
+@Parcelize
 data class Exchange(
-    var promptText: CharSequence,
-    var promptImageUris: MutableList<Uri> = mutableListOf(),
+    val promptParts: MutableList<PromptPart> = mutableListOf(),
     var replyMarkdown: CharSequence = "",
     var replyImageUris: List<Uri> = listOf(),
     var replyText: CharSequence = "",
-) : Parcelable
+) : Parcelable {
+    fun hasFinalPromptPart() = when (promptParts.lastOrNull()) {
+        null, is PromptPart.Image -> false
+        is PromptPart.Audio, is PromptPart.Text -> true
+    }
+    fun promptText(): CharSequence? = (promptParts.lastOrNull() as? PromptPart.Text)?.text
+    fun removePromptText() {
+        if (promptParts.lastOrNull() is PromptPart.Text) {
+            promptParts.removeLast()
+        }
+    }
+}
 
-fun Exchange(imageUris: List<Uri>) = Exchange("").apply { promptImageUris.addAll(imageUris) }
+fun Exchange(part: PromptPart) = Exchange().apply { promptParts.add(part) }
+fun Exchange(parts: List<PromptPart>) = Exchange().apply { promptParts.addAll(parts) }
