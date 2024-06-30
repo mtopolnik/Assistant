@@ -699,29 +699,58 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
+    private fun sendPromptAndReceiveImageResponse(prompt: CharSequence) {
+        val previousResponseJob = vmodel.handleResponseJob?.apply { cancel() }
+        vmodel.handleResponseJob = vmodel.viewModelScope.launch {
+            try {
+                previousResponseJob?.join()
+                val exchange = prepareNewExchange(PromptPart.Text(prompt))
+                val responseContainer = addMessageContainerToView(RESPONSE)
+                val responseText = addTextToView(responseContainer, "", RESPONSE)
+                val editable = responseText.editableText
+                val imageUris = openAi.imageGeneration(prompt, appContext.mainPrefs.selectedModel, editable)
+                if (editable.isBlank()) {
+                    responseContainer.removeView(responseText)
+                }
+                exchange.replyImageUris = imageUris
+                addImagesToView(responseContainer, exchange.replyImageUris)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e("lifecycle", "Error in receiveResponseJob", e)
+            } finally {
+                vmodel.isResponding = false
+                vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
+            }
+        }
+    }
+
+    private fun prepareNewExchange(finalPart: PromptPart): Exchange {
+        vmodel.isResponding = true
+        vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
+        vmodel.autoscrollEnabled = true
+        scrollToBottom()
+        val promptText = if (finalPart is PromptPart.Text) finalPart.text else "<recorded audio>"
+        val chatHistory = vmodel.chatHistory
+        return if (chatHistory.isEmpty() || chatHistory.last().hasFinalPromptPart()) {
+            addMessageContainerToView(PROMPT).also { layout -> addTextToView(layout, promptText, PROMPT) }
+            Exchange(finalPart).also { chatHistory.add(it) }
+        } else {
+            addTextToView(lastMessageContainer(), promptText, PROMPT)
+            chatHistory.last().also { it.promptParts.add(finalPart) }
+        }
+    }
+
     private fun sendPromptAndReceiveTextResponse(finalPart: PromptPart) {
         var lastSpokenPos = 0
         val previousResponseJob = vmodel.handleResponseJob?.apply { cancel() }
         vmodel.handleResponseJob = vmodel.viewModelScope.launch {
             try {
                 previousResponseJob?.join()
-                vmodel.isResponding = true
-                vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
-                val chatHistory = vmodel.chatHistory
-                val promptText = if (finalPart is PromptPart.Text) finalPart.text else "<recorded audio>"
-                val exchange =
-                    if (chatHistory.isEmpty() || chatHistory.last().hasFinalPromptPart()) {
-                        addMessageContainerToView(PROMPT).also { layout -> addTextToView(layout, promptText, PROMPT) }
-                        Exchange(finalPart).also { chatHistory.add(it) }
-                    } else {
-                        addTextToView(lastMessageContainer(), promptText, PROMPT)
-                        chatHistory.last().also { it.promptParts.add(finalPart) }
-                    }
+                val exchange = prepareNewExchange(finalPart)
                 val replyMarkdown = StringBuilder()
                 exchange.replyMarkdown = replyMarkdown
                 vmodel.replyTextView = addTextResponseToView(exchange)
-                vmodel.autoscrollEnabled = true
-                scrollToBottom()
 
                 suspend fun updateReplyTextView(replyMarkdown: StringBuilder) {
                     Log.i("scroll", "updateReplyTextView")
@@ -979,45 +1008,6 @@ class ChatFragment : Fragment(), MenuProvider {
                         it.delete()
                     }
                 }
-        }
-    }
-
-    private fun sendPromptAndReceiveImageResponse(prompt: CharSequence) {
-        val previousResponseJob = vmodel.handleResponseJob?.apply { cancel() }
-        vmodel.handleResponseJob = vmodel.viewModelScope.launch {
-            try {
-                previousResponseJob?.join()
-                vmodel.isResponding = true
-                vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
-                val chatHistory = vmodel.chatHistory
-                val exchange =
-                    if (chatHistory.isEmpty() || chatHistory.last().promptText() != null) {
-                        addMessageContainerToView(PROMPT).also { addTextToView(it, prompt, PROMPT) }
-                        Exchange(PromptPart.Text(prompt)).also { chatHistory.add(it) }
-                    } else {
-                        addTextToView(lastMessageContainer(), prompt, PROMPT)
-                        chatHistory.last().also { it.promptParts += PromptPart.Text(prompt) }
-                    }
-                vmodel.autoscrollEnabled = true
-                scrollToBottom()
-                val responseContainer = addMessageContainerToView(RESPONSE)
-                val responseText = addTextToView(responseContainer, "", RESPONSE)
-                val editable = responseText.editableText
-                val imageUris =
-                    openAi.imageGeneration(prompt, appContext.mainPrefs.selectedModel, editable)
-                if (editable.isBlank()) {
-                    responseContainer.removeView(responseText)
-                }
-                exchange.replyImageUris = imageUris
-                addImagesToView(responseContainer, exchange.replyImageUris)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e("lifecycle", "Error in receiveResponseJob", e)
-            } finally {
-                vmodel.isResponding = false
-                vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
-            }
         }
     }
 
