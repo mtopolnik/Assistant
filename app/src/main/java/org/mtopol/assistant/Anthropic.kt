@@ -70,7 +70,7 @@ class Anthropic {
 
     suspend fun messages(history: List<Exchange>, model: AiModel): Flow<String> {
         Log.i("client", "Model: ${model.apiId}")
-        val request = ClaudeMessageRequest(
+        val request = MessageRequest(
             system = appContext.mainPrefs.systemPrompt,
             messages = history.toDto().dropLast(1),
         )
@@ -79,7 +79,7 @@ class Anthropic {
                 method = HttpMethod.Post
                 url(path = "messages")
                 contentType(ContentType.Application.Json)
-                setBody(jsonCodec.encodeToJsonElement<ClaudeMessageRequest>(request))
+                setBody(jsonCodec.encodeToJsonElement<MessageRequest>(request))
             }
             HttpStatement(builder, anthropicClient).execute { emitStreamingResponse(it) }
         }
@@ -146,7 +146,7 @@ class Anthropic {
     )
 
     @Serializable
-    class ClaudeMessageRequest(
+    class MessageRequest(
         val model: String,
         val system: String,
         val messages: List<Message>,
@@ -154,7 +154,7 @@ class Anthropic {
         val stream: Boolean,
     )
 
-    private fun ClaudeMessageRequest(system: String, messages: List<Message>) = ClaudeMessageRequest(
+    private fun MessageRequest(system: String, messages: List<Message>) = MessageRequest(
         model = MODEL_ID_SONNET_3_5,
         system = system,
         messages = messages,
