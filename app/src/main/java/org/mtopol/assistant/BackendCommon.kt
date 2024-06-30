@@ -49,14 +49,16 @@ val ARTIST_LAZY = lazy {
     b.toString()
 }
 
+private fun l(value: String) = lazy { value }
+
 enum class AiModel(
     private val apiIdLazy: Lazy<String>,
     private val uiIdLazy: Lazy<String>
 ) {
-    DEMO(lazy { "demo" }, lazy { "Demo" }),
-    GPT_3(lazy { MODEL_ID_GPT_3 }, lazy { "GPT-3.5" }),
-    GPT_4(lazy { MODEL_ID_GPT_4 }, lazy { "GPT-4o" }),
-    CLAUDE_3_5_SONNET(lazy { MODEL_ID_SONNET_3_5 }, lazy { "Sonnet" }),
+    DEMO(l("demo"), l("Demo")),
+    GPT_3(l(MODEL_ID_GPT_3), l("GPT-3.5")),
+    GPT_4(l(MODEL_ID_GPT_4), l("GPT-4o")),
+    CLAUDE_3_5_SONNET(l(MODEL_ID_SONNET_3_5), l("Sonnet")),
     ARTIST_3(lazy { "${ARTIST_LAZY.value.lowercase()}-3" }, ARTIST_LAZY);
 
     val apiId get() = apiIdLazy.value
