@@ -54,6 +54,7 @@
     <string name="action_settings">Postavke</string>
     <string name="record">Snimi glas</string>
     <string name="send">Šalji</string>
+    <string name="keyboard">Koristi tipkovnicu</string>
     <string name="prompt_hint">Poruka</string>
     <string name="gpt4_unavailable">GPT-4 nije dostupan s trenutnim API ključem.</string>
     <string name="gpt4_required">Samo GPT-4 podržava vid</string>

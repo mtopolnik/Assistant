@@ -54,6 +54,7 @@
     <string name="action_settings">Settings</string>
     <string name="record">Record Voice</string>
     <string name="send">Send</string>
+    <string name="keyboard">Use keyboard</string>
     <string name="prompt_hint">Message</string>
     <string name="gpt4_unavailable">GPT-4 is not available with your API key.</string>
     <string name="gpt4_required">You need GPT-4 for vision</string>

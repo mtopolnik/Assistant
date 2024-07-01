@@ -121,7 +121,7 @@
                         app:iconTint="@color/on_keyboard_button"
                         app:iconGravity="textEnd"
                         app:backgroundTint="@color/keyboard_button"
-                        android:contentDescription="@string/send" />
+                        android:contentDescription="@string/keyboard" />
 
                 <Button
                         android:id="@+id/button_record"
@@ -167,8 +167,7 @@
                 app:menu="@menu/menu_drawer"
                 app:itemTextAppearance="@style/NavigationDrawerItem"
                 app:subheaderTextAppearance="@style/NavigationDrawerItem"
-                app:subheaderColor="@color/light_grey"
-                />
+                app:subheaderColor="@color/light_grey" />
 
     </androidx.drawerlayout.widget.DrawerLayout>
 
