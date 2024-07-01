@@ -13,8 +13,8 @@ android {
         applicationId "org.mtopol.assistant"
         minSdk 26
         targetSdk 34
-        versionCode 57
-        versionName "5.2.1"
+        versionCode 58
+        versionName "5.2.2"
         resourceConfigurations += ['en', 'hr']
     }
 
@@ -42,7 +42,7 @@ dependencies {
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3'
     implementation 'com.google.android.material:material:1.12.0'
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.2'
-    implementation 'androidx.fragment:fragment-ktx:1.8.0'
+    implementation 'androidx.fragment:fragment-ktx:1.8.1'
     implementation 'androidx.preference:preference-ktx:1.2.1'
     implementation 'androidx.navigation:navigation-fragment-ktx:2.7.7'
     implementation 'androidx.navigation:navigation-ui-ktx:2.7.7'
