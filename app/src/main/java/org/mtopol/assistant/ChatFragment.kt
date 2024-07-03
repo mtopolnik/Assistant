@@ -240,6 +240,12 @@ class ChatFragment : Fragment(), MenuProvider {
         binding = FragmentChatBinding.inflate(inflater, container, false)
         vmodel.withFragmentLiveData.observe(viewLifecycleOwner) { it.invoke(this) }
         sharedImageViewModel.imgUriLiveData.observe(viewLifecycleOwner) { imgUris ->
+            // We need this hack to prevent duplicate event observation:
+            if (imgUris.isEmpty()) {
+                return@observe
+            }
+            sharedImageViewModel.imgUriLiveData.value = listOf()
+
             lifecycleScope.launch {
                 val lastExchange = vmodel.chatHistory.lastOrNull()
                 val isStartOfExchange = lastExchange == null || lastExchange.promptParts.isEmpty()
