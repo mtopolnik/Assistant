@@ -294,7 +294,9 @@ class ChatFragment : Fragment(), MenuProvider {
         for (exchange in vmodel.chatHistory) {
             newestHistoryExchange = exchange
             addPromptToView(exchange)
-            newestHistoryTextView = addResponseToView(exchange)
+            if (exchange.replyMarkdown.isNotBlank()) {
+                newestHistoryTextView = addResponseToView(exchange)
+            }
         }
         if (vmodel.replyTextView != null) {
             newestHistoryTextView!!.also {
