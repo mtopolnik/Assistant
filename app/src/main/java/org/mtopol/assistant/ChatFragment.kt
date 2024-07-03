@@ -248,7 +248,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
             lifecycleScope.launch {
                 val lastExchange = vmodel.chatHistory.lastOrNull()
-                val isStartOfExchange = lastExchange == null || lastExchange.promptParts.isEmpty()
+                val isStartOfExchange = lastExchange == null || lastExchange.promptParts.isNotEmpty()
                 val promptContainer = if (isStartOfExchange) {
                     addMessageContainerToView(PROMPT)
                 } else {
