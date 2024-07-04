@@ -735,6 +735,8 @@ class ChatFragment : Fragment(), MenuProvider {
                 val imageUris = openAi.imageGeneration(prompt, appContext.mainPrefs.selectedModel, editable)
                 if (editable.isBlank()) {
                     responseContainer.removeView(responseText)
+                } else {
+                    exchange.replyMarkdown = editable.toString()
                 }
                 exchange.replyImageUris = imageUris
                 addImagesToView(responseContainer, exchange.replyImageUris)
