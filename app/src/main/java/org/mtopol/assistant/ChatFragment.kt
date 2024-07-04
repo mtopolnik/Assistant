@@ -834,7 +834,7 @@ class ChatFragment : Fragment(), MenuProvider {
                                     is ClientRequestException -> {
                                         Log.e(
                                             "lifecycle",
-                                            "OpenAI error in chatCompletions flow",
+                                            "API error in chatCompletions flow",
                                             e
                                         )
                                         val message = e.message
@@ -1637,7 +1637,7 @@ class ChatFragment : Fragment(), MenuProvider {
         Toast.makeText(
             requireActivity(),
             if (e.response.status.value == 401) getString(R.string.message_incorrect_api_key)
-            else "OpenAI error: ${e.message}",
+            else "API error: ${e.message}",
             Toast.LENGTH_LONG
         ).show()
     }
