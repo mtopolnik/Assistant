@@ -1313,7 +1313,7 @@ class ChatFragment : Fragment(), MenuProvider {
             val pcmPathname = audioPathname.replaceAfterLast('.', "pcm")
             Log.i("chat", "Converting recorded AAC to PCM")
             try {
-                convertAacToPcm(audioPathname, pcmPathname)
+                decodeAudioToFile(audioPathname, pcmPathname)
                 Log.i("chat", "PCM saved: ${File(pcmPathname).length()} bytes")
                 vmodel.withFragment {
                     sendPromptAndReceiveTextResponse(PromptPart.Audio(Uri.fromFile(File(pcmPathname))))

@@ -53,6 +53,8 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
+import java.nio.ByteBuffer
 
 const val FILE_PROVIDER_AUTHORITY = "org.mtopol.assistant.fileprovider"
 
@@ -316,65 +318,71 @@ fun vibrate() {
         )
 }
 
-suspend fun convertAacToPcm(inputPath: String, outputPath: String) = withContext(IO) {
-    val bufTimeoutMicros = 10_000L
-
+suspend fun decodeAudioToFile(inputPath: String, outputPath: String) = withContext(IO) {
     val extractor = MediaExtractor()
-    val codec = MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_AUDIO_AAC)
-    val bufferInfo = MediaCodec.BufferInfo()
     val outputFile = FileOutputStream(File(outputPath))
     try {
         extractor.setDataSource(inputPath)
-        val trackIndex = selectTrack(extractor)
+        val trackIndex = (0..< extractor.trackCount).first {
+            extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true
+        }
         extractor.selectTrack(trackIndex)
-        val format = extractor.getTrackFormat(trackIndex)
+        pushThroughDecoder(
+            extractor.getTrackFormat(trackIndex),
+            { buf -> extractor.readSampleData(buf, 0).also { if (it >= 0) extractor.advance() } },
+            { buf -> outputFile.channel.write(buf) }
+        )
+    } finally {
+        extractor.release()
+        outputFile.close()
+    }
+}
+
+suspend fun pushThroughDecoder(
+    format: MediaFormat,
+    fillInputBuf: (ByteBuffer) -> Int,
+    drainOutputBuf: (ByteBuffer) -> Int
+) {
+    val bufTimeoutMicros = 10_000L
+    val bytesPerSample = Short.SIZE_BYTES // assuming 16 bits per sample
+
+    val mimeType = format.getString(MediaFormat.KEY_MIME)!!
+    val sampleRate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+    val channelCount = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+    val microsPerByte = (1_000_000.0 / bytesPerSample / sampleRate / channelCount).toLong()
+    val codec = MediaCodec.createDecoderByType(mimeType)
+    val bufferInfo = MediaCodec.BufferInfo()
+    try {
         codec.configure(format, null, null, 0)
         codec.start()
-
         var sawInputEOS = false
-        var sawOutputEOS = false
-
-        while (!sawOutputEOS) {
+        while (true) {
             if (!sawInputEOS) {
+                yield()
                 val inputBufferIndex = codec.dequeueInputBuffer(bufTimeoutMicros)
                 if (inputBufferIndex >= 0) {
                     val inputBuffer = codec.getInputBuffer(inputBufferIndex)!!
-                    val sampleSize = extractor.readSampleData(inputBuffer, 0)
-                    if (sampleSize < 0) {
+                    val sampleSize = fillInputBuf(inputBuffer)
+                    if (sampleSize >= 0) {
+                        codec.queueInputBuffer(inputBufferIndex, 0, sampleSize, sampleSize * microsPerByte, 0)
+                    } else {
                         codec.queueInputBuffer(inputBufferIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
                         sawInputEOS = true
-                    } else {
-                        codec.queueInputBuffer(inputBufferIndex, 0, sampleSize, extractor.sampleTime, 0)
-                        extractor.advance()
                     }
                 }
             }
+            yield()
             val outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, bufTimeoutMicros)
             if (outputBufferIndex >= 0) {
-                val outputBuffer = codec.getOutputBuffer(outputBufferIndex)!!
-                outputFile.channel.write(outputBuffer)
+                drainOutputBuf(codec.getOutputBuffer(outputBufferIndex)!!)
                 codec.releaseOutputBuffer(outputBufferIndex, false)
                 if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
-                    sawOutputEOS = true
+                    break
                 }
             }
         }
     } finally {
         codec.stop()
         codec.release()
-        extractor.release()
-        outputFile.close()
     }
-}
-
-private fun selectTrack(extractor: MediaExtractor): Int {
-    val numTracks = extractor.trackCount
-    for (i in 0 until numTracks) {
-        val format = extractor.getTrackFormat(i)
-        val mime = format.getString(MediaFormat.KEY_MIME)
-        if (mime?.startsWith("audio/") == true) {
-            return i
-        }
-    }
-    throw RuntimeException("No audio track found")
 }
