@@ -809,10 +809,7 @@ class ChatFragment : Fragment(), MenuProvider {
                             if (System.currentTimeMillis() - replyTextUpdateTime < REPLY_VIEW_UPDATE_PERIOD_MILLIS) {
                                 return@onEach
                             }
-                            vmodel.autoscrollEnabled.also {
-                                updateReplyTextView(replyMarkdown)
-                                vmodel.autoscrollEnabled = it
-                            }
+                            updateReplyTextView(replyMarkdown)
                             replyTextUpdateTime = System.currentTimeMillis()
                             val replyText = vmodel.replyTextView!!.text
                             exchange.replyText = replyText
@@ -1539,7 +1536,12 @@ class ChatFragment : Fragment(), MenuProvider {
                 return@post
             }
             binding.appbarLayout.setExpanded(false, true)
-            binding.scrollviewChat.smoothScrollTo(0, lastMessageContainer().top)
+            binding.scrollviewChat.apply {
+                val messageTop = lastMessageContainer().top
+                if (scrollY < messageTop) {
+                    smoothScrollTo(0, messageTop)
+                }
+            }
         }
     }
 
