@@ -904,7 +904,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private suspend fun speakWithOpenAi(sentenceFlow: Flow<String>) {
         var lastValidVoice = appContext.mainPrefs.selectedVoice
-        val sampleRate = 22050
+        val sampleRate = 24000
         val encoding = AudioFormat.ENCODING_PCM_16BIT
         val audioTrack = AudioTrack.Builder()
             .setAudioAttributes(AudioAttributes.Builder()
