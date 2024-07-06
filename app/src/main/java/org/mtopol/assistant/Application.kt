@@ -340,19 +340,21 @@ suspend fun decodeAudioToFile(inputPath: String, outputPath: String) = withConte
 
 suspend fun pushThroughDecoder(
     format: MediaFormat,
-    fillInputBuf: (ByteBuffer) -> Int,
-    drainOutputBuf: (ByteBuffer) -> Int
+    fillInputBuf: suspend (ByteBuffer) -> Int,
+    drainOutputBuf: suspend (ByteBuffer) -> Unit
 ) {
     val bufTimeoutMicros = 10_000L
     val bytesPerSample = Short.SIZE_BYTES // assuming 16 bits per sample
 
     val mimeType = format.getString(MediaFormat.KEY_MIME)!!
-    val sampleRate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+    val samplesPerSec = format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
     val channelCount = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
-    val microsPerByte = (1_000_000.0 / bytesPerSample / sampleRate / channelCount).toLong()
+    val microsPerByte = (1_000_000.0 / bytesPerSample / samplesPerSec / channelCount).toLong()
+    Log.i("speech", "create codec for $mimeType")
     val codec = MediaCodec.createDecoderByType(mimeType)
     val bufferInfo = MediaCodec.BufferInfo()
     try {
+        Log.i("speech", "configure codec with $format")
         codec.configure(format, null, null, 0)
         codec.start()
         var sawInputEOS = false
