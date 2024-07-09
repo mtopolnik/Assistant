@@ -904,7 +904,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private suspend fun speakWithOpenAi(sentenceFlow: Flow<String>) {
         var lastValidVoice = appContext.mainPrefs.selectedVoice
-        val sampleRate = 24000
+        val sampleRate = 48000
         val encoding = AudioFormat.ENCODING_PCM_16BIT
         val audioTrack = AudioTrack.Builder()
             .setAudioAttributes(AudioAttributes.Builder()
@@ -916,7 +916,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 .setSampleRate(sampleRate)
                 .setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build()
             )
-            .setBufferSizeInBytes(sampleRate) // enough for 1 second
+            .setBufferSizeInBytes(3 * sampleRate * Short.SIZE_BYTES) // enough for 3 seconds
             .setTransferMode(AudioTrack.MODE_STREAM)
             .build()
         val speakLatch = CompletableDeferred<Unit>()
@@ -959,7 +959,7 @@ class ChatFragment : Fragment(), MenuProvider {
                             lastValidVoice = selectedVoice
                         }
                     }
-                    openAi.speak(sentenceBuf, audioTrack, lastValidVoice.name.lowercase())
+                    openAi.speakModern(sentenceBuf, audioTrack, lastValidVoice.name.lowercase())
                     sentenceBuf.clear()
                 }
             }

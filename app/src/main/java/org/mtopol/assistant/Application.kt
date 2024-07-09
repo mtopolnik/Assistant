@@ -51,6 +51,19 @@ import kotlin.math.min
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
+import androidx.annotation.OptIn
+import androidx.media3.common.C
+import androidx.media3.common.DataReader
+import androidx.media3.common.Format
+import androidx.media3.common.util.ParsableByteArray
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.extractor.DefaultExtractorInput
+import androidx.media3.extractor.Extractor
+import androidx.media3.extractor.ExtractorOutput
+import androidx.media3.extractor.PositionHolder
+import androidx.media3.extractor.SeekMap
+import androidx.media3.extractor.TrackOutput
+import androidx.media3.extractor.ogg.OggExtractor as AndroidOggExtractor
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
@@ -386,5 +399,102 @@ suspend fun pushThroughDecoder(
     } finally {
         codec.stop()
         codec.release()
+    }
+}
+
+@OptIn(UnstableApi::class)
+class OggExtractor {
+    private val extractor = AndroidOggExtractor()
+    private val reader = BufDataReader()
+    private val extractorInput = DefaultExtractorInput(reader, 0, C.LENGTH_UNSET.toLong())
+    private val positionHolder = PositionHolder()
+    private val extractorOutput = BufExtractorOutput()
+
+    init {
+        extractor.init(extractorOutput)
+    }
+
+    fun read(inputBuf: ByteBuffer): Boolean {
+        reader.inputBuf = inputBuf
+        return when (extractor.read(extractorInput, positionHolder)) {
+            Extractor.RESULT_CONTINUE -> {
+                Log.i("speech", "OggExtractor.read(inputBuf) -> RESULT_CONTINUE")
+                true
+            }
+            Extractor.RESULT_END_OF_INPUT -> {
+                Log.i("speech", "OggExtractor.read(inputBuf) -> RESUT_END_OF_INPUT")
+                false
+            }
+            Extractor.RESULT_SEEK -> throw RuntimeException("RESULT_SEEK")
+            else -> true
+        }
+    }
+
+    fun format(): Format? = extractorOutput.bufOutput.format
+
+    fun outputBuf(): ByteBuffer? = extractorOutput.bufOutput.outputBuf
+
+    @UnstableApi
+    private class BufDataReader : DataReader {
+        var inputBuf: ByteBuffer = ByteBuffer.allocate(0)
+
+        override fun read(outputBuf: ByteArray, offset: Int, length: Int): Int {
+            Log.i("speech", "BufDataReader.read(outputBuf, $offset, $length) inputBuf ${inputBuf.remaining()}")
+            val readCount = inputBuf.remaining().coerceAtMost(length)
+            inputBuf.get(outputBuf, offset, readCount)
+            return readCount
+        }
+    }
+
+    @UnstableApi
+    private class BufExtractorOutput : ExtractorOutput {
+        val bufOutput = BufOutput()
+
+        override fun track(id: Int, type: Int) = bufOutput
+
+        override fun endTracks() {}
+        override fun seekMap(seekMap: SeekMap) {}
+    }
+
+    @UnstableApi
+    private class BufOutput : TrackOutput {
+        var outputBuf: ByteBuffer? = null
+        var format: Format? = null
+
+        override fun sampleData(data: ParsableByteArray, length: Int, sampleDataPart: Int) {
+            Log.i("speech", "BufOutput.sampleData(ParsableByteArray)")
+            val prevOutputBuf = outputBuf
+            val newOutputBuf: ByteBuffer
+            if (prevOutputBuf == null) {
+                newOutputBuf = ByteBuffer.wrap(data.data.copyOf(length))
+            } else {
+                if (prevOutputBuf.capacity() < prevOutputBuf.remaining() + length) {
+                    newOutputBuf = ByteBuffer.allocate(prevOutputBuf.remaining() + length)
+                    newOutputBuf.put(prevOutputBuf)
+                } else {
+                    prevOutputBuf.compact()
+                    newOutputBuf = prevOutputBuf
+                }
+                newOutputBuf.put(data.data, 0, length)
+                newOutputBuf.flip()
+            }
+            outputBuf = newOutputBuf
+        }
+
+        override fun sampleData(input: DataReader, length: Int, allowEndOfInput: Boolean, sampleDataPart: Int): Int {
+            Log.i("speech", "BufOutput.sampleData(DataReader)")
+            val data = ByteArray(length)
+            outputBuf = ByteBuffer.wrap(data)
+            return input.read(data, 0, length)
+        }
+
+        override fun format(format: Format) {
+            Log.i("speech", "BufOutput.format $format")
+            this.format = format
+        }
+
+        override fun sampleMetadata(timeUs: Long, flags: Int, size: Int, offset: Int, cryptoData: TrackOutput.CryptoData?) {
+            Log.i("speech", "BufOutput.sampleMetadata(timeUs=$timeUs size=$size offset=$offset")
+        }
     }
 }
