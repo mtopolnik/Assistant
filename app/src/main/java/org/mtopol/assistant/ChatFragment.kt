@@ -29,9 +29,6 @@ import android.content.res.Configuration
 import android.graphics.PointF
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
-import android.media.AudioAttributes
-import android.media.AudioFormat
-import android.media.AudioTrack
 import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.net.Uri
@@ -88,6 +85,11 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewModelScope
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.navigation.fragment.findNavController
 import com.google.android.material.button.MaterialButton
 import com.google.mlkit.nl.languageid.IdentifiedLanguage
@@ -902,22 +904,22 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
+    @androidx.annotation.OptIn(UnstableApi::class)
     private suspend fun speakWithOpenAi(sentenceFlow: Flow<String>) {
         var lastValidVoice = appContext.mainPrefs.selectedVoice
-        val sampleRate = 48000
-        val encoding = AudioFormat.ENCODING_PCM_16BIT
-        val audioTrack = AudioTrack.Builder()
+        val exoPlayer = ExoPlayer.Builder(appContext)
             .setAudioAttributes(AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ASSISTANT)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build()
-            )
-            .setAudioFormat(AudioFormat.Builder()
-                .setEncoding(encoding)
-                .setSampleRate(sampleRate)
-                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build()
-            )
-            .setBufferSizeInBytes(3 * sampleRate * Short.SIZE_BYTES) // enough for 3 seconds
-            .setTransferMode(AudioTrack.MODE_STREAM)
+                .setUsage(C.USAGE_ASSISTANT)
+                .setContentType(C.AUDIO_CONTENT_TYPE_SPEECH)
+                .build(), false)
+            .setLoadControl(DefaultLoadControl.Builder()
+                .setBufferDurationsMs(
+                    DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
+                    DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,
+                    DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS / 10,
+                    DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS / 10)
+                .setPrioritizeTimeOverSizeThresholds(true)
+                .build())
             .build()
         val speakLatch = CompletableDeferred<Unit>()
         if (!appContext.mainPrefs.isMuted) {
@@ -925,10 +927,10 @@ class ChatFragment : Fragment(), MenuProvider {
         }
         vmodel.muteToggledCallback = {
             if (appContext.mainPrefs.isMuted) {
-                audioTrack.pause()
+                exoPlayer.pause()
             } else {
                 speakLatch.complete(Unit)
-                audioTrack.play()
+                exoPlayer.play()
             }
         }
         try {
@@ -959,23 +961,14 @@ class ChatFragment : Fragment(), MenuProvider {
                             lastValidVoice = selectedVoice
                         }
                     }
-                    openAi.speakModern(sentenceBuf, audioTrack, lastValidVoice.name.lowercase())
+                    openAi.speak(sentenceBuf, exoPlayer, lastValidVoice.name.lowercase())
                     sentenceBuf.clear()
                 }
             }
-            var prevPos = audioTrack.playbackHeadPosition
-            while (true) {
-                delay(100)
-                val pos = audioTrack.playbackHeadPosition
-                if (pos == prevPos) {
-                    break
-                }
-                prevPos = pos
-            }
         } finally {
             vmodel.muteToggledCallback = null
-            audioTrack.stop()
-            audioTrack.release()
+            exoPlayer.stop()
+            exoPlayer.release()
         }
     }
 

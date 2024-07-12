@@ -17,9 +17,6 @@
 
 package org.mtopol.assistant
 
-import android.media.AudioTrack
-import android.media.MediaCodec
-import android.media.MediaFormat
 import android.net.Uri
 import android.text.Editable
 import android.util.Base64
@@ -27,7 +24,10 @@ import android.util.Log
 import android.widget.Toast
 import androidx.annotation.OptIn
 import androidx.core.net.toFile
+import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
@@ -76,8 +76,6 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStream
-import java.nio.ByteBuffer
-import kotlin.math.min
 
 val openAi get() = openAiLazy.value
 
@@ -172,95 +170,8 @@ class OpenAI {
         return response.body<String>().replace("\n", "")
     }
 
-    suspend fun speak(text: CharSequence, audioTrack: AudioTrack, voice: String) {
-        Log.i("speech", "Speak: $text")
-        if (!appContext.mainPrefs.openaiApiKey.allowsTts()) {
-            Toast.makeText(appContext, "Your API key doesn't allow text-to-speech", Toast.LENGTH_LONG).show()
-            return
-        }
-        val frameLen = Short.SIZE_BYTES // PCM-16 MONO has 1 short per frame
-        val request = TextToSpeechRequest(
-            input = text.toString(), voice = voice,
-            response_format = "pcm", model = "tts-1"
-        )
-        val builder = HttpRequestBuilder().apply {
-            method = HttpMethod.Post
-            url(path = "audio/speech")
-            contentType(ContentType.Application.Json)
-            setBody(jsonCodec.encodeToJsonElement(request))
-        }
-        HttpStatement(builder, apiClient).execute() { httpResponse ->
-            val channel = httpResponse.body<ByteReadChannel>()
-            val audioBuf = ByteBuffer.allocate(16.shl(10))
-
-            suspend fun read(): Boolean {
-                var remaining = 0
-                while (true) {
-                    Log.i("speech", "channel.read() remaining $remaining")
-                    channel.read(remaining) { responseBuf ->
-                        Log.i("speech", "before copy: responseBuf ${responseBuf.remaining()} audioBuf ${audioBuf.remaining()}")
-                        val limitBackup = responseBuf.limit()
-                        val safeToCopy = min(
-                            responseBuf.remaining() - responseBuf.remaining() % frameLen,
-                            audioBuf.remaining()
-                        )
-                        responseBuf.limit(responseBuf.position() + safeToCopy)
-                        audioBuf.put(responseBuf)
-                        responseBuf.limit(limitBackup)
-                        Log.i("speech", "after copy: responseBuf ${responseBuf.remaining()} audioBuf ${audioBuf.remaining()}")
-                        remaining = responseBuf.remaining() + responseBuf.remaining() % 2
-                    }
-                    if (audioBuf.position() > 0) {
-                        audioBuf.flip()
-                        return true
-                    }
-                    if (channel.isClosedForRead) {
-                        Log.i("speech", "receive channel closed for read")
-                        audioBuf.flip()
-                        return false
-                    }
-                }
-            }
-
-            // prime the audioTrack's buffer before calling play()
-            while (read()) {
-                Log.i("speech", "prime audioTrack, audioBuf ${audioBuf.remaining()}")
-                val written = audioTrack.write(audioBuf, audioBuf.remaining(), AudioTrack.WRITE_NON_BLOCKING)
-                Log.i("speech", "audioTrack.write() $written, audioBuf ${audioBuf.remaining()}")
-                audioBuf.compact()
-                if (audioBuf.position() > 0) {
-                    Log.i("speech", "audioTrack primed")
-                    break
-                }
-            }
-            if (!appContext.mainPrefs.isMuted) {
-                Log.i("speech", "audioTrack.play()")
-                audioTrack.play()
-            }
-            withContext(Dispatchers.IO) {
-                while (read()) {
-                    Log.i("speech", "blocking write, audioBuf ${audioBuf.remaining()}")
-                    while (true) {
-                        // audioTrack.write() won't fully drain the buffer if the track gets paused
-                        val result = audioTrack.write(audioBuf, audioBuf.remaining(), AudioTrack.WRITE_BLOCKING)
-                        Log.i("speech", "audioTrack.write() $result, audioBuf ${audioBuf.remaining()}")
-                        if (result < 0) {
-                            Log.e("speech", "audioTrack.write() returned $result, audioBuf ${audioBuf.remaining()}")
-                            break
-                        }
-                        if (audioBuf.remaining() == 0) {
-                            audioBuf.clear()
-                            break
-                        }
-                        delay(100)
-                    }
-                }
-            }
-        }
-    }
-
     @OptIn(UnstableApi::class)
-    suspend fun speakModern(text: CharSequence, audioTrack: AudioTrack, voice: String) {
+    suspend fun speak(text: CharSequence, exoPlayer: ExoPlayer, voice: String) {
         Log.i("speech", "Speak: $text")
         if (!appContext.mainPrefs.openaiApiKey.allowsTts()) {
             Toast.makeText(appContext, "Your API key doesn't allow text-to-speech", Toast.LENGTH_LONG).show()
@@ -278,120 +189,18 @@ class OpenAI {
         }
         HttpStatement(builder, apiClient).execute() { httpResponse ->
             val channel = httpResponse.body<ByteReadChannel>()
-            val oggBuf = ByteBuffer.allocate(8.shl(10))
-
-            suspend fun read(): Boolean {
-                Log.i("speech", "channel.read()")
-                if (channel.isClosedForRead) {
-                    Log.i("speech", "receive channel closed for read")
-                    oggBuf.flip()
-                    return false
-                }
-                while (true) {
-                    channel.read(0) { responseBuf ->
-                        Log.i(
-                            "speech",
-                            "oggBuf.put(responseBuf): responseBuf ${responseBuf.remaining()} oggBuf ${oggBuf.remaining()}"
-                        )
-                        val limitBackup = responseBuf.limit()
-                        responseBuf.limit((responseBuf.position() + oggBuf.remaining()).coerceAtMost(responseBuf.limit()))
-                        oggBuf.put(responseBuf)
-                        responseBuf.limit(limitBackup)
-                    }
-                    if (oggBuf.remaining() == 0 || channel.isClosedForRead) {
-                        oggBuf.flip()
-                        Log.i("speech", "read() completing, oggBuf.remaining() ${oggBuf.remaining()}, channel closed? ${channel.isClosedForRead}")
-                        return true
-                    }
-                }
+            val dataSourceFactory = ByteReadChannelDataSourceFactory(channel)
+            val mediaSource = ProgressiveMediaSource.Factory(dataSourceFactory)
+                .createMediaSource(MediaItem.fromUri(Uri.EMPTY))
+            exoPlayer.setMediaSource(mediaSource)
+            exoPlayer.prepare()
+            if (!appContext.mainPrefs.isMuted) {
+                Log.i("speech", "exoPlayer.play()")
+                exoPlayer.play()
             }
-
-            read()
-            withContext(Dispatchers.IO) {
-                val oggExtractor = OggExtractor()
-                Log.i("speech", "oggExtractor.read(oggBuf)")
-                oggExtractor.read(oggBuf)
-                val format = oggExtractor.format()!!
-                Log.i("speech", "createDecoderByType(${format.sampleMimeType!!})")
-                val codec: MediaCodec = MediaCodec.createDecoderByType(format.sampleMimeType!!)
-                try {
-                    Log.i("speech", "codec.configure(mime=${format.sampleMimeType!!}, sampleRate=${format.sampleRate}, " +
-                            "channelCount=${format.channelCount})")
-                    codec.configure(
-                        MediaFormat.createAudioFormat(format.sampleMimeType!!, format.sampleRate, format.channelCount),
-                        null, null, 0
-                    )
-                    Log.i("speech", "codec.start()")
-                    codec.start()
-                    var responseExhausted = false
-                    val bufferInfo = MediaCodec.BufferInfo()
-                    var audioTrackPrimed = false
-                    while (true) {
-                        if (!responseExhausted && oggBuf.remaining() < oggBuf.capacity() / 2) {
-                            oggBuf.compact()
-                            if (!read()) {
-                                responseExhausted = true
-                            }
-                        }
-                        val bufTimeoutMicros = 20_000L
-                        if (oggBuf.remaining() > 0) {
-                            yield()
-                            Log.i("speech", "oggExtractor.read(oggBuf), oggBuf.remaining ${oggBuf.remaining()}")
-                            oggExtractor.read(oggBuf)
-                            Log.i(
-                                "speech",
-                                "after oggExtractor.read(oggBuf), oggBuf.remaining ${oggBuf.remaining()}"
-                            )
-                            val opusBuf = oggExtractor.outputBuf()
-                            if (opusBuf != null && opusBuf.remaining() > 0) {
-                                val sampleSize = opusBuf.remaining()
-                                Log.i("speech", "opusBuf.remaining() ${opusBuf.remaining()}")
-                                opusBuf.hexDump()
-                                val inputBufferIndex = codec.dequeueInputBuffer(bufTimeoutMicros)
-                                if (inputBufferIndex >= 0) {
-                                    val inputBuffer = codec.getInputBuffer(inputBufferIndex)!!
-                                    inputBuffer.put(opusBuf)
-                                    Log.i("speech", "codec.queueInputBuffer($inputBufferIndex, sampleSize=$sampleSize)")
-                                    codec.queueInputBuffer(inputBufferIndex, 0, sampleSize, 20_000, 0)
-                                }
-                            }
-                        }
-                        yield()
-                        val outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, bufTimeoutMicros)
-                        if (outputBufferIndex >= 0) {
-                            val pcmBuf = codec.getOutputBuffer(outputBufferIndex)!!
-                            if (!audioTrackPrimed) {
-                                audioTrack.write(pcmBuf, pcmBuf.remaining(), AudioTrack.WRITE_NON_BLOCKING)
-                                if (pcmBuf.hasRemaining()) {
-                                    audioTrackPrimed = true
-                                    audioTrack.play()
-                                }
-                            }
-                            audioTrack.write(pcmBuf, pcmBuf.remaining(), AudioTrack.WRITE_BLOCKING)
-                            codec.releaseOutputBuffer(outputBufferIndex, false)
-                            if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
-                                break
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e("speech", "speakModern failed", e)
-                } finally {
-                    codec.stop()
-                    codec.release()
-                }
+            while (exoPlayer.playbackState != ExoPlayer.STATE_ENDED) {
+                delay(100)
             }
-        }
-    }
-
-    private fun ByteBuffer.hexDump() {
-        val b = StringBuilder(100)
-        for (chunk in (position()..<limit()).chunked(32)) {
-            for (i in chunk) {
-                b.append("%02x ".format(get(i)))
-            }
-            Log.i("speech", b.toString())
-            b.clear()
         }
     }
 
