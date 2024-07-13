@@ -132,7 +132,6 @@ import kotlin.coroutines.resume
 import kotlin.math.log2
 import kotlin.math.roundToLong
 
-private const val KEY_CHAT_HISTORY = "chat_history"
 private const val CHAT_HISTORY_FNAME = "chat-history.parcel"
 
 private const val MAX_RECORDING_TIME_MILLIS = 120_000L
@@ -141,6 +140,10 @@ private const val MIN_HOLD_RECORD_BUTTON_MILLIS = 400L
 private const val RECORD_HINT_DURATION_MILLIS = 3_000L
 private const val DALLE_IMAGE_DIMENSION = 512
 private const val REPLY_VIEW_UPDATE_PERIOD_MILLIS = 100L
+
+private const val BUFFER_MS = 50_000
+private const val START_PLAYBACK_WHEN_BUFFERED_MS = 250
+private const val AFTER_UNDERRUN_REBUFFER_MS = 500
 
 private val sentenceDelimiterRegex = """(?<=\D[.!]['"]?)\s+|(?<=\d[.!]'?)\s+(?=\p{Lu})|(?<=.[;?]'?)\s+|\n+""".toRegex()
 private val speechImprovementRegex = """ ?[()] ?""".toRegex()
@@ -909,11 +912,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 .setContentType(C.AUDIO_CONTENT_TYPE_SPEECH)
                 .build(), false)
             .setLoadControl(DefaultLoadControl.Builder()
-                .setBufferDurationsMs(
-                    DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
-                    DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,
-                    DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS / 10,
-                    DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS / 10)
+                .setBufferDurationsMs(BUFFER_MS, BUFFER_MS, START_PLAYBACK_WHEN_BUFFERED_MS, AFTER_UNDERRUN_REBUFFER_MS)
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build())
             .build()
