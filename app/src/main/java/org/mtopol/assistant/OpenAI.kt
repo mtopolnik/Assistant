@@ -24,10 +24,15 @@ import android.util.Log
 import android.widget.Toast
 import androidx.annotation.OptIn
 import androidx.core.net.toFile
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.TransferListener
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
@@ -66,6 +71,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import kotlinx.serialization.SerialName
@@ -171,7 +177,11 @@ class OpenAI {
     }
 
     @OptIn(UnstableApi::class)
-    suspend fun speak(text: CharSequence, exoPlayer: ExoPlayer, voice: String) {
+    suspend fun speak(
+        text: CharSequence,
+        voice: String,
+        exoPlayer: ExoPlayer
+    ) {
         Log.i("speech", "Speak: $text")
         if (!appContext.mainPrefs.openaiApiKey.allowsTts()) {
             Toast.makeText(appContext, "Your API key doesn't allow text-to-speech", Toast.LENGTH_LONG).show()
@@ -187,18 +197,33 @@ class OpenAI {
             contentType(ContentType.Application.Json)
             setBody(jsonCodec.encodeToJsonElement(request))
         }
+
         HttpStatement(builder, apiClient).execute() { httpResponse ->
             val channel = httpResponse.body<ByteReadChannel>()
-            val dataSourceFactory = ByteReadChannelDataSourceFactory(channel)
-            val mediaSource = ProgressiveMediaSource.Factory(dataSourceFactory)
-                .createMediaSource(MediaItem.fromUri(Uri.EMPTY))
-            exoPlayer.setMediaSource(mediaSource)
-            exoPlayer.prepare()
-            if (!appContext.mainPrefs.isMuted) {
-                Log.i("speech", "exoPlayer.play()")
-                exoPlayer.play()
+
+            class DsFac : DataSource.Factory {
+                override fun createDataSource() = object : DataSource {
+                    override fun open(dataSpec: DataSpec): Long = C.LENGTH_UNSET.toLong()
+
+                    override fun read(buffer: ByteArray, offset: Int, length: Int): Int = runBlocking {
+                        channel.readAvailable(buffer, offset, length)
+                    }
+
+                    override fun getUri() = Uri.EMPTY
+                    override fun close() {}
+
+                    override fun addTransferListener(transferListener: TransferListener) {
+                        Log.i("speech", "addTransferListener() called, will have no effect: $transferListener")
+                    }
+                }
             }
-            while (exoPlayer.playbackState != ExoPlayer.STATE_ENDED) {
+
+            exoPlayer.addMediaSource(
+                ProgressiveMediaSource.Factory(DsFac())
+                    .setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(0))
+                    .createMediaSource(MediaItem.fromUri(Uri.EMPTY))
+            )
+            while (!channel.isClosedForRead) {
                 delay(100)
             }
         }

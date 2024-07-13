@@ -87,6 +87,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
@@ -956,14 +957,28 @@ class ChatFragment : Fragment(), MenuProvider {
                         }
                     }
                     speakLatch.await()
+                    if (exoPlayer.playbackState == Player.STATE_IDLE) {
+                        Log.i("speech", "exoPlayer.play()")
+                        exoPlayer.prepare()
+                        exoPlayer.play()
+                    }
                     appContext.mainPrefs.selectedVoice.also { selectedVoice ->
                         if (selectedVoice != Voice.BUILT_IN) {
                             lastValidVoice = selectedVoice
                         }
                     }
-                    openAi.speak(sentenceBuf, exoPlayer, lastValidVoice.name.lowercase())
+                    openAi.speak(sentenceBuf, lastValidVoice.name.lowercase(), exoPlayer)
                     sentenceBuf.clear()
                 }
+                val doneLatch = CompletableDeferred<Unit>()
+                exoPlayer.addListener(object : Player.Listener {
+                    override fun onPlaybackStateChanged(state: Int) {
+                        if (state == Player.STATE_ENDED) {
+                            doneLatch.complete(Unit)
+                        }
+                    }
+                })
+                doneLatch.await()
             }
         } finally {
             vmodel.muteToggledCallback = null

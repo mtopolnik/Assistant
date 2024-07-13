@@ -405,24 +405,3 @@ suspend fun pushThroughDecoder(
         codec.release()
     }
 }
-
-@UnstableApi
-class ByteReadChannelDataSource(private val channel: ByteReadChannel) : DataSource {
-    override fun open(dataSpec: DataSpec): Long = C.LENGTH_UNSET.toLong()
-
-    override fun read(buffer: ByteArray, offset: Int, length: Int): Int = runBlocking {
-        channel.readAvailable(buffer, offset, length)
-    }
-
-    override fun getUri() = Uri.EMPTY
-    override fun close() {}
-
-    override fun addTransferListener(transferListener: TransferListener) {
-        Log.i("speech", "addTransferListener")
-    }
-}
-
-@UnstableApi
-class ByteReadChannelDataSourceFactory(private val channel: ByteReadChannel) : DataSource.Factory {
-    override fun createDataSource(): DataSource = ByteReadChannelDataSource(channel)
-}
