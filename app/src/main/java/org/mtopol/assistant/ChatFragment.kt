@@ -702,7 +702,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
         // Determine where the prompt text is and remove it
         val lastEntry = vmodel.chatHistory.last()
-        if (lastEntry.promptParts.isNotEmpty() && lastEntry.promptParts.last() is PromptPart.Text) {
+        if (lastEntry.promptParts.size > 1 && lastEntry.promptParts.last() is PromptPart.Text) {
             // The prompt contains both text and image. Remove just the text and leave the
             // image. This means the prompt view stays.
             val promptContainer = lastMessageContainer()
