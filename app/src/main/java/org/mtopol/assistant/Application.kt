@@ -34,44 +34,30 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
 import android.os.Build
+import android.os.Parcel
+import android.os.Parcelable
 import android.os.VibrationAttributes
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.util.Log
 import android.widget.ImageView
-import androidx.annotation.OptIn
 import androidx.core.content.ContextCompat
 import androidx.core.net.toFile
 import androidx.core.os.LocaleListCompat
-import androidx.media3.common.C
-import androidx.media3.common.DataReader
-import androidx.media3.common.Format
-import androidx.media3.common.util.ParsableByteArray
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.DataSource
-import androidx.media3.datasource.DataSpec
-import androidx.media3.datasource.TransferListener
-import androidx.media3.extractor.DefaultExtractorInput
-import androidx.media3.extractor.Extractor
-import androidx.media3.extractor.ExtractorOutput
-import androidx.media3.extractor.PositionHolder
-import androidx.media3.extractor.SeekMap
-import androidx.media3.extractor.TrackOutput
 import androidx.preference.PreferenceManager
-import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.Dispatchers.IO
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStream
+import java.io.OutputStream
 import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.util.*
 import kotlin.math.min
-import androidx.media3.extractor.ogg.OggExtractor as AndroidOggExtractor
 
 const val FILE_PROVIDER_AUTHORITY = "org.mtopol.assistant.fileprovider"
 
@@ -404,4 +390,72 @@ suspend fun pushThroughDecoder(
         codec.stop()
         codec.release()
     }
+}
+
+fun <T: Parcelable> saveParcelableList(list: List<T>, filename: String) {
+    appContext.openFileOutput(filename, Context.MODE_PRIVATE).use { outputStream ->
+        list.forEach {
+            val parcel = Parcel.obtain()
+            try {
+                it.writeToParcel(parcel, 0)
+                outputStream.writeInt(parcel.dataSize())
+                outputStream.write(parcel.marshall())
+            } finally {
+                parcel.recycle()
+            }
+        }
+    }
+}
+
+inline fun <reified T : Parcelable> restoreParcelableList(filename: String): MutableList<T> {
+    val list = mutableListOf<T>()
+    try {
+        appContext.openFileInput(filename).use { inputStream ->
+            while (true) {
+                val item: T = inputStream.readParcelable() ?: break
+                list += item
+            }
+        }
+    } catch (e: Exception) {
+        Log.w("lifecycle", "Failed to restore parcelable list from $filename", e)
+    }
+    return list
+}
+
+inline fun <reified T : Parcelable> InputStream.readParcelable(): T? {
+    return try {
+        val size = readInt()
+        if (size < 0) {
+            return null
+        }
+        val bytes = ByteArray(size)
+        if (read(bytes) != size) {
+            return null
+        }
+        val parcel = Parcel.obtain()
+        try {
+            parcel.unmarshall(bytes, 0, size)
+            parcel.setDataPosition(0)
+            @Suppress("UNCHECKED_CAST")
+            val creator = T::class.java.getField("CREATOR").get(null) as Parcelable.Creator<T>
+            creator.createFromParcel(parcel)
+        } finally {
+            parcel.recycle()
+        }
+    } catch (e: Exception) {
+        Log.e("lifecycle", "Error while reading parcelable list", e)
+        null
+    }
+}
+
+fun OutputStream.writeInt(value: Int) = write(
+    ByteBuffer.allocate(Int.SIZE_BYTES).order(ByteOrder.LITTLE_ENDIAN).putInt(value).array()
+)
+
+fun InputStream.readInt(): Int {
+    val intBuf = ByteBuffer.allocate(Int.SIZE_BYTES).order(ByteOrder.LITTLE_ENDIAN)
+    if (read(intBuf.array()) < intBuf.capacity()) {
+        return -1
+    }
+    return intBuf.getInt()
 }

@@ -81,7 +81,6 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewModelScope
@@ -134,6 +133,7 @@ import kotlin.math.log2
 import kotlin.math.roundToLong
 
 private const val KEY_CHAT_HISTORY = "chat_history"
+private const val CHAT_HISTORY_FNAME = "chat-history.parcel"
 
 private const val MAX_RECORDING_TIME_MILLIS = 120_000L
 private const val STOP_RECORDING_DELAY_MILLIS = 300L
@@ -146,22 +146,21 @@ private val sentenceDelimiterRegex = """(?<=\D[.!]['"]?)\s+|(?<=\d[.!]'?)\s+(?=\
 private val speechImprovementRegex = """ ?[()] ?""".toRegex()
 private val whitespaceRegex = """\s+""".toRegex()
 
-class ChatFragmentModel(
-    savedState: SavedStateHandle
-) : ViewModel() {
+class ChatFragmentModel() : ViewModel() {
     val withFragmentLiveData = MutableLiveData<(ChatFragment) -> Unit>()
 
     fun withFragment(task: (ChatFragment) -> Unit) {
         withFragmentLiveData.value = task
     }
 
-    val chatHistory = savedState.getLiveData<MutableList<Exchange>>(KEY_CHAT_HISTORY, mutableListOf()).value!!
+    val chatHistory = restoreParcelableList<Exchange>(CHAT_HISTORY_FNAME)
 
     var recordingGlowJob: Job? = null
     var transcriptionJob: Job? = null
     var handleResponseJob: Job? = null
     var isResponding: Boolean = false
     var autoscrollEnabled: Boolean = true
+
     @SuppressLint("StaticFieldLeak")
     var replyTextView: TextView? = null
     var muteToggledCallback: (() -> Unit)? = null
@@ -664,6 +663,11 @@ class ChatFragment : Fragment(), MenuProvider {
         Log.i("lifecycle", "onPause ChatFragment")
         vmodel.recordingGlowJob?.cancel()
         runBlocking { stopRecording() }
+        try {
+            saveParcelableList(vmodel.chatHistory, CHAT_HISTORY_FNAME)
+        } catch (e: Exception) {
+            Log.e("lifecycle", "Failed to save chat history", e)
+        }
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
