@@ -323,14 +323,12 @@ class ChatFragment : Fragment(), MenuProvider {
                 binding.showRecordingGlow()
             }
         }
-
         binding.imgZoomed.apply {
             coroScope = vmodel.viewModelScope
             GestureDetector(activity, ExitFullScreenListener()).also { gd ->
                 setOnTouchListener { _, e -> gd.onTouchEvent(e); true }
             }
         }
-
         binding.scrollviewChat.apply {
             setOnScrollChangeListener { view, _, newPos, _, oldPos ->
                 if (newPos < oldPos) {
@@ -438,14 +436,7 @@ class ChatFragment : Fragment(), MenuProvider {
                     hadTextLastTime = editable.isNotEmpty()
                 }
 
-                override fun beforeTextChanged(
-                    s: CharSequence?,
-                    start: Int,
-                    count: Int,
-                    after: Int
-                ) {
-                }
-
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             })
         }
