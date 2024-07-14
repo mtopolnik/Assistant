@@ -17,6 +17,11 @@
 
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <item
+            android:id="@+id/submenu_chats"
+            android:title="@string/submenu_chats">
+        <menu />
+    </item>
+    <item
             android:id="@+id/action_about"
             android:title="@string/action_about" />
     <item

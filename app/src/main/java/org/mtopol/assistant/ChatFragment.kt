@@ -138,6 +138,7 @@ private const val MIN_HOLD_RECORD_BUTTON_MILLIS = 400L
 private const val RECORD_HINT_DURATION_MILLIS = 3_000L
 private const val DALLE_IMAGE_DIMENSION = 512
 private const val REPLY_VIEW_UPDATE_PERIOD_MILLIS = 100L
+private const val CHATS_MENUITEM_ID_BASE = 1000
 
 private const val BUFFER_MS = 50_000
 private const val START_PLAYBACK_WHEN_BUFFERED_MS = 250
@@ -154,8 +155,8 @@ class ChatFragmentModel() : ViewModel() {
         withFragmentLiveData.value = task
     }
 
-    var chatId = lastChatId() ?: 1
-    val chatHistory = restoreChatHistory(lastChatId())
+    var chatId = lastChatId()
+    val chatHistory = loadChatHistory(chatId)
 
     var recordingGlowJob: Job? = null
     var transcriptionJob: Job? = null
@@ -194,6 +195,7 @@ class ChatFragment : Fragment(), MenuProvider {
     private lateinit var markwon: Markwon
     private lateinit var drawerToggle: ActionBarDrawerToggle
     private lateinit var voiceMenuItem: MenuItem
+    private lateinit var chatsMenuItem: MenuItem
 
     private var recordButtonPressTime = 0L
     private var _mediaRecorder: MediaRecorder? = null
@@ -293,21 +295,7 @@ class ChatFragment : Fragment(), MenuProvider {
             .usePlugin(CorePlugin.create())
             .usePlugin(SoftBreakAddsNewLinePlugin.create())
             .build();
-        var newestHistoryTextView: TextView? = null
-        var newestHistoryExchange: Exchange? = null
-        for (exchange in vmodel.chatHistory) {
-            newestHistoryExchange = exchange
-            addPromptToView(exchange)
-            if (exchange.replyMarkdown.isNotBlank()) {
-                newestHistoryTextView = addResponseToView(exchange)
-            }
-        }
-        if (vmodel.replyTextView != null) {
-            newestHistoryTextView!!.also {
-                vmodel.replyTextView = it
-                newestHistoryExchange!!.replyText = it.text
-            }
-        }
+        syncChatHistory()
         // Reduce the size of the scrollview when soft keyboard shown
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, windowInsets ->
             val insets = windowInsets.getInsets(WindowInsetsCompat.Type.ime())
@@ -468,6 +456,7 @@ class ChatFragment : Fragment(), MenuProvider {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         drawerToggle.syncState()
+        syncChatsMenu()
     }
 
     override fun onDestroyView() {
@@ -576,8 +565,14 @@ class ChatFragment : Fragment(), MenuProvider {
                 viewScope.launch { undoLastPrompt() }
                 true
             }
-            R.id.action_clear_chat_history -> {
-                clearChat()
+            R.id.action_archive_chat -> {
+                saveOrDeleteCurrentChat()
+                newChat()
+                true
+            }
+            R.id.action_delete_chat -> {
+                deleteChat(vmodel.chatId)
+                newChat()
                 true
             }
             else -> false
@@ -607,9 +602,6 @@ class ChatFragment : Fragment(), MenuProvider {
         binding.viewDrawer.apply {
             setNavigationItemSelectedListener { item ->
                 when (item.itemId) {
-                    in voiceMenuItem.subMenu!!.children.map { it.itemId } -> {
-                        selectVoice(item.itemId)
-                    }
                     R.id.action_about -> {
                         showAboutDialogFragment(requireActivity())
                     }
@@ -641,15 +633,42 @@ class ChatFragment : Fragment(), MenuProvider {
                         }
                         item.isChecked = appContext.mainPrefs.isSendAudioPrompt
                     }
+                    in voiceMenuItem.subMenu!!.children.map { it.itemId } -> {
+                        selectVoice(item.itemId)
+                    }
+                    in chatsMenuItem.subMenu!!.children.map { it.itemId } -> {
+                        val chatId = item.itemId - CHATS_MENUITEM_ID_BASE
+                        if (chatId != vmodel.chatId) {
+                            saveOrDeleteCurrentChat()
+                            val chat = loadChatHistory(chatId)
+                            Log.i("chats", "Loaded history of chat #$chatId")
+                            vmodel.chatHistory.apply {
+                                clear()
+                                addAll(chat)
+                            }
+                            vmodel.replyTextView = null
+                            vmodel.chatId = chatId
+                            syncChatHistory()
+                            lifecycleScope.launch {
+                                delay(1)
+                                syncChatsMenu()
+                            }
+                        } else {
+                            Log.i("chats", "Selected current chat $chatId")
+                        }
+                    }
+                    else -> {
+                        Log.i("chats", "Item ID not in menu: ${item.itemId}")
+                        binding.drawerLayout.invalidate()
+                    }
                 }
                 binding.drawerLayout.closeDrawer(GravityCompat.START)
                 true
             }
-            menu.findItem(R.id.submenu_voice)?.also { voiceItem ->
-                voiceMenuItem = voiceItem
-            }
-            menu.findItem(R.id.action_toggle_send_audio_prompt)?.also { item ->
-                item.isChecked = appContext.mainPrefs.isSendAudioPrompt
+            menu.findItem(R.id.submenu_voice)?.also { voiceMenuItem = it }
+            menu.findItem(R.id.submenu_chats)?.also { chatsMenuItem = it }
+            menu.findItem(R.id.action_toggle_send_audio_prompt)?.also {
+                it.isChecked = appContext.mainPrefs.isSendAudioPrompt
             }
         }
     }
@@ -665,16 +684,43 @@ class ChatFragment : Fragment(), MenuProvider {
         Log.i("lifecycle", "onPause ChatFragment")
         vmodel.recordingGlowJob?.cancel()
         runBlocking { stopRecording() }
-        try {
-            saveChatHistory(vmodel.chatHistory, vmodel.chatId)
-        } catch (e: Exception) {
-            Log.e("lifecycle", "Failed to save chat history", e)
-        }
+        saveChat(vmodel.chatId, vmodel.chatHistory)
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         drawerToggle.onConfigurationChanged(newConfig)
+    }
+
+    private fun syncChatsMenu() {
+        val chatsMenu = chatsMenuItem.subMenu!!
+        chatsMenu.clear()
+        val chatIds = chatIds()
+        for (i in chatIds.size - 1 downTo 0) {
+            val chatId = chatIds[i]
+            chatsMenu.add(Menu.NONE, CHATS_MENUITEM_ID_BASE + chatId, Menu.NONE, "Chat #$chatId")
+            Log.i("chats", "chatsMenu.add($chatId)")
+        }
+        binding.viewDrawer.invalidate()
+    }
+
+    private fun syncChatHistory() {
+        binding.viewChat.removeAllViews()
+        var newestHistoryTextView: TextView? = null
+        var newestHistoryExchange: Exchange? = null
+        for (exchange in vmodel.chatHistory) {
+            newestHistoryExchange = exchange
+            addPromptToView(exchange)
+            if (exchange.replyMarkdown.isNotBlank()) {
+                newestHistoryTextView = addResponseToView(exchange)
+            }
+        }
+        if (vmodel.replyTextView != null) {
+            newestHistoryTextView!!.also {
+                vmodel.replyTextView = it
+                newestHistoryExchange!!.replyText = it.text
+            }
+        }
     }
 
     private suspend fun undoLastPrompt() {
@@ -1312,15 +1358,15 @@ class ChatFragment : Fragment(), MenuProvider {
                 return@launch
             }
             val pcmPathname = audioPathname.replaceAfterLast('.', "pcm")
-            Log.i("chat", "Converting recorded AAC to PCM")
+            Log.i("audio", "Converting recorded AAC to PCM")
             try {
                 decodeAudioToFile(audioPathname, pcmPathname)
-                Log.i("chat", "PCM saved: ${File(pcmPathname).length()} bytes")
+                Log.i("audio", "PCM saved: ${File(pcmPathname).length()} bytes")
                 vmodel.withFragment {
                     sendPromptAndReceiveTextResponse(PromptPart.Audio(Uri.fromFile(File(pcmPathname))))
                 }
             } catch (e: Exception) {
-                Log.e("chat", "Conversion failed", e)
+                Log.e("audio", "Conversion failed", e)
             }
         }
     }
@@ -1520,15 +1566,25 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun clearChat() {
-        Log.i("lifecycle", "clearChat")
-        vmodel.handleResponseJob?.cancel()
+    private fun saveOrDeleteCurrentChat() {
         if (vmodel.chatHistory.isNotEmpty()) {
-            binding.viewChat.removeAllViews()
-            vmodel.chatHistory.clear()
+            saveChat(vmodel.chatId, vmodel.chatHistory)
+        } else {
+            deleteChat(vmodel.chatId)
         }
+    }
+
+    private fun newChat() {
+        Log.i("chats", "newChat() chatIds ${chatIds()} chatId ${vmodel.chatId}")
+        vmodel.handleResponseJob?.cancel()
         binding.edittextPrompt.editableText.clear()
         activity?.invalidateOptionsMenu()
+        vmodel.replyTextView = null
+        vmodel.chatId = lastChatId()
+        syncChatsMenu()
+        binding.viewChat.removeAllViews()
+        vmodel.chatHistory.clear()
+        Log.i("chats", "newChat done, chatIds ${chatIds()} chatId ${vmodel.chatId}")
     }
 
     private fun scrollToBottom() {

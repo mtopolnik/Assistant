@@ -26,6 +26,7 @@ import java.io.OutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
+private const val MAX_SAVED_CHATS = 3
 private const val CHAT_FILE_FORMAT = "chat-%d.parcel"
 private val chatFileRegex = """^chat-(\d+)\.parcel$""".toRegex()
 
@@ -33,11 +34,36 @@ private val chatIds: MutableList<Int> = appContext
     .fileList()
     .mapNotNull { fname -> chatFileRegex.find(fname)?.groups?.get(1)?.value?.toInt() }
     .toMutableList()
-    .apply { sort() }
+    .apply {
+        ensureNotEmpty()
+        sortDescending()
+        while (size > MAX_SAVED_CHATS) {
+            appContext.deleteFile(CHAT_FILE_FORMAT.format(last()))
+            removeLast()
+        }
+        reverse()
+    }
 
-fun lastChatId(): Int? = chatIds.lastOrNull()
+fun chatIds(): List<Int> = chatIds
 
-fun saveChatHistory(history: List<Exchange>, chatId: Int) {
+fun lastChatId() = chatIds.last()
+
+fun deleteChat(chatId: Int) {
+    if (chatId !in chatIds) {
+        Log.i("chats", "Request to delete #$chatId not in chatIds $chatIds")
+        return
+    }
+    appContext.deleteFile(CHAT_FILE_FORMAT.format(chatId))
+    if (chatId != lastChatId()) {
+        chatIds.remove(chatId)
+    } else if (chatIds.size == 1) {
+        chatIds.clear()
+        chatIds.add(1)
+    }
+    Log.i("chats", "Deleted chat #$chatId")
+}
+
+fun saveChat(chatId: Int, history: List<Exchange>) {
     appContext.openFileOutput(CHAT_FILE_FORMAT.format(chatId), Context.MODE_PRIVATE).use { outputStream ->
         history.forEach {
             val parcel = Parcel.obtain()
@@ -45,14 +71,26 @@ fun saveChatHistory(history: List<Exchange>, chatId: Int) {
                 it.writeToParcel(parcel, 0)
                 outputStream.writeInt(parcel.dataSize())
                 outputStream.write(parcel.marshall())
+            } catch (e: Exception) {
+                Log.e("chats", "Failed to save chat history", e)
             } finally {
                 parcel.recycle()
             }
         }
     }
+    if (chatId == lastChatId()) {
+        chatIds.add(chatId + 1)
+    }
+    Log.i("chats", "Saved chat #$chatId")
 }
 
-fun restoreChatHistory(chatId: Int?): MutableList<Exchange> {
+private fun MutableList<Int>.ensureNotEmpty() = apply {
+    if (isEmpty()) {
+        add(1)
+    }
+}
+
+fun loadChatHistory(chatId: Int?): MutableList<Exchange> {
     val list = mutableListOf<Exchange>()
     if (chatId == null) {
         return list
@@ -62,11 +100,12 @@ fun restoreChatHistory(chatId: Int?): MutableList<Exchange> {
         appContext.openFileInput(filename).use { inputStream ->
             while (true) {
                 val item: Exchange = inputStream.readExchange() ?: break
+                Log.i("chats", "Loaded exchange: ${item.promptText()}")
                 list += item
             }
         }
     } catch (e: Exception) {
-        Log.e("lifecycle", "Failed to restore chat history from $filename", e)
+        Log.i("chats", "Couldn't load chat history from $filename, ${e.message}")
     }
     return list
 }
@@ -74,7 +113,7 @@ fun restoreChatHistory(chatId: Int?): MutableList<Exchange> {
 @Suppress("UNCHECKED_CAST")
 private val exchangeCreator = Exchange::class.java.getField("CREATOR").get(null) as Parcelable.Creator<Exchange>
 
-private  fun InputStream.readExchange(): Exchange? {
+private fun InputStream.readExchange(): Exchange? {
     try {
         val size = readInt()
         if (size < 0) {
@@ -93,7 +132,7 @@ private  fun InputStream.readExchange(): Exchange? {
             parcel.recycle()
         }
     } catch (e: Exception) {
-        Log.e("lifecycle", "Error while reading parcelable list", e)
+        Log.e("chats", "Error while loading Exchange", e)
         return null
     }
 }

@@ -58,7 +58,8 @@
     <string name="prompt_hint">Poruka</string>
     <string name="gpt4_unavailable">GPT-4 nije dostupan s trenutnim API ključem.</string>
     <string name="gpt4_required">Samo GPT-4 podržava vid</string>
-    <string name="clear_chat_history">Obriši povijest brbljanja</string>
+    <string name="delete_chat">Obriši razgovor</string>
+    <string name="archive_chat">Arhiviraj razgovor</string>
     <string name="action_mute">Ugasi zvuk</string>
     <string name="action_cancel">Prestani odgovarati</string>
     <string name="action_save">Spremi</string>
@@ -89,5 +90,6 @@
     <string name="drag_to_reorder">Povuci da premjestiš</string>
     <string name="press_and_hold_while_talking">Stisni i drži dok pričaš</string>
     <string name="submenu_voice">Glas</string>
+    <string name="submenu_chats">Razgovori</string>
     <string name="voice_builtin">ugrađeni</string>
 </resources>

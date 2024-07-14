@@ -58,7 +58,8 @@
     <string name="prompt_hint">Message</string>
     <string name="gpt4_unavailable">GPT-4 is not available with your API key.</string>
     <string name="gpt4_required">You need GPT-4 for vision</string>
-    <string name="clear_chat_history">Clear Chat History</string>
+    <string name="delete_chat">Delete Chat</string>
+    <string name="archive_chat">Archive Chat</string>
     <string name="action_mute">Mute Sound</string>
     <string name="action_cancel">Stop Responding</string>
     <string name="action_save">Save</string>
@@ -89,6 +90,7 @@
     <string name="drag_to_reorder">Drag to reorder</string>
     <string name="press_and_hold_while_talking">Press and hold while talking</string>
     <string name="submenu_voice">Voice</string>
+    <string name="submenu_chats">Chats</string>
     <string name="voice_builtin">built-in</string>
     <string name="voice_alloy" translatable="false">alloy</string>
     <string name="voice_echo" translatable="false">echo</string>
