@@ -132,8 +132,6 @@ import kotlin.coroutines.resume
 import kotlin.math.log2
 import kotlin.math.roundToLong
 
-private const val CHAT_HISTORY_FNAME = "chat-history.parcel"
-
 private const val MAX_RECORDING_TIME_MILLIS = 120_000L
 private const val STOP_RECORDING_DELAY_MILLIS = 300L
 private const val MIN_HOLD_RECORD_BUTTON_MILLIS = 400L
@@ -156,7 +154,8 @@ class ChatFragmentModel() : ViewModel() {
         withFragmentLiveData.value = task
     }
 
-    val chatHistory = restoreParcelableList<Exchange>(CHAT_HISTORY_FNAME)
+    var chatId = lastChatId() ?: 1
+    val chatHistory = restoreChatHistory(lastChatId())
 
     var recordingGlowJob: Job? = null
     var transcriptionJob: Job? = null
@@ -667,7 +666,7 @@ class ChatFragment : Fragment(), MenuProvider {
         vmodel.recordingGlowJob?.cancel()
         runBlocking { stopRecording() }
         try {
-            saveParcelableList(vmodel.chatHistory, CHAT_HISTORY_FNAME)
+            saveChatHistory(vmodel.chatHistory, vmodel.chatId)
         } catch (e: Exception) {
             Log.e("lifecycle", "Failed to save chat history", e)
         }
