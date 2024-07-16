@@ -297,6 +297,7 @@ class ChatFragment : Fragment(), MenuProvider {
             .usePlugin(SoftBreakAddsNewLinePlugin.create())
             .build();
         syncChatHistory()
+        syncChatsMenu()
         // Reduce the size of the scrollview when soft keyboard shown
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, windowInsets ->
             val insets = windowInsets.getInsets(WindowInsetsCompat.Type.ime())
