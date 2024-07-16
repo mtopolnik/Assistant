@@ -21,12 +21,13 @@ import android.content.Context
 import android.os.Parcel
 import android.os.Parcelable
 import android.util.Log
+import java.io.FileNotFoundException
 import java.io.InputStream
 import java.io.OutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-private const val MAX_SAVED_CHATS = 3
+private const val MAX_SAVED_CHATS = 5
 private const val CHAT_FILE_FORMAT = "chat-%d.parcel"
 private val chatFileRegex = """^chat-(\d+)\.parcel$""".toRegex()
 
@@ -35,13 +36,13 @@ private val chatIds: MutableList<Int> = appContext
     .mapNotNull { fname -> chatFileRegex.find(fname)?.groups?.get(1)?.value?.toInt() }
     .toMutableList()
     .apply {
-        ensureNotEmpty()
         sortDescending()
         while (size > MAX_SAVED_CHATS) {
-            appContext.deleteFile(CHAT_FILE_FORMAT.format(last()))
-            removeLast()
+            val oldestId = removeLast()
+            appContext.deleteFile(CHAT_FILE_FORMAT.format(oldestId))
         }
         reverse()
+        add((lastOrNull() ?: 0) + 1)
     }
 
 fun chatIds(): List<Int> = chatIds
@@ -64,6 +65,7 @@ fun deleteChat(chatId: Int) {
 }
 
 fun saveChat(chatId: Int, history: List<Exchange>) {
+    val chatFileExisted = chatFileExists(chatId)
     appContext.openFileOutput(CHAT_FILE_FORMAT.format(chatId), Context.MODE_PRIVATE).use { outputStream ->
         history.forEach {
             val parcel = Parcel.obtain()
@@ -78,17 +80,22 @@ fun saveChat(chatId: Int, history: List<Exchange>) {
             }
         }
     }
-    if (chatId == lastChatId()) {
+    if (chatId == lastChatId() && !chatFileExisted) {
         chatIds.add(chatId + 1)
     }
     Log.i("chats", "Saved chat #$chatId")
-}
-
-private fun MutableList<Int>.ensureNotEmpty() = apply {
-    if (isEmpty()) {
-        add(1)
+    while (chatIds.size > MAX_SAVED_CHATS) {
+        val oldestId = chatIds.removeFirst()
+        appContext.deleteFile(CHAT_FILE_FORMAT.format(oldestId))
     }
 }
+
+fun chatFileExists(chatId: Int) =
+    try {
+        appContext.openFileInput(CHAT_FILE_FORMAT.format(chatId)).use { true }
+    } catch (e: FileNotFoundException) {
+        false
+    }
 
 fun loadChatHistory(chatId: Int?): MutableList<Exchange> {
     val list = mutableListOf<Exchange>()

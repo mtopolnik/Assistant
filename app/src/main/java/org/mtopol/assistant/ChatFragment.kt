@@ -77,6 +77,7 @@ import androidx.core.view.children
 import androidx.core.view.doOnLayout
 import androidx.core.view.isVisible
 import androidx.core.view.postDelayed
+import androidx.drawerlayout.widget.DrawerLayout
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
@@ -456,7 +457,6 @@ class ChatFragment : Fragment(), MenuProvider {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         drawerToggle.syncState()
-        syncChatsMenu()
     }
 
     override fun onDestroyView() {
@@ -599,6 +599,26 @@ class ChatFragment : Fragment(), MenuProvider {
             }
         }
 
+        binding.drawerLayout.addDrawerListener(object : DrawerLayout.SimpleDrawerListener() {
+            private var previousOpenedState = 0
+            override fun onDrawerOpened(drawerView: View) {
+                Log.i("chats", "drawerOpened")
+                previousOpenedState = 1
+            }
+            override fun onDrawerClosed(drawerView: View) {
+                Log.i("chats", "drawerClosed")
+                previousOpenedState = 0
+            }
+            override fun onDrawerStateChanged(newState: Int) {
+                Log.i("chats", "drawerStateChanged: newState $newState previousOpenedState $previousOpenedState")
+                if (newState == DrawerLayout.STATE_SETTLING) {
+                    if (previousOpenedState == 0) {
+                        Log.i("chats", "syncChatsMenu()")
+                        syncChatsMenu()
+                    }
+                }
+            }
+        })
         binding.viewDrawer.apply {
             setNavigationItemSelectedListener { item ->
                 when (item.itemId) {
@@ -649,17 +669,13 @@ class ChatFragment : Fragment(), MenuProvider {
                             vmodel.replyTextView = null
                             vmodel.chatId = chatId
                             syncChatHistory()
-                            lifecycleScope.launch {
-                                delay(1)
-                                syncChatsMenu()
-                            }
                         } else {
                             Log.i("chats", "Selected current chat $chatId")
                         }
                     }
                     else -> {
                         Log.i("chats", "Item ID not in menu: ${item.itemId}")
-                        binding.drawerLayout.invalidate()
+                        binding.viewDrawer.invalidate()
                     }
                 }
                 binding.drawerLayout.closeDrawer(GravityCompat.START)
@@ -698,7 +714,12 @@ class ChatFragment : Fragment(), MenuProvider {
         val chatIds = chatIds()
         for (i in chatIds.size - 1 downTo 0) {
             val chatId = chatIds[i]
-            chatsMenu.add(Menu.NONE, CHATS_MENUITEM_ID_BASE + chatId, Menu.NONE, "Chat #$chatId")
+            val label =
+                if (i == chatIds.size - 1) "<New Chat>"
+                else "Chat #$chatId"
+            chatsMenu.add(Menu.NONE, CHATS_MENUITEM_ID_BASE + chatId, Menu.NONE, label).also { menuItem ->
+                menuItem.setChecked(chatId == vmodel.chatId)
+            }
             Log.i("chats", "chatsMenu.add($chatId)")
         }
         binding.viewDrawer.invalidate()
@@ -1581,7 +1602,6 @@ class ChatFragment : Fragment(), MenuProvider {
         activity?.invalidateOptionsMenu()
         vmodel.replyTextView = null
         vmodel.chatId = lastChatId()
-        syncChatsMenu()
         binding.viewChat.removeAllViews()
         vmodel.chatHistory.clear()
         Log.i("chats", "newChat done, chatIds ${chatIds()} chatId ${vmodel.chatId}")
