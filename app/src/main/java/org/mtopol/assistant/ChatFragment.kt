@@ -701,7 +701,7 @@ class ChatFragment : Fragment(), MenuProvider {
         Log.i("lifecycle", "onPause ChatFragment")
         vmodel.recordingGlowJob?.cancel()
         runBlocking { stopRecording() }
-        saveChat(vmodel.chatId, vmodel.chatHistory)
+        saveOrDeleteCurrentChat()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
