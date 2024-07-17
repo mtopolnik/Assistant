@@ -42,7 +42,12 @@ private val chatIds: MutableList<Int> = appContext
             appContext.deleteFile(CHAT_FILE_FORMAT.format(oldestId))
         }
         reverse()
-        add((lastOrNull() ?: 0) + 1)
+        val lastId = lastOrNull()
+        if (lastId == null) {
+            add(1)
+        } else if (chatFileExists(lastId)) {
+            add(lastId + 1)
+        }
     }
 
 fun chatIds(): List<Int> = chatIds
