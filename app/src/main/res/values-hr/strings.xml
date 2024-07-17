@@ -18,17 +18,17 @@
 
 <resources>
     <string name="title_enter_api_key">Treba nam Vaš API ključ</string>
-    <string name="enter_apikey_explanation">Brbljavica treba Vaš API ključ kako bi mogla raditi.
+    <string name="enter_apikey_explanation">Good Guy Pete treba Vaš API ključ kako bi mogao raditi.
         Prihvaća Anthropic i OpenAI ključeve.
         \n
         \nMožete i upisati \"demo\" pa će aplikacija raditi u demo-načinu.
         \n
-        \nBrbljavica koristi Vaš API ključ isključivo kako bi pristupila javnom APIju
+        \nGood Guy Pete koristi Vaš API ključ isključivo kako bi pristupio javnom APIju
         kad zadate prompt. Ključ će biti pohranjen u standardnoj Androidovoj aplikacijskoj
         postavci, a Android može automatski napraviti njegovu sigurnosnu kopiju unutar Vašeg
         Google korisničkog računa, tako da Vam ključ bude dostupan i na drugim uređajima.
         \n
-        \nBrbljavica je open-source applikacija, dostupna na
+        \nGood Guy pete je open-source applikacija, dostupna na
         \nhttps://github.com/mtopolnik/Assistant
         \nwgdje možete provjeriti točno na koji način koristi Vaš API ključ.
     </string>
@@ -48,7 +48,7 @@
         Verzija %1$s
         \n© 2023-2024 Marko Topolnik
     </string>
-    <string name="app_name">GPT Brbljavica</string>
+    <string name="app_name">Good Guy Pete</string>
     <string name="menu_open">Otvori meni</string>
     <string name="menu_close">Zatvori meni</string>
     <string name="action_settings">Postavke</string>
@@ -71,7 +71,7 @@
     <string name="action_enter_api_key">Unesi API ključ</string>
     <string name="action_toggle_send_audio_prompt">GPT-4o audio prompt (probno)</string>
     <string name="api_key_hint">Vaš API ključ</string>
-    <string name="error_while_gpt_talking">Negdje je zapelo dok je Brbljavica pričala.</string>
+    <string name="error_while_gpt_talking">Negdje je zapelo dok je Good Guy pričao.</string>
     <string name="translation_error">Negdje je zapelo dok smo prevodili.</string>
     <string name="message_incorrect_api_key">API ključ ne radi. Poništi ga i upiši novi.</string>
     <string name="action_reset">Vrati na default</string>
