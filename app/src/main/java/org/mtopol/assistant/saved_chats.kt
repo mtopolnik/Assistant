@@ -102,7 +102,7 @@ fun chatFileExists(chatId: Int) =
         false
     }
 
-fun loadChatHistory(chatId: Int?): MutableList<Exchange> {
+fun loadChat(chatId: Int?): MutableList<Exchange> {
     val list = mutableListOf<Exchange>()
     if (chatId == null) {
         return list

@@ -157,7 +157,7 @@ class ChatFragmentModel() : ViewModel() {
     }
 
     var chatId = lastChatId()
-    val chatHistory = loadChatHistory(chatId)
+    val chatContent = loadChat(chatId)
 
     var recordingGlowJob: Job? = null
     var transcriptionJob: Job? = null
@@ -254,7 +254,7 @@ class ChatFragment : Fragment(), MenuProvider {
             sharedImageViewModel.imgUriLiveData.value = listOf()
 
             lifecycleScope.launch {
-                val lastExchange = vmodel.chatHistory.lastOrNull()
+                val lastExchange = vmodel.chatContent.lastOrNull()
                 val isStartOfExchange = lastExchange == null || lastExchange.promptParts.isNotEmpty()
                 val promptContainer = if (isStartOfExchange) {
                     addMessageContainerToView(PROMPT)
@@ -275,7 +275,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 addImagesToView(promptContainer, savedImgUris)
                 val typedUris = savedImgUris.map { PromptPart.Image(it) }
                 if (isStartOfExchange) {
-                    vmodel.chatHistory.add(Exchange(typedUris))
+                    vmodel.chatContent.add(Exchange(typedUris))
                 } else {
                     lastExchange!!.promptParts.addAll(typedUris)
                 }
@@ -296,7 +296,7 @@ class ChatFragment : Fragment(), MenuProvider {
             .usePlugin(CorePlugin.create())
             .usePlugin(SoftBreakAddsNewLinePlugin.create())
             .build();
-        syncChatHistory()
+        syncChatView()
         syncChatsMenu()
         // Reduce the size of the scrollview when soft keyboard shown
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, windowInsets ->
@@ -524,11 +524,11 @@ class ChatFragment : Fragment(), MenuProvider {
     override fun onPrepareMenu(menu: Menu) {
         Log.i("lifecycle", "onPrepareMenu")
         val responding = vmodel.isResponding
-        val hasHistory = vmodel.chatHistory.isNotEmpty()
+        val hasContent = vmodel.chatContent.isNotEmpty()
         menu.findItem(R.id.action_cancel).isVisible = responding
         menu.findItem(R.id.action_undo).isVisible = !responding
         menu.findItem(R.id.action_speak_again).isEnabled =
-            !appContext.mainPrefs.isMuted && !responding && hasHistory
+            !appContext.mainPrefs.isMuted && !responding && hasContent
     }
 
     private fun updateMuteItem(item: MenuItem) {
@@ -661,15 +661,15 @@ class ChatFragment : Fragment(), MenuProvider {
                         val chatId = item.itemId - CHATS_MENUITEM_ID_BASE
                         if (chatId != vmodel.chatId) {
                             saveOrDeleteCurrentChat()
-                            val chat = loadChatHistory(chatId)
+                            val chat = loadChat(chatId)
                             Log.i("chats", "Loaded history of chat #$chatId")
-                            vmodel.chatHistory.apply {
+                            vmodel.chatContent.apply {
                                 clear()
                                 addAll(chat)
                             }
                             vmodel.replyTextView = null
                             vmodel.chatId = chatId
-                            syncChatHistory()
+                            syncChatView()
                         } else {
                             Log.i("chats", "Selected current chat $chatId")
                         }
@@ -726,11 +726,11 @@ class ChatFragment : Fragment(), MenuProvider {
         binding.viewDrawer.invalidate()
     }
 
-    private fun syncChatHistory() {
+    private fun syncChatView() {
         binding.viewChat.removeAllViews()
         var newestHistoryTextView: TextView? = null
         var newestHistoryExchange: Exchange? = null
-        for (exchange in vmodel.chatHistory) {
+        for (exchange in vmodel.chatContent) {
             newestHistoryExchange = exchange
             addPromptToView(exchange)
             if (exchange.replyMarkdown.isNotBlank()) {
@@ -755,7 +755,7 @@ class ChatFragment : Fragment(), MenuProvider {
             cancel()
             join()
         }
-        if (vmodel.chatHistory.isEmpty()) {
+        if (vmodel.chatContent.isEmpty()) {
             return
         }
 
@@ -766,7 +766,7 @@ class ChatFragment : Fragment(), MenuProvider {
         }
 
         // Determine where the prompt text is and remove it
-        val lastEntry = vmodel.chatHistory.last()
+        val lastEntry = vmodel.chatContent.last()
         if (lastEntry.promptParts.size > 1 && lastEntry.promptParts.last() is PromptPart.Text) {
             // The prompt contains both text and image. Remove just the text and leave the
             // image. This means the prompt view stays.
@@ -777,7 +777,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 // The prompt contains just text and no image. Remove the prompt view.
                 binding.viewChat.apply { removeViewAt(childCount - 1) }
             }
-            vmodel.chatHistory.removeLast()
+            vmodel.chatContent.removeLast()
         }
 
         // Put the prompt text back into the edit box
@@ -825,7 +825,7 @@ class ChatFragment : Fragment(), MenuProvider {
         vmodel.autoscrollEnabled = true
         scrollToBottom()
         val promptText = if (finalPart is PromptPart.Text) finalPart.text else "<recorded audio>"
-        val chatHistory = vmodel.chatHistory
+        val chatHistory = vmodel.chatContent
         return if (chatHistory.isEmpty() || chatHistory.last().hasFinalPromptPart()) {
             addMessageContainerToView(PROMPT).also { layout -> addTextToView(layout, promptText, PROMPT) }
             Exchange(finalPart).also { chatHistory.add(it) }
@@ -866,9 +866,9 @@ class ChatFragment : Fragment(), MenuProvider {
                 val sentenceFlow: Flow<String> = channelFlow {
                     val selectedModel = appContext.mainPrefs.selectedModel
                     val responseFlow = if (selectedModel == AiModel.CLAUDE_3_5_SONNET)
-                        anthropic.messages(vmodel.chatHistory, selectedModel)
+                        anthropic.messages(vmodel.chatContent, selectedModel)
                     else
-                        openAi.chatCompletions(vmodel.chatHistory, selectedModel)
+                        openAi.chatCompletions(vmodel.chatContent, selectedModel)
 
                     var replyTextUpdateTime = 0L
                     responseFlow
@@ -1172,7 +1172,7 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private suspend fun speakLastResponse() {
-        val response = vmodel.chatHistory.lastOrNull()?.replyText?.toString() ?: return
+        val response = vmodel.chatContent.lastOrNull()?.replyText?.toString() ?: return
         vmodel.isResponding = true
         vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
         try {
@@ -1341,7 +1341,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 }
                 val prefs = appContext.mainPrefs
                 val promptContext =
-                    vmodel.chatHistory.joinToString("\n\n") { it.promptText().toString() }
+                    vmodel.chatContent.joinToString("\n\n") { it.promptText().toString() }
                 val transcription =
                     openAi.transcription(prefs.speechRecogLanguage, promptContext, audioPathname)
                 if (transcription.isEmpty()) {
@@ -1589,8 +1589,8 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun saveOrDeleteCurrentChat() {
-        if (vmodel.chatHistory.isNotEmpty()) {
-            saveChat(vmodel.chatId, vmodel.chatHistory)
+        if (vmodel.chatContent.isNotEmpty()) {
+            saveChat(vmodel.chatId, vmodel.chatContent)
         } else {
             deleteChat(vmodel.chatId)
         }
@@ -1604,7 +1604,7 @@ class ChatFragment : Fragment(), MenuProvider {
         vmodel.replyTextView = null
         vmodel.chatId = lastChatId()
         binding.viewChat.removeAllViews()
-        vmodel.chatHistory.clear()
+        vmodel.chatContent.clear()
         Log.i("chats", "newChat done, chatIds ${chatIds()} chatId ${vmodel.chatId}")
     }
 
