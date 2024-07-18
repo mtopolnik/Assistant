@@ -26,52 +26,82 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.nio.charset.StandardCharsets
 
 private const val MAX_SAVED_CHATS = 5
-private const val CHAT_FILE_FORMAT = "chat-%d.parcel"
 private val chatFileRegex = """^chat-(\d+)\.parcel$""".toRegex()
 
-private val chatIds: MutableList<Int> = appContext
+private fun chatFilename(chatId: Int): String = "chat-%d.parcel".format(chatId)
+private fun chatTitleFilename(chatId: Int): String = "chat-title-%d.txt".format(chatId)
+
+class ChatHandle(
+    val chatId: Int,
+    var title: String = ""
+) {
+    override fun equals(other: Any?): Boolean =
+        this === other || javaClass == other?.javaClass && chatId == (other as ChatHandle).chatId
+
+    override fun hashCode(): Int = chatId
+}
+
+private val chatHandles: MutableList<ChatHandle> = appContext
     .fileList()
-    .mapNotNull { fname -> chatFileRegex.find(fname)?.groups?.get(1)?.value?.toInt() }
+    .mapNotNull { fname -> chatFileRegex.find(fname)?.groups?.get(1)?.value?.let { idStr ->
+        val chatId = idStr.toInt()
+        ChatHandle(chatId, loadChatTitle(chatId))
+    } }
     .toMutableList()
     .apply {
-        sortDescending()
+        sortByDescending { it.chatId }
         while (size > MAX_SAVED_CHATS) {
-            val oldestId = removeLast()
-            appContext.deleteFile(CHAT_FILE_FORMAT.format(oldestId))
+            val oldestId = removeLast().chatId
+            deleteChatFiles(oldestId)
         }
         reverse()
-        val lastId = lastOrNull()
-        if (lastId == null) {
-            add(1)
-        } else if (chatFileExists(lastId)) {
-            add(lastId + 1)
+        val lastChat = lastOrNull()
+        if (lastChat == null) {
+            add(ChatHandle(1))
+        } else if (chatFileExists(lastChat.chatId)) {
+            add(ChatHandle(lastChat.chatId + 1))
         }
     }
 
-fun chatIds(): List<Int> = chatIds
+fun chatHandles(): List<ChatHandle> = chatHandles
 
-fun lastChatId() = chatIds.last()
+fun lastChatId() = lastChatHandle().chatId
+
+fun lastChatHandle() = chatHandles.last()
 
 fun deleteChat(chatId: Int) {
-    if (chatId !in chatIds) {
-        Log.i("chats", "Request to delete #$chatId not in chatIds $chatIds")
+    val handle = ChatHandle(chatId)
+    if (handle !in chatHandles) {
+        Log.i("chats", "Request to delete #$chatId not in chatIds $chatHandles")
         return
     }
-    appContext.deleteFile(CHAT_FILE_FORMAT.format(chatId))
-    if (chatId != lastChatId()) {
-        chatIds.remove(chatId)
-    } else if (chatIds.size == 1) {
-        chatIds.clear()
-        chatIds.add(1)
+    deleteChatFiles(chatId)
+    if (handle != lastChatHandle()) {
+        chatHandles.remove(handle)
+    } else if (chatHandles.size == 1) {
+        chatHandles.clear()
+        chatHandles.add(ChatHandle(1))
     }
     Log.i("chats", "Deleted chat #$chatId")
 }
 
-fun saveChat(chatId: Int, history: List<Exchange>) {
+private fun deleteChatFiles(chatId: Int) {
+    appContext.deleteFile(chatFilename(chatId))
+    appContext.deleteFile(chatTitleFilename(chatId))
+}
+
+fun saveChatTitle(chatId: Int, title: String) {
+    appContext.openFileOutput(chatTitleFilename(chatId), Context.MODE_PRIVATE).use { outputStream ->
+        outputStream.write(title.toByteArray(StandardCharsets.UTF_8))
+    }
+}
+
+fun saveChatContent(chatId: Int, history: List<Exchange>) {
     val chatFileExisted = chatFileExists(chatId)
-    appContext.openFileOutput(CHAT_FILE_FORMAT.format(chatId), Context.MODE_PRIVATE).use { outputStream ->
+    appContext.openFileOutput(chatFilename(chatId), Context.MODE_PRIVATE).use { outputStream ->
         history.forEach {
             val parcel = Parcel.obtain()
             try {
@@ -86,28 +116,40 @@ fun saveChat(chatId: Int, history: List<Exchange>) {
         }
     }
     if (chatId == lastChatId() && !chatFileExisted) {
-        chatIds.add(chatId + 1)
+        chatHandles.add(ChatHandle(chatId + 1))
     }
     Log.i("chats", "Saved chat #$chatId")
-    while (chatIds.size > MAX_SAVED_CHATS) {
-        val oldestId = chatIds.removeFirst()
-        appContext.deleteFile(CHAT_FILE_FORMAT.format(oldestId))
+    while (chatHandles.size > MAX_SAVED_CHATS) {
+        val oldestId = chatHandles.removeFirst().chatId
+        deleteChatFiles(oldestId)
     }
 }
 
 fun chatFileExists(chatId: Int) =
     try {
-        appContext.openFileInput(CHAT_FILE_FORMAT.format(chatId)).use { true }
+        appContext.openFileInput(chatFilename(chatId)).use { true }
     } catch (e: FileNotFoundException) {
         false
     }
 
-fun loadChat(chatId: Int?): MutableList<Exchange> {
+fun loadChatTitle(chatId: Int): String {
+    val filename = chatTitleFilename(chatId)
+    return try {
+        appContext.openFileInput(filename).use { inputStream ->
+            String(inputStream.readBytes(), StandardCharsets.UTF_8)
+        }
+    } catch (e: Exception) {
+        Log.i("chats", "Couldn't load chat title from $filename, ${e.message}")
+        ""
+    }
+}
+
+fun loadChatContent(chatId: Int?): MutableList<Exchange> {
     val list = mutableListOf<Exchange>()
     if (chatId == null) {
         return list
     }
-    val filename = CHAT_FILE_FORMAT.format(chatId)
+    val filename = chatFilename(chatId)
     try {
         appContext.openFileInput(filename).use { inputStream ->
             while (true) {
@@ -117,7 +159,7 @@ fun loadChat(chatId: Int?): MutableList<Exchange> {
             }
         }
     } catch (e: Exception) {
-        Log.i("chats", "Couldn't load chat history from $filename, ${e.message}")
+        Log.i("chats", "Couldn't load chat content from $filename, ${e.message}")
     }
     return list
 }

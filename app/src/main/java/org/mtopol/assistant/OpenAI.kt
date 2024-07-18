@@ -126,7 +126,7 @@ class OpenAI {
             return flowOf("Demo mode is on. You asked to translate this:\n$text")
         }
         val systemPrompt = "You are a translator." +
-                " I will write in a language of my choice, and you will translate it to $targetLanguage."
+                " The user will write in a language of their choice, and you will translate it to $targetLanguage."
         val chatCompletionRequest = ChatCompletionRequest(
             model = model.apiId,
             messages = listOf(
@@ -137,19 +137,51 @@ class OpenAI {
         return chatCompletions(chatCompletionRequest)
     }
 
+    suspend fun summarizing(chat: List<Exchange>): String {
+        val systemPrompt = "Your task is summarizing a conversation between a User and an Assistant." +
+                " Your prompt will be the entire conversation, and you will respond with a short" +
+                " summary, suitable as the title of the conversation. It must be up to five words long." +
+                " Do not add any other text except the summary itself!"
+
+        val text = chat.map { exchange ->
+            "User:\n\n${exchange.promptText()}\n\nAssistant:\n\n${exchange.replyMarkdown}"
+        }.joinToString("\n\n")
+
+        val chatCompletionRequest = ChatCompletionRequest(
+            model = AiModel.GPT_3.apiId,
+            messages = listOf(
+                ChatMessage("system", systemPrompt),
+                ChatMessage("user", text)
+            ),
+            max_tokens = 40,
+            stream = false
+        )
+        return HttpStatement(chatCompletionsHttpRequestBuilder(chatCompletionRequest), apiClient)
+            .execute { response ->
+                response.body<ChatCompletionResponse>().choices[0].message.content
+                    .also {
+                        Log.i("chats", "full chat: $text")
+                        Log.i("chats", "chat summary: $it")
+                    }
+            }
+    }
+
     private fun chatCompletions(request: ChatCompletionRequest): Flow<String> {
         return flow<ChatCompletionChunk> {
-            val builder = HttpRequestBuilder().apply {
-                method = HttpMethod.Post
-                url(path = "chat/completions")
-                contentType(ContentType.Application.Json)
-                setBody(jsonCodec.encodeToJsonElement(request))
-            }
-            HttpStatement(builder, apiClient).execute { emitStreamingResponse(it) }
+            HttpStatement(chatCompletionsHttpRequestBuilder(request), apiClient).execute { emitStreamingResponse(it) }
         }
             .map { chunk -> chunk.choices[0].delta.content }
             .filterNotNull()
     }
+
+    private fun chatCompletionsHttpRequestBuilder(request: ChatCompletionRequest) =
+        HttpRequestBuilder().apply {
+            method = HttpMethod.Post
+            url(path = "chat/completions")
+            contentType(ContentType.Application.Json)
+            setBody(jsonCodec.encodeToJsonElement(request))
+        }
+
 
     suspend fun transcription(language: String?, prompt: String, audioPathname: String): String {
         Log.i("client", "Transcription language: $language, prompt context:\n$prompt")
@@ -375,6 +407,21 @@ class OpenAI {
     @Serializable
     class ChatDelta(
         val content: String? = null
+    )
+
+    @Serializable
+    class ChatCompletionResponse(
+        val choices: List<CompletionChoice>
+    )
+
+    @Serializable
+    class CompletionChoice(
+        val message: CompletionMessage
+    )
+
+    @Serializable
+    class CompletionMessage(
+        val content: String
     )
 
     @Serializable
