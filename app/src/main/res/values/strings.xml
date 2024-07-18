@@ -60,6 +60,8 @@
     <string name="gpt4_required">You need GPT-4 for vision</string>
     <string name="delete_chat">Delete Chat</string>
     <string name="archive_chat">Archive Chat</string>
+    <string name="new_chat">New chat</string>
+    <string name="chat">Chat</string>
     <string name="action_mute">Mute Sound</string>
     <string name="action_cancel">Stop Responding</string>
     <string name="action_save">Save</string>
