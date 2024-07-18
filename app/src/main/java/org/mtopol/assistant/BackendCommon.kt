@@ -38,7 +38,7 @@ import java.util.concurrent.ConcurrentHashMap
 private const val DEMO_API_KEY = "demo"
 
 val ARTIST_LAZY = lazy {
-    Log.e("lifecycle", "lazy.value", Exception("diagnostic exception"))
+    Log.e("lifecycle", "lazy.value", Exception("Lazy Artist"))
     val deltas = listOf(0, 29, 11, 0, -63, 24)
     val b = StringBuilder()
     var prev = 'D'
@@ -56,7 +56,7 @@ enum class AiModel(
     private val uiIdLazy: Lazy<String>
 ) {
     DEMO(l("demo"), l("Demo")),
-    GPT_3(l(MODEL_ID_GPT_3), l("GPT-3.5")),
+    GPT_4_MINI(l(MODEL_ID_GPT_4_MINI), l("4o min")),
     GPT_4(l(MODEL_ID_GPT_4), l("GPT-4o")),
     CLAUDE_3_5_SONNET(l(MODEL_ID_SONNET_3_5), l("Sonnet")),
     ARTIST_3(lazy { "${ARTIST_LAZY.value.lowercase()}-3" }, ARTIST_LAZY);
@@ -71,8 +71,8 @@ class OpenAiKey(val text: String) {
     fun isBlank() = text.isBlank()
     fun isNotBlank() = text.isNotBlank()
     fun isDemoKey() = text.isDemoKey()
-    fun allowsGpt3() = isNotBlank() && !isDemoKey()
-    fun allowsGpt4() = allowsGpt3() && !text.isGpt3OnlyKey()
+    fun allowsGptMini() = isNotBlank() && !isDemoKey()
+    fun allowsGpt4() = allowsGptMini() && !text.isGptMiniOnlyKey()
     fun allowsTts() = allowsGpt4() && !text.isGptOnlyKey()
     fun allowsArtist() = text.isImageGenKey()
 
@@ -89,7 +89,7 @@ class ApiKeyWallet(prefs: SharedPreferences) {
         openaiKey = prefs.openaiApiKey
         supportedModels = mutableListOf<AiModel>().also { models ->
             if (isDemo()) models.add(AiModel.DEMO)
-            if (openaiKey.allowsGpt3()) models.add(AiModel.GPT_3)
+            if (openaiKey.allowsGptMini()) models.add(AiModel.GPT_4_MINI)
             if (openaiKey.allowsGpt4()) models.add(AiModel.GPT_4)
             if (hasAnthropicKey()) models.add(AiModel.CLAUDE_3_5_SONNET)
             if (openaiKey.allowsArtist()) models.add(AiModel.ARTIST_3)
@@ -109,9 +109,9 @@ fun String.looksLikeApiKey() = isDemoKey() || looksLikeAnthropicKey() || looksLi
 fun String.looksLikeAnthropicKey() = length == 108 && startsWith("sk-ant-api")
 fun String.looksLikeOpenAiKey() = length == 51 && startsWith("sk-")
 
-private fun String.isGpt3OnlyKey() = setContainsHashMemoized(this, GPT3_ONLY_KEY_HASHES, keyToIsGpt3Only)
-private val keyToIsGpt3Only = ConcurrentHashMap<String, Boolean>()
-private val GPT3_ONLY_KEY_HASHES = hashSetOf(
+private fun String.isGptMiniOnlyKey() = setContainsHashMemoized(this, GPT_MINI_ONLY_KEY_HASHES, keyToIsGptMiniOnly)
+private val keyToIsGptMiniOnly = ConcurrentHashMap<String, Boolean>()
+private val GPT_MINI_ONLY_KEY_HASHES = hashSetOf(
     "DIkQ9HIwN3Ky+t53aMHyojOYAsXBFBnZQvnhbU2oyPs=",
 )
 
