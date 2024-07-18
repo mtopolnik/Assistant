@@ -723,8 +723,14 @@ class ChatFragment : Fragment(), MenuProvider {
                 menuItem.setChecked(chatId == vmodel.chatId)
                 if (i != chatHandles.size - 1 && handle.title.isEmpty()) {
                     lifecycleScope.launch {
-                        val title = loadChatTitle(chatId).takeIf { it.isNotEmpty() }
-                            ?: openAi.summarizing(loadChatContent(chatId)).also { saveChatTitle(chatId, it) }
+                        var title = loadChatTitle(chatId)
+                        if (title.isEmpty()) {
+                            title = openAi.summarizing(loadChatContent(chatId))
+                            if (title.isEmpty()) {
+                                return@launch
+                            }
+                            saveChatTitle(chatId, title)
+                        }
                         handle.title = title
                         menuItem.title = title
                         binding.viewDrawer.invalidate()

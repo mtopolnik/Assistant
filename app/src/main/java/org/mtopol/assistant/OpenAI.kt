@@ -156,14 +156,18 @@ class OpenAI {
             max_tokens = 40,
             stream = false
         )
-        return HttpStatement(chatCompletionsHttpRequestBuilder(chatCompletionRequest), apiClient)
-            .execute { response ->
-                response.body<ChatCompletionResponse>().choices[0].message.content
-                    .also {
-                        Log.i("chats", "full chat: $text")
-                        Log.i("chats", "chat summary: $it")
-                    }
-            }
+        return try {
+            HttpStatement(chatCompletionsHttpRequestBuilder(chatCompletionRequest), apiClient)
+                .execute { response ->
+                    response.body<ChatCompletionResponse>().choices[0].message.content
+                        .also {
+                            Log.i("chats", "full chat: $text")
+                            Log.i("chats", "chat summary: $it")
+                        }
+                }
+        } catch (e: Exception) {
+            ""
+        }
     }
 
     private fun chatCompletions(request: ChatCompletionRequest): Flow<String> {
