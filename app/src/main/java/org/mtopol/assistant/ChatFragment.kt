@@ -721,20 +721,20 @@ class ChatFragment : Fragment(), MenuProvider {
                 else handle.title.takeIf { it.isNotEmpty() } ?: "${appContext.getString(R.string.chat)} #$chatId"
             chatsMenu.add(Menu.NONE, CHATS_MENUITEM_ID_BASE + chatId, Menu.NONE, label).also { menuItem ->
                 menuItem.setChecked(chatId == vmodel.chatId)
-                if (i != chatHandles.size - 1 && handle.title.isEmpty()) {
-                    lifecycleScope.launch {
-                        var title = loadChatTitle(chatId)
-                        if (title.isEmpty()) {
-                            title = openAi.summarizing(loadChatContent(chatId))
-                            if (title.isEmpty()) {
-                                return@launch
-                            }
-                            saveChatTitle(chatId, title)
-                        }
-                        handle.title = title
-                        menuItem.title = title
-                        binding.viewDrawer.invalidate()
+                if (handle.title.isNotEmpty() || i == chatHandles.size - 1) {
+                    return@also
+                }
+                lifecycleScope.launch {
+                    var title = loadChatTitle(chatId)
+                    if (title.isEmpty()) {
+                        title = openAi.summarizing(loadChatContent(chatId))
                     }
+                    if (title.isEmpty() || handle.title.isNotEmpty()) {
+                        return@launch
+                    }
+                    handle.title = title
+                    menuItem.title = title
+                    binding.viewDrawer.invalidate()
                 }
             }
             Log.i("chats", "chatsMenu.add($handle)")
