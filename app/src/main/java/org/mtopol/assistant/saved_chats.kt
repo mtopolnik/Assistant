@@ -68,9 +68,9 @@ private val chatHandles: MutableList<ChatHandle> = appContext
 
 fun chatHandles(): List<ChatHandle> = chatHandles
 
-fun lastChatId() = lastChatHandle().chatId
+fun lastChatId(): Int = lastChatHandle().chatId
 
-fun lastChatHandle() = chatHandles.last()
+fun lastChatHandle(): ChatHandle = chatHandles.last()
 
 fun deleteChat(chatId: Int) {
     val handle = ChatHandle(chatId)
