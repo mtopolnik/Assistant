@@ -82,6 +82,7 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewModelScope
@@ -133,6 +134,8 @@ import kotlin.coroutines.resume
 import kotlin.math.log2
 import kotlin.math.roundToLong
 
+private const val KEY_CHAT_ID = "chat-id"
+
 private const val MAX_RECORDING_TIME_MILLIS = 120_000L
 private const val STOP_RECORDING_DELAY_MILLIS = 300L
 private const val MIN_HOLD_RECORD_BUTTON_MILLIS = 400L
@@ -149,14 +152,21 @@ private val sentenceDelimiterRegex = """(?<=\D[.!]['"]?)\s+|(?<=\d[.!]'?)\s+(?=\
 private val speechImprovementRegex = """ ?[()] ?""".toRegex()
 private val whitespaceRegex = """\s+""".toRegex()
 
-class ChatFragmentModel() : ViewModel() {
+class ChatFragmentModel(
+    savedState: SavedStateHandle
+) : ViewModel() {
+    private val _chatIdLiveData = savedState.getLiveData(KEY_CHAT_ID, lastChatId())
+
+    var chatId: Int
+        get() = _chatIdLiveData.value!!
+        set(value) { _chatIdLiveData.value = value }
+
     val withFragmentLiveData = MutableLiveData<(ChatFragment) -> Unit>()
 
     fun withFragment(task: (ChatFragment) -> Unit) {
         withFragmentLiveData.value = task
     }
 
-    var chatId = lastChatId()
     val chatContent = loadChatContent(chatId)
 
     var recordingGlowJob: Job? = null
