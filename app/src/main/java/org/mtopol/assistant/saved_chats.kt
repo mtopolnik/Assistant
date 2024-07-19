@@ -28,7 +28,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.charset.StandardCharsets
 
-private const val MAX_SAVED_CHATS = 5
+private const val MAX_SAVED_CHATS = 20
 private val chatFileRegex = """^chat-(\d+)\.parcel$""".toRegex()
 
 private fun chatFilename(chatId: Int): String = "chat-%d.parcel".format(chatId)
