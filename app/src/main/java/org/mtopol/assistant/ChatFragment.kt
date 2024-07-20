@@ -1661,7 +1661,6 @@ class ChatFragment : Fragment(), MenuProvider {
             if (!vmodel.autoscrollEnabled || !binding.scrollviewChat.canScrollVertically(1)) {
                 return@post
             }
-            binding.appbarLayout.setExpanded(false, true)
             binding.scrollviewChat.apply {
                 val messageTop = lastMessageContainer().top
                 if (scrollY < messageTop) {
