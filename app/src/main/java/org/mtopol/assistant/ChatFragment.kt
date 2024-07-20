@@ -1011,12 +1011,15 @@ class ChatFragment : Fragment(), MenuProvider {
             .build()
         val speakLatch = CompletableDeferred<Unit>()
         if (!appContext.mainPrefs.isMuted) {
+            Log.i("speech", "speakLatch.complete()")
             speakLatch.complete(Unit)
         }
         vmodel.muteToggledCallback = {
             if (appContext.mainPrefs.isMuted) {
+                Log.i("speech", "exoplayer.pause()")
                 exoPlayer.pause()
             } else {
+                Log.i("speech", "speakLatch.complete(); exoPlayer.play()")
                 speakLatch.complete(Unit)
                 exoPlayer.play()
             }
