@@ -33,6 +33,7 @@
                 android:layout_height="wrap_content"
                 android:layout_margin="28dp"
                 android:gravity="center"
+                android:textSize="17sp"
                 android:textIsSelectable="true"
                 />
     </LinearLayout>
