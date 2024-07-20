@@ -738,9 +738,10 @@ class ChatFragment : Fragment(), MenuProvider {
                     var title = loadChatTitle(chatId)
                     if (title.isEmpty()) {
                         title = openAi.summarizing(loadChatContent(chatId))
-                    }
-                    if (title.isEmpty() || handle.title.isNotEmpty()) {
-                        return@launch
+                        if (title.isEmpty() || handle.title.isNotEmpty()) {
+                            return@launch
+                        }
+                        saveChatTitle(chatId, title)
                     }
                     handle.title = title
                     menuItem.title = title
