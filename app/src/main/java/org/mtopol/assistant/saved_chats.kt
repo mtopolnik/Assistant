@@ -154,7 +154,7 @@ fun loadChatContent(chatId: Int?): MutableList<Exchange> {
         appContext.openFileInput(filename).use { inputStream ->
             while (true) {
                 val item: Exchange = inputStream.readExchange() ?: break
-                Log.i("chats", "Loaded exchange: ${item.promptText()}")
+                Log.i("chats", "Loaded exchange for chatId $chatId")
                 list += item
             }
         }
