@@ -28,6 +28,8 @@ import android.graphics.BitmapFactory
 import android.graphics.Point
 import android.graphics.PointF
 import android.graphics.RectF
+import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.LayerDrawable
 import android.media.AudioAttributes
 import android.media.MediaCodec
 import android.media.MediaExtractor
@@ -39,6 +41,7 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.util.Log
+import android.view.View
 import android.widget.ImageView
 import androidx.core.content.ContextCompat
 import androidx.core.net.toFile
@@ -215,6 +218,18 @@ fun ImageView?.bitmapSize(p: PointF) =
         ?.apply { it.set(intrinsicWidth.toFloat(), intrinsicHeight.toFloat()) }
         ?: it.set(0f, 0f)
     }.takeIf { it.x > 0 && it.y > 0 }
+
+fun styleMessageContainer(box: View, backgroundFill: Int, backgroundBorder: Int) {
+    (box.background as LayerDrawable).apply {
+        findDrawableByLayerId(R.id.background_fill).setTint(
+            appContext.getColorCompat(
+                backgroundFill
+            )
+        )
+        (findDrawableByLayerId(R.id.background_border) as GradientDrawable)
+            .setStroke(1.dp, appContext.getColorCompat(backgroundBorder))
+    }
+}
 
 operator fun Point.component1() = x
 operator fun Point.component2() = y

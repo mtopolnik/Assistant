@@ -1522,19 +1522,6 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun styleMessageContainer(box: View, backgroundFill: Int, backgroundBorder: Int) {
-        val context = requireContext()
-        (box.background as LayerDrawable).apply {
-            findDrawableByLayerId(R.id.background_fill).setTint(
-                context.getColorCompat(
-                    backgroundFill
-                )
-            )
-            (findDrawableByLayerId(R.id.background_border) as GradientDrawable)
-                .setStroke(1.dp, context.getColorCompat(backgroundBorder))
-        }
-    }
-
     private fun addMessageContainerToView(messageType: MessageType): LinearLayout {
         val chatView = binding.viewChat
         val container = LayoutInflater.from(requireContext())
