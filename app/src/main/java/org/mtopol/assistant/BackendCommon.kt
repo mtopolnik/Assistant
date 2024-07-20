@@ -56,13 +56,13 @@ enum class AiModel(
     private val uiIdLazy: Lazy<String>
 ) {
     DEMO(l("demo"), l("Demo")),
-    GPT_4_MINI(l(MODEL_ID_GPT_4_MINI), l("4o min")),
-    GPT_4(l(MODEL_ID_GPT_4), l("GPT-4o")),
+    GPT_4O_MINI(l(MODEL_ID_GPT_4O_MINI), l("4o min")),
+    GPT_4O(l(MODEL_ID_GPT_4O), l("GPT-4o")),
     CLAUDE_3_5_SONNET(l(MODEL_ID_SONNET_3_5), l("Sonnet")),
     ARTIST_3(lazy { "${ARTIST_LAZY.value.lowercase()}-3" }, ARTIST_LAZY);
 
-    val apiId get() = apiIdLazy.value
-    val uiId get() = uiIdLazy.value
+    val apiId: String get() = apiIdLazy.value
+    val uiId: String get() = uiIdLazy.value
 
     fun isChatModel() = this != ARTIST_3
 }
@@ -89,8 +89,8 @@ class ApiKeyWallet(prefs: SharedPreferences) {
         openaiKey = prefs.openaiApiKey
         supportedModels = mutableListOf<AiModel>().also { models ->
             if (isDemo()) models.add(AiModel.DEMO)
-            if (openaiKey.allowsGptMini()) models.add(AiModel.GPT_4_MINI)
-            if (openaiKey.allowsGpt4()) models.add(AiModel.GPT_4)
+            if (openaiKey.allowsGptMini()) models.add(AiModel.GPT_4O_MINI)
+            if (openaiKey.allowsGpt4()) models.add(AiModel.GPT_4O)
             if (hasAnthropicKey()) models.add(AiModel.CLAUDE_3_5_SONNET)
             if (openaiKey.allowsArtist()) models.add(AiModel.ARTIST_3)
         }

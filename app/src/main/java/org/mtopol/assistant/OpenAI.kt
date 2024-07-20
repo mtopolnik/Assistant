@@ -87,8 +87,8 @@ val openAi get() = openAiLazy.value
 
 private const val OPENAI_URL = "https://api.openai.com/v1/"
 
-const val MODEL_ID_GPT_4_MINI = "gpt-4o-mini"
-const val MODEL_ID_GPT_4 = "gpt-4o"
+const val MODEL_ID_GPT_4O_MINI = "gpt-4o-mini"
+const val MODEL_ID_GPT_4O = "gpt-4o"
 
 private lateinit var openAiLazy: Lazy<OpenAI>
 
@@ -148,7 +148,7 @@ class OpenAI {
         }.joinToString("\n\n")
 
         val chatCompletionRequest = ChatCompletionRequest(
-            model = AiModel.GPT_4_MINI.apiId,
+            model = MODEL_ID_GPT_4O_MINI,
             messages = listOf(
                 ChatMessage("system", systemPrompt),
                 ChatMessage("user", text)
