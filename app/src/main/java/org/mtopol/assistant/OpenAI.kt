@@ -362,7 +362,7 @@ class OpenAI {
         ChatCompletionRequest(
             model,
             messages,
-            max_tokens = 4096,
+            max_tokens = if (model == MODEL_ID_GPT_4O_MINI) 8192 else 4096,
             stream = true)
 
     @Serializable
