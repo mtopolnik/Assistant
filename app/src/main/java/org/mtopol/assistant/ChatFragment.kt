@@ -1045,9 +1045,11 @@ class ChatFragment : Fragment(), MenuProvider {
                     }
                     speakLatch.await()
                     if (exoPlayer.playbackState == Player.STATE_IDLE) {
-                        Log.i("speech", "exoPlayer.play()")
                         exoPlayer.prepare()
-                        exoPlayer.play()
+                        if (!appContext.mainPrefs.isMuted) {
+                            Log.i("speech", "exoPlayer.play()")
+                            exoPlayer.play()
+                        }
                     }
                     appContext.mainPrefs.selectedVoice.also { selectedVoice ->
                         if (selectedVoice != Voice.BUILT_IN) {
