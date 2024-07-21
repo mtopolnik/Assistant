@@ -36,41 +36,31 @@
                     android:orientation="vertical"
                     android:background="@color/chat_background">
 
-                <androidx.coordinatorlayout.widget.CoordinatorLayout
-                        android:id="@+id/coordinator_layout"
+                <com.google.android.material.appbar.AppBarLayout
+                        android:id="@+id/appbar_layout"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+
+                    <androidx.appcompat.widget.Toolbar
+                            android:id="@+id/toolbar"
+                            android:layout_width="match_parent"
+                            android:layout_height="52dp"
+                            android:theme="@style/ActionBar"
+                            app:popupTheme="@style/OverflowPopupTheme" />
+                </com.google.android.material.appbar.AppBarLayout>
+
+                <ScrollView
+                        android:id="@+id/scrollview_chat"
                         android:layout_width="match_parent"
                         android:layout_height="0dp"
                         android:layout_weight="1">
 
-                    <com.google.android.material.appbar.AppBarLayout
-                            android:id="@+id/appbar_layout"
+                    <LinearLayout
+                            android:id="@+id/view_chat"
+                            android:orientation="vertical"
                             android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-
-                        <androidx.appcompat.widget.Toolbar
-                                android:id="@+id/toolbar"
-                                android:layout_width="match_parent"
-                                android:layout_height="?attr/actionBarSize"
-                                app:layout_scrollFlags="scroll|enterAlways"
-                                android:theme="@style/ActionBar"
-                                app:popupTheme="@style/OverflowPopupTheme" />
-
-                    </com.google.android.material.appbar.AppBarLayout>
-
-                    <androidx.core.widget.NestedScrollView
-                            android:id="@+id/scrollview_chat"
-                            android:layout_width="match_parent"
-                            android:layout_height="match_parent"
-                            app:layout_behavior="@string/appbar_scrolling_view_behavior">
-
-                        <LinearLayout
-                                android:id="@+id/view_chat"
-                                android:orientation="vertical"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content" />
-                    </androidx.core.widget.NestedScrollView>
-
-                </androidx.coordinatorlayout.widget.CoordinatorLayout>
+                            android:layout_height="wrap_content" />
+                </ScrollView>
 
                 <androidx.constraintlayout.widget.ConstraintLayout
                         android:id="@+id/prompt_section"

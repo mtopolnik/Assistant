@@ -852,7 +852,9 @@ class ChatFragment : Fragment(), MenuProvider {
         vmodel.isResponding = true
         vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
         vmodel.autoscrollEnabled = true
-        scrollToBottom()
+        binding.scrollviewChat.post {
+            scrollToBottom()
+        }
         val promptText = if (finalPart is PromptPart.Text) finalPart.text else "<recorded audio>"
         val chatHistory = vmodel.chatContent
         return if (chatHistory.isEmpty() || chatHistory.last().hasFinalPromptPart()) {
@@ -1646,15 +1648,13 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun scrollToBottom() {
-        binding.scrollviewChat.post {
-            if (!vmodel.autoscrollEnabled || !binding.scrollviewChat.canScrollVertically(1)) {
-                return@post
-            }
-            binding.scrollviewChat.apply {
-                val messageTop = lastMessageContainer().top
-                if (scrollY < messageTop) {
-                    smoothScrollTo(0, messageTop)
-                }
+        if (!vmodel.autoscrollEnabled || !binding.scrollviewChat.canScrollVertically(1)) {
+            return
+        }
+        binding.scrollviewChat.apply {
+            val messageTop = lastMessageContainer().top
+            if (scrollY < messageTop) {
+                smoothScrollTo(0, messageTop)
             }
         }
     }
