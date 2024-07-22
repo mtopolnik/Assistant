@@ -27,8 +27,6 @@ import android.content.Intent
 import android.content.pm.PackageManager.PERMISSION_GRANTED
 import android.content.res.Configuration
 import android.graphics.PointF
-import android.graphics.drawable.GradientDrawable
-import android.graphics.drawable.LayerDrawable
 import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.media.audiofx.LoudnessEnhancer
@@ -286,6 +284,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 }
                 addImagesToView(promptContainer, savedImgUris)
                 val typedUris = savedImgUris.map { PromptPart.Image(it) }
+                getChatHandle(vmodel.chatId)!!.isDirty = true
                 if (isStartOfExchange) {
                     vmodel.chatContent.add(Exchange(typedUris))
                 } else {
@@ -579,6 +578,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 true
             }
             R.id.action_archive_chat -> {
+                getChatHandle(vmodel.chatId)!!.isDirty = true
                 saveOrDeleteCurrentChat()
                 newChat()
                 true
@@ -787,6 +787,7 @@ class ChatFragment : Fragment(), MenuProvider {
         if (vmodel.chatContent.isEmpty()) {
             return
         }
+        getChatHandle(vmodel.chatId)!!.isDirty = true
 
         // Remove the last view. This may be the prompt or the response view, depending
         // on previous undo actions.
@@ -849,6 +850,7 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun prepareNewExchange(finalPart: PromptPart): Exchange {
+        getChatHandle(vmodel.chatId)!!.isDirty = true
         vmodel.isResponding = true
         vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
         vmodel.autoscrollEnabled = true
@@ -856,13 +858,13 @@ class ChatFragment : Fragment(), MenuProvider {
             scrollToBottom()
         }
         val promptText = if (finalPart is PromptPart.Text) finalPart.text else "<recorded audio>"
-        val chatHistory = vmodel.chatContent
-        return if (chatHistory.isEmpty() || chatHistory.last().hasFinalPromptPart()) {
+        val chatContent = vmodel.chatContent
+        return if (chatContent.isEmpty() || chatContent.last().hasFinalPromptPart()) {
             addMessageContainerToView(PROMPT).also { layout -> addTextToView(layout, promptText, PROMPT) }
-            Exchange(finalPart).also { chatHistory.add(it) }
+            Exchange(finalPart).also { chatContent.add(it) }
         } else {
             addTextToView(lastMessageContainer(), promptText, PROMPT)
-            chatHistory.last().also { it.promptParts.add(finalPart) }
+            chatContent.last().also { it.promptParts.add(finalPart) }
         }
     }
 
@@ -1628,10 +1630,16 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun saveOrDeleteCurrentChat() {
+        val chatId = vmodel.chatId
+        val chatHandle = getChatHandle(chatId)!!.takeIf { it.isDirty }
+            ?: return
+        chatHandle.isDirty = false
+
+        moveChatToTop(chatId)
         if (vmodel.chatContent.isNotEmpty()) {
-            saveChatContent(vmodel.chatId, vmodel.chatContent)
+            saveChatContent(chatId, vmodel.chatContent)
         } else {
-            deleteChat(vmodel.chatId)
+            deleteChat(chatId)
         }
     }
 

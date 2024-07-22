@@ -21,7 +21,6 @@ import android.content.Context
 import android.os.Parcel
 import android.os.Parcelable
 import android.util.Log
-import java.io.FileNotFoundException
 import java.io.InputStream
 import java.io.OutputStream
 import java.nio.ByteBuffer
@@ -35,8 +34,9 @@ private fun chatFilename(chatId: Int): String = "chat-%d.parcel".format(chatId)
 private fun chatTitleFilename(chatId: Int): String = "chat-title-%d.txt".format(chatId)
 
 class ChatHandle(
-    val chatId: Int,
-    var title: String = ""
+    var chatId: Int,
+    var title: String = "",
+    var isDirty: Boolean = false
 ) {
     override fun equals(other: Any?): Boolean =
         this === other || javaClass == other?.javaClass && chatId == (other as ChatHandle).chatId
@@ -71,6 +71,8 @@ fun chatHandles(): List<ChatHandle> = chatHandles
 fun lastChatId(): Int = lastChatHandle().chatId
 
 fun lastChatHandle(): ChatHandle = chatHandles.last()
+
+fun getChatHandle(chatId: Int): ChatHandle? = chatHandles.find { it.chatId == chatId }
 
 fun deleteChat(chatId: Int) {
     val handle = ChatHandle(chatId)
@@ -125,12 +127,29 @@ fun saveChatContent(chatId: Int, history: List<Exchange>) {
     }
 }
 
-fun chatFileExists(chatId: Int) =
-    try {
-        appContext.openFileInput(chatFilename(chatId)).use { true }
-    } catch (e: FileNotFoundException) {
-        false
+fun moveChatToTop(chatId: Int) {
+    val chatHandleToMove = getChatHandle(chatId)!!
+    if (chatHandleToMove == lastChatHandle()) {
+        return
     }
+    chatHandles.remove(chatHandleToMove)
+    val lastChatHandle = chatHandles.removeLast()
+    chatHandleToMove.chatId = lastChatHandle.chatId
+    lastChatHandle.chatId++
+    chatHandles.add(chatHandleToMove)
+    chatHandles.add(lastChatHandle)
+    val chatIdAfterMove = chatHandleToMove.chatId
+
+    fun renameFile(fname: (Int) -> String) {
+        appContext.getFileStreamPath(fname(chatId))
+            .renameTo(appContext.getFileStreamPath(fname(chatIdAfterMove)))
+    }
+
+    renameFile(::chatFilename)
+    renameFile(::chatTitleFilename)
+}
+
+fun chatFileExists(chatId: Int) = appContext.getFileStreamPath(chatFilename(chatId)).let { it.isFile && it.exists() }
 
 fun loadChatTitle(chatId: Int): String {
     val filename = chatTitleFilename(chatId)
