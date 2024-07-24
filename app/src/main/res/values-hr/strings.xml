@@ -56,8 +56,7 @@
     <string name="send">Šalji</string>
     <string name="keyboard">Koristi tipkovnicu</string>
     <string name="prompt_hint">Poruka</string>
-    <string name="gpt4_unavailable">GPT-4 nije dostupan s trenutnim API ključem.</string>
-    <string name="gpt4_required">Samo GPT-4 podržava vid</string>
+    <string name="gpt4_unavailable">GPT-4o nije dostupan s trenutnim API ključem.</string>
     <string name="delete_chat">Obriši razgovor</string>
     <string name="archive_chat">Arhiviraj razgovor</string>
     <string name="new_chat">Novi razgovor</string>
@@ -73,8 +72,9 @@
     <string name="action_enter_api_key">Unesi API ključ</string>
     <string name="action_toggle_send_audio_prompt">GPT-4o audio prompt (probno)</string>
     <string name="api_key_hint">Vaš API ključ</string>
-    <string name="error_while_gpt_talking">Negdje je zapelo dok je Good Guy pričao.</string>
-    <string name="translation_error">Negdje je zapelo dok smo prevodili.</string>
+    <string name="error_while_gpt_talking">Negdje je zapelo dok je Pete odgovarao</string>
+    <string name="translation_error">Negdje je zapelo dok je OpenAI prevodio</string>
+    <string name="recording_error">Negdje je zapelo dok te je Pete slušao</string>
     <string name="message_incorrect_api_key">API ključ ne radi. Poništi ga i upiši novi.</string>
     <string name="action_reset">Vrati na default</string>
     <string name="action_speak_again">Reci to ponovo</string>

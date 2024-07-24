@@ -940,26 +940,15 @@ class ChatFragment : Fragment(), MenuProvider {
                                                     getString(R.string.gpt4_unavailable),
                                                     Toast.LENGTH_SHORT
                                                 ).show()
-
-                                            message.contains("image_url is only supported by certain models.") ->
-                                                Toast.makeText(
-                                                    appContext,
-                                                    getString(R.string.gpt4_required),
-                                                    Toast.LENGTH_SHORT
-                                                ).show()
-
                                             else ->
                                                 showApiErrorToast(e)
                                         }
                                     }
                                     else -> {
                                         Log.e("lifecycle", "Error in chatCompletions flow", e)
-                                        Toast.makeText(
-                                            appContext,
-                                            getString(R.string.error_while_gpt_talking),
-                                            Toast.LENGTH_SHORT
+                                        vmodel.replyTextView!!.setText(
+                                            "${getString(R.string.error_while_gpt_talking)}:\n\n${e.message}"
                                         )
-                                            .show()
                                     }
                                 }
                             }
@@ -1275,7 +1264,7 @@ class ChatFragment : Fragment(), MenuProvider {
             Log.e("speech", "Voice recording error", e)
             Toast.makeText(
                 requireContext(),
-                "Something went wrong while we were recording your voice",
+                getString(R.string.recording_error),
                 Toast.LENGTH_SHORT
             ).show()
             vmodel.recordingGlowJob?.cancel()
@@ -1762,12 +1751,18 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun showApiErrorToast(e: ClientRequestException) {
-        Toast.makeText(
-            requireActivity(),
-            if (e.response.status.value == 401) getString(R.string.message_incorrect_api_key)
-            else "API error: ${e.message}",
-            Toast.LENGTH_LONG
-        ).show()
+        if (e.response.status.value == 401) {
+            Toast.makeText(
+                requireActivity(),
+                getString(R.string.message_incorrect_api_key),
+                Toast.LENGTH_LONG
+            ).show()
+        } else {
+            vmodel.replyTextView!!.setText(
+                "${getString(R.string.error_while_gpt_talking)}:\n\n${e.message}"
+            )
+        }
+
     }
 
     private val viewScope get() = viewLifecycleOwner.lifecycleScope

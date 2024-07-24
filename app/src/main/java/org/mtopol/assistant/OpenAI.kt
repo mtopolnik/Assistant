@@ -293,7 +293,7 @@ class OpenAI {
             }
             downloadToCache(imageObjects.map { it.url })
         } catch (e: ResponseException) {
-            console.append("Error: ${e.message}")
+            console.append("Something went wrong while $artist was handling your prompt:\n\n${e.message}")
             listOf()
         }
     }
