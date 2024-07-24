@@ -21,6 +21,10 @@ import android.content.Context
 import android.os.Parcel
 import android.os.Parcelable
 import android.util.Log
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import java.io.FileNotFoundException
 import java.io.InputStream
 import java.io.OutputStream
 import java.nio.ByteBuffer
@@ -35,20 +39,30 @@ private fun chatTitleFilename(chatId: Int): String = "chat-title-%d.txt".format(
 
 class ChatHandle(
     var chatId: Int,
-    var title: String = "",
+    var title: Deferred<String> = CompletableDeferred(),
     var isDirty: Boolean = false
 ) {
     override fun equals(other: Any?): Boolean =
         this === other || javaClass == other?.javaClass && chatId == (other as ChatHandle).chatId
 
     override fun hashCode(): Int = chatId
+
+    override fun toString() = "$chatId"
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun titleNoAwait() =
+        try { title.takeIf { it.isCompleted }?.getCompleted() ?: "" }
+        catch (e: Exception) { "" }
+
+    companion object {
+        fun withTitle(chatId: Int, title: String) = ChatHandle(chatId, CompletableDeferred(title))
+    }
 }
 
 private val chatHandles: MutableList<ChatHandle> = appContext
     .fileList()
     .mapNotNull { fname -> chatFileRegex.find(fname)?.groups?.get(1)?.value?.let { idStr ->
-        val chatId = idStr.toInt()
-        ChatHandle(chatId, loadChatTitle(chatId))
+        ChatHandle.withTitle(idStr.toInt(), loadChatTitle(idStr.toInt()))
     } }
     .toMutableList()
     .apply {
@@ -83,7 +97,8 @@ fun deleteChat(chatId: Int) {
     deleteChatFiles(chatId)
     if (handle != lastChatHandle()) {
         chatHandles.remove(handle)
-    } else if (chatHandles.size == 1) {
+    }
+    if (chatHandles.size == 1) {
         chatHandles.clear()
         chatHandles.add(ChatHandle(1))
     }
@@ -127,10 +142,13 @@ fun saveChatContent(chatId: Int, history: List<Exchange>) {
     }
 }
 
-fun moveChatToTop(chatId: Int) {
+fun moveChatToTop(chatId: Int): Int {
     val chatHandleToMove = getChatHandle(chatId)!!
-    if (chatHandleToMove == lastChatHandle()) {
-        return
+    val lastHandle = lastChatHandle()
+    val lastNonEmpty: ChatHandle? = chatHandles.takeIf { it.size > 1 } ?.run { get(size - 2) }
+    Log.i("chats", "chatHandleToMove $chatHandleToMove lastHandle $lastHandle lastNonEmpty $lastNonEmpty")
+    if (chatHandleToMove == lastHandle || lastNonEmpty == null || chatHandleToMove == lastNonEmpty) {
+        return chatId
     }
     chatHandles.remove(chatHandleToMove)
     val lastChatHandle = chatHandles.removeLast()
@@ -142,11 +160,17 @@ fun moveChatToTop(chatId: Int) {
 
     fun renameFile(fname: (Int) -> String) {
         appContext.getFileStreamPath(fname(chatId))
-            .renameTo(appContext.getFileStreamPath(fname(chatIdAfterMove)))
+            .renameTo(appContext.getFileStreamPath(fname(chatIdAfterMove))).also { didRename ->
+                if (!didRename) {
+                    Log.e("chats", "Failed to rename chat #$chatId to #$chatIdAfterMove")
+                }
+            }
     }
 
     renameFile(::chatFilename)
     renameFile(::chatTitleFilename)
+    Log.i("chats", "Renamed chat #$chatId to #$chatIdAfterMove")
+    return chatIdAfterMove
 }
 
 fun chatFileExists(chatId: Int) = appContext.getFileStreamPath(chatFilename(chatId)).let { it.isFile && it.exists() }
@@ -158,7 +182,7 @@ fun loadChatTitle(chatId: Int): String {
             String(inputStream.readBytes(), StandardCharsets.UTF_8)
         }
     } catch (e: Exception) {
-        Log.i("chats", "Couldn't load chat title from $filename, ${e.message}")
+        Log.i("chats", "Couldn't load title of chat #$chatId, $filename not found")
         ""
     }
 }
@@ -173,12 +197,12 @@ fun loadChatContent(chatId: Int?): MutableList<Exchange> {
         appContext.openFileInput(filename).use { inputStream ->
             while (true) {
                 val item: Exchange = inputStream.readExchange() ?: break
-                Log.i("chats", "Loaded exchange for chatId $chatId")
                 list += item
             }
         }
-    } catch (e: Exception) {
-        Log.i("chats", "Couldn't load chat content from $filename, ${e.message}")
+        Log.i("chats", "Loaded content of chatId $chatId")
+    } catch (e: FileNotFoundException) {
+        Log.i("chats", "Couldn't load chat #$chatId, $filename not found")
     }
     return list
 }

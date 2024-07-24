@@ -671,10 +671,10 @@ class ChatFragment : Fragment(), MenuProvider {
                     }
                     in chatsMenuItem.subMenu!!.children.map { it.itemId } -> {
                         val chatId = item.itemId - CHATS_MENUITEM_ID_BASE
+                        Log.i("chats", "chatId $chatId vmodel.chatId ${vmodel.chatId}")
                         if (chatId != vmodel.chatId) {
                             saveOrDeleteCurrentChat()
                             val chat = loadChatContent(chatId)
-                            Log.i("chats", "Loaded history of chat #$chatId")
                             vmodel.chatContent.apply {
                                 clear()
                                 addAll(chat)
@@ -730,20 +730,21 @@ class ChatFragment : Fragment(), MenuProvider {
             val chatId = handle.chatId
             val label =
                 if (i == chatHandles.size - 1) appContext.getString(R.string.new_chat)
-                else handle.title.takeIf { it.isNotEmpty() } ?: "${appContext.getString(R.string.chat)} #$chatId"
+                else handle.titleNoAwait().takeIf { it.isNotEmpty() } ?: "${appContext.getString(R.string.chat)} #$chatId"
             chatsMenu.add(Menu.NONE, CHATS_MENUITEM_ID_BASE + chatId, Menu.NONE, label).also { menuItem ->
                 menuItem.setChecked(chatId == vmodel.chatId)
-                if (handle.title.isNotEmpty() || i == chatHandles.size - 1) {
+                if (handle.titleNoAwait().isNotEmpty() || i == chatHandles.size - 1) {
                     return@also
                 }
                 lifecycleScope.launch {
-                    var title = loadChatTitle(chatId)
+                    // since handle.chatId is mutable, val chatId becomes invalid here
+                    var title = loadChatTitle(handle.chatId)
                     if (title.isEmpty()) {
-                        title = openAi.summarizing(loadChatContent(chatId))
+                        title = openAi.summarizing(loadChatContent(handle.chatId))
                         if (title.isEmpty() || handle.title.isNotEmpty()) {
                             return@launch
                         }
-                        saveChatTitle(chatId, title)
+                        saveChatTitle(handle.chatId, title)
                     }
                     handle.title = title
                     menuItem.title = title
@@ -787,7 +788,10 @@ class ChatFragment : Fragment(), MenuProvider {
         if (vmodel.chatContent.isEmpty()) {
             return
         }
-        getChatHandle(vmodel.chatId)!!.isDirty = true
+        getChatHandle(vmodel.chatId)?.apply { isDirty = true }
+            ?: Log.e("chats",
+                "chatHandle is null in undoLastPrompt(), chatId ${vmodel.chatId}, chatIds: ${chatHandles()}"
+            )
 
         // Remove the last view. This may be the prompt or the response view, depending
         // on previous undo actions.
@@ -1630,12 +1634,18 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun saveOrDeleteCurrentChat() {
-        val chatId = vmodel.chatId
-        val chatHandle = getChatHandle(chatId)!!.takeIf { it.isDirty }
-            ?: return
-        chatHandle.isDirty = false
+        var chatId = vmodel.chatId
+        val chatHandle = getChatHandle(chatId)
+        if (chatHandle == null) {
+            Log.e("chats", "chatHandle is null in saveOrDeleteCurrentChat, chatId $chatId, chatIds: ${chatHandles()}")
+        } else if (!chatHandle.isDirty) {
+            return
+        } else {
+            chatHandle.isDirty = false
+        }
 
-        moveChatToTop(chatId)
+        chatId = moveChatToTop(chatId)
+        vmodel.chatId = chatId
         if (vmodel.chatContent.isNotEmpty()) {
             saveChatContent(chatId, vmodel.chatContent)
         } else {
@@ -1644,7 +1654,7 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun newChat() {
-        Log.i("chats", "newChat() chatIds ${chatHandles()} chatId ${vmodel.chatId}")
+        Log.i("chats", "newChat() chatId ${vmodel.chatId} chatIds ${chatHandles()}")
         vmodel.handleResponseJob?.cancel()
         binding.edittextPrompt.editableText.clear()
         activity?.invalidateOptionsMenu()
@@ -1652,7 +1662,7 @@ class ChatFragment : Fragment(), MenuProvider {
         vmodel.chatId = lastChatId()
         binding.viewChat.removeAllViews()
         vmodel.chatContent.clear()
-        Log.i("chats", "newChat done, chatIds ${chatHandles()} chatId ${vmodel.chatId}")
+        Log.i("chats", "newChat done, chatId ${vmodel.chatId} chatIds ${chatHandles()}")
     }
 
     private fun scrollToBottom() {
