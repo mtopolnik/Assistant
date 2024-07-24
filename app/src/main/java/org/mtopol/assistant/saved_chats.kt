@@ -22,8 +22,10 @@ import android.os.Parcel
 import android.os.Parcelable
 import android.util.Log
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 import java.io.FileNotFoundException
 import java.io.InputStream
 import java.io.OutputStream
@@ -33,13 +35,14 @@ import java.nio.charset.StandardCharsets
 
 private const val MAX_SAVED_CHATS = 20
 private val chatFileRegex = """^chat-(\d+)\.parcel$""".toRegex()
+private val emptyTitle: Deferred<String> = CompletableDeferred("")
 
 private fun chatFilename(chatId: Int): String = "chat-%d.parcel".format(chatId)
 private fun chatTitleFilename(chatId: Int): String = "chat-title-%d.txt".format(chatId)
 
 class ChatHandle(
     var chatId: Int,
-    var title: Deferred<String> = CompletableDeferred(),
+    var title: Deferred<String> = emptyTitle,
     var isDirty: Boolean = false
 ) {
     override fun equals(other: Any?): Boolean =
@@ -49,10 +52,26 @@ class ChatHandle(
 
     override fun toString() = "$chatId"
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    fun titleNoAwait() =
-        try { title.takeIf { it.isCompleted }?.getCompleted() ?: "" }
-        catch (e: Exception) { "" }
+    fun onTitleAvailable(scope: CoroutineScope, onSuccess: (String) -> Unit) {
+        if (title !== emptyTitle) {
+            scope.launch {
+                title.await().takeIf { it.isNotBlank() } ?.also { onSuccess(it) }
+            }
+        }
+        title = scope.async {
+            var newTitle = loadChatTitle(chatId)
+            if (newTitle.isBlank()) {
+                newTitle = openAi.summarizing(loadChatContent(chatId))
+            }
+            if (newTitle.isBlank()) {
+                title = emptyTitle
+            } else {
+                saveChatTitle(chatId, newTitle)
+                onSuccess(newTitle)
+            }
+            newTitle
+        }
+    }
 
     companion object {
         fun withTitle(chatId: Int, title: String) = ChatHandle(chatId, CompletableDeferred(title))

@@ -728,27 +728,14 @@ class ChatFragment : Fragment(), MenuProvider {
         for (i in chatHandles.size - 1 downTo 0) {
             val handle = chatHandles[i]
             val chatId = handle.chatId
-            val label =
-                if (i == chatHandles.size - 1) appContext.getString(R.string.new_chat)
-                else handle.titleNoAwait().takeIf { it.isNotEmpty() } ?: "${appContext.getString(R.string.chat)} #$chatId"
+            val label = if (i == chatHandles.size - 1) appContext.getString(R.string.new_chat) else "${appContext.getString(R.string.chat)} #$chatId"
             chatsMenu.add(Menu.NONE, CHATS_MENUITEM_ID_BASE + chatId, Menu.NONE, label).also { menuItem ->
                 menuItem.setChecked(chatId == vmodel.chatId)
-                if (handle.titleNoAwait().isNotEmpty() || i == chatHandles.size - 1) {
-                    return@also
-                }
-                lifecycleScope.launch {
-                    // since handle.chatId is mutable, val chatId becomes invalid here
-                    var title = loadChatTitle(handle.chatId)
-                    if (title.isEmpty()) {
-                        title = openAi.summarizing(loadChatContent(handle.chatId))
-                        if (title.isEmpty() || handle.title.isNotEmpty()) {
-                            return@launch
-                        }
-                        saveChatTitle(handle.chatId, title)
+                if (i != chatHandles.size - 1) {
+                    handle.onTitleAvailable(lifecycleScope) { title ->
+                        menuItem.title = title
+                        binding.viewDrawer.invalidate()
                     }
-                    handle.title = title
-                    menuItem.title = title
-                    binding.viewDrawer.invalidate()
                 }
             }
             Log.i("chats", "chatsMenu.add($handle)")
