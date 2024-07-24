@@ -139,9 +139,8 @@ class OpenAI {
 
     suspend fun summarizing(chat: List<Exchange>): String {
         val systemPrompt = "Your task is summarizing a conversation between a User and an Assistant." +
-                " Your prompt will be the entire conversation, and you will respond with a short" +
-                " summary, suitable as the title of the conversation. It must be up to 30 characters long." +
-                " Do not add any other text except the summary itself."
+                " Your prompt will be the entire conversation, and you will respond with a very short" +
+                " summary, up to 30 characters in length. Do not add any other text except the summary itself."
 
         val text = chat.map { exchange ->
             "User:\n\n${exchange.promptText()}\n\nAssistant:\n\n${exchange.replyMarkdown}"
