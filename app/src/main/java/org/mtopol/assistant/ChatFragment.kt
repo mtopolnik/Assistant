@@ -265,7 +265,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
             lifecycleScope.launch {
                 val lastExchange = vmodel.chatContent.lastOrNull()
-                val isStartOfExchange = lastExchange == null || lastExchange.promptParts.isNotEmpty()
+                val isStartOfExchange = lastExchange == null || lastExchange.promptText() != null
                 val promptContainer = if (isStartOfExchange) {
                     addMessageContainerToView(PROMPT)
                 } else {
@@ -821,7 +821,14 @@ class ChatFragment : Fragment(), MenuProvider {
                 val responseContainer = addMessageContainerToView(RESPONSE)
                 val responseText = addTextToView(responseContainer, "", RESPONSE)
                 val editable = responseText.editableText
-                val imageUris = openAi.imageGeneration(prompt, appContext.mainPrefs.selectedModel, editable)
+                val imageUris = openAi.imageGeneration(prompt, appContext.mainPrefs.selectedModel,
+                    object : Editable by editable {
+                        override fun append(string: CharSequence?): Editable {
+                            editable.append(string)
+                            binding.scrollviewChat.post { scrollToBottom() }
+                            return this
+                        }
+                    })
                 if (editable.isBlank()) {
                     responseContainer.removeView(responseText)
                 } else {
@@ -829,6 +836,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 }
                 exchange.replyImageUris = imageUris
                 addImagesToView(responseContainer, exchange.replyImageUris)
+                binding.scrollviewChat.post { scrollToBottom(false) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -845,9 +853,7 @@ class ChatFragment : Fragment(), MenuProvider {
         vmodel.isResponding = true
         vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
         vmodel.autoscrollEnabled = true
-        binding.scrollviewChat.post {
-            scrollToBottom()
-        }
+        binding.scrollviewChat.post { scrollToBottom() }
         val promptText = if (finalPart is PromptPart.Text) finalPart.text else "<recorded audio>"
         val chatContent = vmodel.chatContent
         return if (chatContent.isEmpty() || chatContent.last().hasFinalPromptPart()) {
@@ -1652,14 +1658,15 @@ class ChatFragment : Fragment(), MenuProvider {
         Log.i("chats", "newChat done, chatId ${vmodel.chatId} chatIds ${chatHandles()}")
     }
 
-    private fun scrollToBottom() {
+    private fun scrollToBottom(stopAtTopOfResponse: Boolean = true) {
         if (!vmodel.autoscrollEnabled || !binding.scrollviewChat.canScrollVertically(1)) {
             return
         }
         binding.scrollviewChat.apply {
-            val messageTop = lastMessageContainer().top
-            if (scrollY < messageTop) {
-                smoothScrollTo(0, messageTop)
+            val scrollTarget = if (stopAtTopOfResponse) lastMessageContainer().top
+            else lastMessageContainer().bottom
+            if (scrollY < scrollTarget) {
+                smoothScrollTo(0, scrollTarget)
             }
         }
     }
