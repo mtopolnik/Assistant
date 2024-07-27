@@ -319,7 +319,7 @@ class ChatFragment : Fragment(), MenuProvider {
         languageIdentifier = LanguageIdentification.getClient(
             LanguageIdentificationOptions.Builder().setConfidenceThreshold(0.2f).build()
         )
-        audioPathname = File(context.externalCacheDir, "prompt.mp4").absolutePath
+        audioPathname = File(context.externalCacheDir, "prompt.ogg").absolutePath
         binding.root.doOnLayout {
             if (vmodel.recordingGlowJob != null) {
                 binding.showRecordingGlow()
@@ -1250,8 +1250,8 @@ class ChatFragment : Fragment(), MenuProvider {
                 setAudioSource(MediaRecorder.AudioSource.MIC)
                 setAudioChannels(1)
                 setAudioSamplingRate(22050)
-                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                setOutputFormat(MediaRecorder.OutputFormat.OGG)
+                setAudioEncoder(MediaRecorder.AudioEncoder.OPUS)
                 setOutputFile(audioPathname)
                 prepare()
                 start()
@@ -1420,7 +1420,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 return@launch
             }
             val pcmPathname = audioPathname.replaceAfterLast('.', "pcm")
-            Log.i("audio", "Converting recorded AAC to PCM")
+            Log.i("audio", "Converting recorded OGG to PCM")
             try {
                 decodeAudioToFile(audioPathname, pcmPathname)
                 Log.i("audio", "PCM saved: ${File(pcmPathname).length()} bytes")
