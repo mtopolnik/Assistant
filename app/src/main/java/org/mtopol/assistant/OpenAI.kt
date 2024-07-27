@@ -500,13 +500,16 @@ private fun FormBuilder.appendFile(key: String, pathname: String) {
     append(key, pathname, ContentType.Application.OctetStream) {
         FileInputStream(pathname).use { inputStream ->
             val buffer = ByteArray(8192)
+            var audioSize = 0
             while (true) {
                 val count = inputStream.read(buffer)
                 if (count == -1) {
                     break
                 }
+                audioSize += count
                 writeFully(buffer, 0, count)
             }
+            Log.i("audio", "Audio size $audioSize bytes")
         }
     }
 }
