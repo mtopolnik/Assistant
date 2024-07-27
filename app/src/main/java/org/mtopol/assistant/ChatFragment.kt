@@ -331,9 +331,17 @@ class ChatFragment : Fragment(), MenuProvider {
                 setOnTouchListener { _, e -> gd.onTouchEvent(e); true }
             }
         }
+        var userIsTouching = false
         binding.scrollviewChat.apply {
-            setOnScrollChangeListener { view, _, newPos, _, oldPos ->
-                if (newPos < oldPos) {
+            setOnTouchListener { view, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> userIsTouching = true
+                    MotionEvent.ACTION_UP -> userIsTouching = false
+                }
+                false
+            }
+            setOnScrollChangeListener { _, _, newPos, _, oldPos ->
+                if (userIsTouching && newPos < oldPos) {
                     vmodel.autoscrollEnabled = false
                 }
             }
