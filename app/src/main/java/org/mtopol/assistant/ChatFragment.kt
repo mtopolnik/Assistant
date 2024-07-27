@@ -883,14 +883,7 @@ class ChatFragment : Fragment(), MenuProvider {
                             .let { markwon.parse(it) }
                             .let { markwon.render(it) }
                     }.let { markwon.setParsedMarkdown(vmodel.replyTextView!!, it) }
-                    binding.scrollviewChat.viewTreeObserver.also { observer ->
-                        observer.addOnGlobalLayoutListener(object : OnGlobalLayoutListener {
-                            override fun onGlobalLayout() {
-                                observer.removeOnGlobalLayoutListener(this)
-                                scrollToBottom()
-                            }
-                        })
-                    }
+                    onLayoutScrollToBottom()
                 }
 
                 val sentenceFlow: Flow<String> = channelFlow {
@@ -941,14 +934,12 @@ class ChatFragment : Fragment(), MenuProvider {
                                                     Toast.LENGTH_SHORT
                                                 ).show()
                                             else ->
-                                                showApiErrorToast(e)
+                                                showError(e, replyMarkdown, R.string.error_while_llm_responding)
                                         }
                                     }
                                     else -> {
                                         Log.e("lifecycle", "Error in chatCompletions flow", e)
-                                        vmodel.replyTextView!!.setText(
-                                            "${getString(R.string.error_while_gpt_talking)}:\n\n${e.message}"
-                                        )
+                                        showError(e, replyMarkdown, R.string.error_while_llm_responding)
                                     }
                                 }
                             }
@@ -1395,14 +1386,15 @@ class ChatFragment : Fragment(), MenuProvider {
             } catch (e: Exception) {
                 Log.e("speech", "Text-to-speech error", e)
                 vmodel.withFragment { fragment ->
-                    if (e is ClientRequestException) {
-                        showApiErrorToast(e)
-                    } else {
-                        Toast.makeText(
-                            fragment.activity,
-                            "Something went wrong while OpenAI was listening to you",
-                            Toast.LENGTH_SHORT
-                        ).show()
+                    val replyMarkdown = StringBuilder()
+                    showError(e, replyMarkdown, R.string.transcription_error)
+                    if (replyMarkdown.isNotBlank()) {
+                        prepareNewExchange(PromptPart.Audio(Uri.EMPTY)).also { exchange ->
+                            exchange.replyMarkdown = replyMarkdown.toString()
+                            addTextResponseToView(exchange)
+                        }
+                        vmodel.isResponding = false
+                        onLayoutScrollToBottom()
                     }
                 }
             } finally {
@@ -1660,6 +1652,17 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
+    private fun onLayoutScrollToBottom() {
+        binding.scrollviewChat.viewTreeObserver.also { observer ->
+            observer.addOnGlobalLayoutListener(object : OnGlobalLayoutListener {
+                override fun onGlobalLayout() {
+                    observer.removeOnGlobalLayoutListener(this)
+                    scrollToBottom()
+                }
+            })
+        }
+    }
+
     private suspend fun TextToSpeech.identifyAndSetLanguage(text: String) {
 
         fun isUserLanguage(language: String) = userLanguages.firstOrNull { it == language } != null
@@ -1750,17 +1753,15 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun showApiErrorToast(e: ClientRequestException) {
-        if (e.response.status.value == 401) {
+    private fun showError(e: Throwable, replyMarkdown: StringBuilder, stringId: Int) {
+        if (e is ClientRequestException && e.response.status.value == 401) {
             Toast.makeText(
                 requireActivity(),
                 getString(R.string.message_incorrect_api_key),
                 Toast.LENGTH_LONG
             ).show()
         } else {
-            vmodel.replyTextView!!.setText(
-                "${getString(R.string.error_while_gpt_talking)}:\n\n${e.message}"
-            )
+            replyMarkdown.append("${getString(stringId)}:\n\n${e.message}")
         }
 
     }
