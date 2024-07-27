@@ -136,7 +136,7 @@ import kotlin.math.roundToLong
 
 private const val KEY_CHAT_ID = "chat-id"
 
-private const val MAX_RECORDING_TIME_MILLIS = 120_000L
+private const val MAX_RECORDING_TIME_MILLIS = 300_000L
 private const val STOP_RECORDING_DELAY_MILLIS = 300L
 private const val MIN_HOLD_RECORD_BUTTON_MILLIS = 400L
 private const val RECORD_HINT_DURATION_MILLIS = 3_000L
@@ -1249,7 +1249,7 @@ class ChatFragment : Fragment(), MenuProvider {
             mediaRecorder.apply {
                 setAudioSource(MediaRecorder.AudioSource.MIC)
                 setAudioChannels(1)
-                setAudioSamplingRate(22050)
+                setAudioSamplingRate(16000)
                 setOutputFormat(MediaRecorder.OutputFormat.OGG)
                 setAudioEncoder(MediaRecorder.AudioEncoder.OPUS)
                 setOutputFile(audioPathname)
