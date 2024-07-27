@@ -794,8 +794,8 @@ class ChatFragment : Fragment(), MenuProvider {
             val promptContainer = lastMessageContainer()
             promptContainer.apply { removeViewAt(childCount - 1) }
         } else {
-            if (lastEntry.promptText() != null) {
-                // The prompt contains just text and no image. Remove the prompt view.
+            if (lastEntry.hasFinalPromptPart()) {
+                // The prompt contains just text/audio and no image. Remove the prompt view.
                 binding.viewChat.apply { removeViewAt(childCount - 1) }
             }
             vmodel.chatContent.removeLast()
