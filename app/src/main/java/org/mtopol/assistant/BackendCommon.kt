@@ -105,9 +105,9 @@ class ApiKeyWallet(prefs: SharedPreferences) {
 }
 
 fun String.isDemoKey() = this.trim().lowercase() == DEMO_API_KEY
-fun String.looksLikeApiKey() = isDemoKey() || looksLikeAnthropicKey() || looksLikeOpenAiKey()
-fun String.looksLikeAnthropicKey() = length == 108 && startsWith("sk-ant-api")
-fun String.looksLikeOpenAiKey() = length == 51 && startsWith("sk-")
+fun String.looksLikeApiKey() = isDemoKey() || looksLikeOpenAiKey() || looksLikeAnthropicKey()
+fun String.looksLikeAnthropicKey() = length == 108 && startsWith("sk-ant-")
+fun String.looksLikeOpenAiKey() = length >= 51 && startsWith("sk-")
 
 private fun String.isGptMiniOnlyKey() = setContainsHashMemoized(this, GPT_MINI_ONLY_KEY_HASHES, keyToIsGptMiniOnly)
 private val keyToIsGptMiniOnly = ConcurrentHashMap<String, Boolean>()
