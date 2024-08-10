@@ -690,6 +690,7 @@ class ChatFragment : Fragment(), MenuProvider {
                             vmodel.replyTextView = null
                             vmodel.chatId = chatId
                             syncChatView()
+                            binding.scrollviewChat.post { scrollToBottom(true) }
                         } else {
                             Log.i("chats", "Selected current chat $chatId")
                         }
