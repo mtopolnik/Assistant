@@ -267,7 +267,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 val lastExchange = vmodel.chatContent.lastOrNull()
                 val isStartOfExchange = lastExchange == null || lastExchange.promptText() != null
                 val promptContainer = if (isStartOfExchange) {
-                    addMessageContainerToView(PROMPT)
+                    addMessageContainerToView(awaitContext(), PROMPT)
                 } else {
                     lastMessageContainer()
                 }
@@ -682,15 +682,18 @@ class ChatFragment : Fragment(), MenuProvider {
                         Log.i("chats", "chatId $chatId vmodel.chatId ${vmodel.chatId}")
                         if (chatId != vmodel.chatId) {
                             saveOrDeleteCurrentChat()
+                            vmodel.handleResponseJob?.cancel()
+                            binding.edittextPrompt.editableText.clear()
+                            activity.invalidateOptionsMenu()
                             val chat = loadChatContent(chatId)
                             vmodel.chatContent.apply {
                                 clear()
                                 addAll(chat)
                             }
-                            vmodel.replyTextView = null
                             vmodel.chatId = chatId
                             syncChatView()
-                            binding.scrollviewChat.post { scrollToBottom(true) }
+                            vmodel.autoscrollEnabled = true
+                            binding.scrollviewChat.post { scrollToBottom(false) }
                         } else {
                             Log.i("chats", "Selected current chat $chatId")
                         }
@@ -754,20 +757,22 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun syncChatView() {
         binding.viewChat.removeAllViews()
-        var newestHistoryTextView: TextView? = null
-        var newestHistoryExchange: Exchange? = null
+        var newestChatTextView: TextView? = null
+        var newestChatExchange: Exchange? = null
+        val context = requireContext()
         for (exchange in vmodel.chatContent) {
-            newestHistoryExchange = exchange
-            addPromptToView(exchange)
+            newestChatExchange = exchange
+            addPromptToView(context, exchange)
             if (exchange.replyMarkdown.isNotBlank()) {
-                newestHistoryTextView = addResponseToView(exchange)
+                newestChatTextView = addResponseToView(context, exchange)
             }
         }
         if (vmodel.replyTextView != null) {
-            newestHistoryTextView!!.also {
-                vmodel.replyTextView = it
-                newestHistoryExchange!!.replyText = it.text
-            }
+            (newestChatTextView ?: addResponseToView(context, newestChatExchange!!))
+                .also {
+                    vmodel.replyTextView = it
+                    newestChatExchange!!.replyText = it.text
+                }
         }
     }
 
@@ -978,6 +983,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 Log.e("lifecycle", "Error in receiveResponseJob", e)
             } finally {
                 vmodel.isResponding = false
+                vmodel.replyTextView = null
                 vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
             }
         }
@@ -1643,7 +1649,6 @@ class ChatFragment : Fragment(), MenuProvider {
         vmodel.handleResponseJob?.cancel()
         binding.edittextPrompt.editableText.clear()
         activity?.invalidateOptionsMenu()
-        vmodel.replyTextView = null
         vmodel.chatId = lastChatId()
         binding.viewChat.removeAllViews()
         vmodel.chatContent.clear()
