@@ -46,8 +46,10 @@ import android.widget.ImageView
 import androidx.core.content.ContextCompat
 import androidx.core.net.toFile
 import androidx.core.os.LocaleListCompat
+import androidx.fragment.app.Fragment
 import androidx.preference.PreferenceManager
 import kotlinx.coroutines.Dispatchers.IO
+import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import java.io.File
@@ -403,5 +405,14 @@ suspend fun pushThroughDecoder(
     } finally {
         codec.stop()
         codec.release()
+    }
+}
+
+suspend fun Fragment.awaitContext(): Context {
+    while (true) {
+        context?.also {
+            return it
+        }
+        awaitFrame()
     }
 }

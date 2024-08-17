@@ -826,8 +826,9 @@ class ChatFragment : Fragment(), MenuProvider {
         vmodel.handleResponseJob = vmodel.viewModelScope.launch {
             try {
                 previousResponseJob?.join()
-                val exchange = prepareNewExchange(PromptPart.Text(prompt))
-                val responseContainer = addMessageContainerToView(RESPONSE)
+                val context = awaitContext()
+                val exchange = prepareNewExchange(context, PromptPart.Text(prompt))
+                val responseContainer = addMessageContainerToView(context, RESPONSE)
                 val responseText = addTextToView(responseContainer, "", RESPONSE)
                 val editable = responseText.editableText
                 val imageUris = openAi.imageGeneration(prompt, appContext.mainPrefs.selectedModel,
@@ -857,7 +858,7 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun prepareNewExchange(finalPart: PromptPart): Exchange {
+    private fun prepareNewExchange(context: Context, finalPart: PromptPart): Exchange {
         getChatHandle(vmodel.chatId)!!.isDirty = true
         vmodel.isResponding = true
         vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
@@ -866,7 +867,7 @@ class ChatFragment : Fragment(), MenuProvider {
         val promptText = if (finalPart is PromptPart.Text) finalPart.text else "<recorded audio>"
         val chatContent = vmodel.chatContent
         return if (chatContent.isEmpty() || chatContent.last().hasFinalPromptPart()) {
-            addMessageContainerToView(PROMPT).also { layout -> addTextToView(layout, promptText, PROMPT) }
+            addMessageContainerToView(context, PROMPT).also { layout -> addTextToView(layout, promptText, PROMPT) }
             Exchange(finalPart).also { chatContent.add(it) }
         } else {
             addTextToView(lastMessageContainer(), promptText, PROMPT)
@@ -880,10 +881,11 @@ class ChatFragment : Fragment(), MenuProvider {
         vmodel.handleResponseJob = vmodel.viewModelScope.launch {
             try {
                 previousResponseJob?.join()
-                val exchange = prepareNewExchange(finalPart)
+                val context = awaitContext()
+                val exchange = prepareNewExchange(context, finalPart)
                 val replyMarkdown = StringBuilder()
                 exchange.replyMarkdown = replyMarkdown
-                vmodel.replyTextView = addTextResponseToView(exchange)
+                vmodel.replyTextView = addTextResponseToView(context, exchange)
 
                 suspend fun updateReplyTextView(replyMarkdown: StringBuilder) {
                     Log.i("scroll", "updateReplyTextView")
@@ -1398,9 +1400,9 @@ class ChatFragment : Fragment(), MenuProvider {
                     val replyMarkdown = StringBuilder()
                     showError(e, replyMarkdown, R.string.transcription_error)
                     if (replyMarkdown.isNotBlank()) {
-                        prepareNewExchange(PromptPart.Audio(Uri.EMPTY)).also { exchange ->
+                        prepareNewExchange(fragment.requireContext(), PromptPart.Audio(Uri.EMPTY)).also { exchange ->
                             exchange.replyMarkdown = replyMarkdown.toString()
-                            addTextResponseToView(exchange)
+                            addTextResponseToView(fragment.requireContext(), exchange)
                         }
                         vmodel.isResponding = false
                         onLayoutScrollToBottom()
@@ -1513,9 +1515,9 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun addMessageContainerToView(messageType: MessageType): LinearLayout {
+    private fun addMessageContainerToView(context: Context, messageType: MessageType): LinearLayout {
         val chatView = binding.viewChat
-        val container = LayoutInflater.from(requireContext())
+        val container = LayoutInflater.from(context)
             .inflate(R.layout.message_container, chatView, false) as LinearLayout
         val (bg, border) =
             if (messageType == PROMPT) Pair(R.color.prompt_background, R.color.prompt_border)
@@ -1552,19 +1554,19 @@ class ChatFragment : Fragment(), MenuProvider {
         return editText
     }
 
-    private fun addPromptToView(exchange: Exchange) {
-        val promptContainer = addMessageContainerToView(PROMPT)
+    private fun addPromptToView(context: Context, exchange: Exchange) {
+        val promptContainer = addMessageContainerToView(context, PROMPT)
         addImagesToView(promptContainer, exchange.promptParts.mapNotNull { (it as? PromptPart.Image)?.uri })
         exchange.promptText()?.also { addTextToView(promptContainer, it, PROMPT) }
     }
 
-    private fun addTextResponseToView(exchange: Exchange): TextView {
-        val responseContainer = addMessageContainerToView(RESPONSE)
+    private fun addTextResponseToView(context: Context, exchange: Exchange): TextView {
+        val responseContainer = addMessageContainerToView(context, RESPONSE)
         return addTextToView(responseContainer, exchange.replyMarkdown, RESPONSE)
     }
 
-    private fun addResponseToView(exchange: Exchange): TextView {
-        val responseContainer = addMessageContainerToView(RESPONSE)
+    private fun addResponseToView(context: Context, exchange: Exchange): TextView {
+        val responseContainer = addMessageContainerToView(context, RESPONSE)
         val textView = addTextToView(responseContainer, exchange.replyMarkdown, RESPONSE)
         addImagesToView(responseContainer, exchange.replyImageUris)
         return textView
