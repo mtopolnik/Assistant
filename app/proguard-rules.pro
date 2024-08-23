@@ -12,3 +12,8 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 -renamesourcefileattribute SourceFile
+
+# Don't obfuscate parcelizable classes
+-keep class org.mtopol.assistant.Exchange { *; }
+-keep class org.mtopol.assistant.PromptPart { *; }
+-keep class org.mtopol.assistant.PromptPart$* { *; }
