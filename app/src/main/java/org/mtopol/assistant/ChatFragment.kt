@@ -1014,7 +1014,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 addListener(object : Player.Listener {
                     override fun onPlaybackStateChanged(state: Int) {
                         if (state != Player.STATE_ENDED && amplifier == null) {
-                            amplifier = LoudnessEnhancer(audioSessionId).apply { setTargetGain(500); enabled = true }
+                            amplifier = LoudnessEnhancer(audioSessionId).apply { setTargetGain(200); enabled = true }
                         }
                     }
                 })
