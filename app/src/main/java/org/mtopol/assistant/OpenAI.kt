@@ -159,10 +159,10 @@ class OpenAI {
             HttpStatement(chatCompletionsHttpRequestBuilder(chatCompletionRequest), apiClient)
                 .execute { response ->
                     response.body<ChatCompletionResponse>().choices[0].message.content
-                        .also {
-                            Log.i("chats", "full chat: $text")
-                            Log.i("chats", "chat summary: $it")
-                        }
+                    .also {
+                        Log.i("chats", "full chat: $text")
+                        Log.i("chats", "chat summary: $it")
+                    }.trim().removeSurrounding("\"")
                 }
         } catch (e: Exception) {
             ""
