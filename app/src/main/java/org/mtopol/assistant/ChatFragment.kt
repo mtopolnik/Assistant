@@ -1000,6 +1000,7 @@ class ChatFragment : Fragment(), MenuProvider {
     @androidx.annotation.OptIn(UnstableApi::class)
     private suspend fun speakWithOpenAi(sentenceFlow: Flow<String>) {
         var lastValidVoice = appContext.mainPrefs.selectedVoice
+        var amplifier: LoudnessEnhancer? = null
         val exoPlayer = ExoPlayer.Builder(appContext)
             .setAudioAttributes(AudioAttributes.Builder()
                 .setUsage(C.USAGE_ASSISTANT)
@@ -1009,7 +1010,15 @@ class ChatFragment : Fragment(), MenuProvider {
                 .setBufferDurationsMs(BUFFER_MS, BUFFER_MS, START_PLAYBACK_WHEN_BUFFERED_MS, AFTER_UNDERRUN_REBUFFER_MS)
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build())
-            .build()
+            .build().apply {
+                addListener(object : Player.Listener {
+                    override fun onPlaybackStateChanged(state: Int) {
+                        if (state != Player.STATE_ENDED && amplifier == null) {
+                            amplifier = LoudnessEnhancer(audioSessionId).apply { setTargetGain(200); enabled = true }
+                        }
+                    }
+                })
+            }
         val speakLatch = CompletableDeferred<Unit>()
         if (!appContext.mainPrefs.isMuted) {
             Log.i("speech", "speakLatch.complete()")
@@ -1077,6 +1086,7 @@ class ChatFragment : Fragment(), MenuProvider {
             vmodel.muteToggledCallback = null
             exoPlayer.stop()
             exoPlayer.release()
+            amplifier?.release()
         }
     }
 
