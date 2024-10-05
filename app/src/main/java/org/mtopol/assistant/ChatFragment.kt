@@ -959,11 +959,13 @@ class ChatFragment : Fragment(), MenuProvider {
                                     }
                                 }
                             }
-                            updateReplyTextView(replyMarkdown)
-                            val replyText = vmodel.replyTextView!!.text
-                            exchange.replyText = replyText
-                            if (lastSpokenPos < replyText.length) {
-                                channel.send(replyText.substring(lastSpokenPos, replyText.length))
+                            if (vmodel.replyTextView != null) {
+                                updateReplyTextView(replyMarkdown)
+                                val replyText = vmodel.replyTextView!!.text
+                                exchange.replyText = replyText
+                                if (lastSpokenPos < replyText.length) {
+                                    channel.send(replyText.substring(lastSpokenPos, replyText.length))
+                                }
                             }
                             if (appContext.mainPrefs.isMuted) {
                                 vmodel.handleResponseJob?.cancel()
