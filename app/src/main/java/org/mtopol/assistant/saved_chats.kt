@@ -81,7 +81,8 @@ class ChatHandle(
 private val chatHandles: MutableList<ChatHandle> = appContext
     .fileList()
     .mapNotNull { fname -> chatFileRegex.find(fname)?.groups?.get(1)?.value?.let { idStr ->
-        ChatHandle.withTitle(idStr.toInt(), loadChatTitle(idStr.toInt()))
+        val id = idStr.toInt()
+        ChatHandle.withTitle(id, loadChatTitle(id))
     } }
     .toMutableList()
     .apply {
@@ -138,10 +139,10 @@ fun saveChatTitle(chatId: Int, title: String) {
 fun saveChatContent(chatId: Int, history: List<Exchange>) {
     val chatFileExisted = chatFileExists(chatId)
     appContext.openFileOutput(chatFilename(chatId), Context.MODE_PRIVATE).use { outputStream ->
-        history.forEach {
+        history.forEach { exchange ->
             val parcel = Parcel.obtain()
             try {
-                it.writeToParcel(parcel, 0)
+                exchange.writeToParcel(parcel, 0)
                 outputStream.writeInt(parcel.dataSize())
                 outputStream.write(parcel.marshall())
             } catch (e: Exception) {
@@ -207,23 +208,23 @@ fun loadChatTitle(chatId: Int): String {
 }
 
 fun loadChatContent(chatId: Int?): MutableList<Exchange> {
-    val list = mutableListOf<Exchange>()
+    val exchanges = mutableListOf<Exchange>()
     if (chatId == null) {
-        return list
+        return exchanges
     }
     val filename = chatFilename(chatId)
     try {
         appContext.openFileInput(filename).use { inputStream ->
             while (true) {
-                val item: Exchange = inputStream.readExchange() ?: break
-                list += item
+                val exchange = inputStream.readExchange() ?: break
+                exchanges += exchange
             }
         }
         Log.i("chats", "Loaded content of chatId $chatId")
     } catch (e: FileNotFoundException) {
         Log.i("chats", "Couldn't load chat #$chatId, $filename not found")
     }
-    return list
+    return exchanges
 }
 
 @Suppress("UNCHECKED_CAST")
