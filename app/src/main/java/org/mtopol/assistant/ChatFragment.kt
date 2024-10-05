@@ -763,16 +763,16 @@ class ChatFragment : Fragment(), MenuProvider {
         for (exchange in vmodel.chatContent) {
             newestChatExchange = exchange
             addPromptToView(context, exchange)
-            if (exchange.replyMarkdown.isNotBlank()) {
-                newestChatTextView = addResponseToView(context, exchange)
+            if (exchange.replyMarkdown.isBlank() && vmodel.replyTextView == null) {
+                exchange.replyMarkdown = "<no response>"
             }
+            newestChatTextView = addResponseToView(context, exchange)
         }
         if (vmodel.replyTextView != null) {
-            (newestChatTextView ?: addResponseToView(context, newestChatExchange!!))
-                .also {
-                    vmodel.replyTextView = it
-                    newestChatExchange!!.replyText = it.text
-                }
+            newestChatTextView!!.also {
+                vmodel.replyTextView = it
+                newestChatExchange!!.replyText = it.text
+            }
         }
     }
 
