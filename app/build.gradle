@@ -13,8 +13,8 @@ android {
         applicationId "org.mtopol.assistant"
         minSdk 26
         targetSdk 34
-        versionCode 96
-        versionName "6.2.3"
+        versionCode 97
+        versionName "6.3.0"
         resourceConfigurations += ['en', 'hr']
     }
 
@@ -44,8 +44,8 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.6'
     implementation 'androidx.fragment:fragment-ktx:1.8.4'
     implementation 'androidx.preference:preference-ktx:1.2.1'
-    implementation 'androidx.navigation:navigation-fragment-ktx:2.8.1'
-    implementation 'androidx.navigation:navigation-ui-ktx:2.8.1'
+    implementation 'androidx.navigation:navigation-fragment-ktx:2.8.2'
+    implementation 'androidx.navigation:navigation-ui-ktx:2.8.2'
 
     implementation 'com.google.mlkit:language-id:17.0.6'
     implementation platform('io.ktor:ktor-bom:2.3.8')
