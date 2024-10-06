@@ -25,12 +25,8 @@ import android.util.Log
 import android.widget.Toast
 import androidx.annotation.OptIn
 import androidx.core.net.toFile
-import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.DataSource
-import androidx.media3.datasource.DataSpec
-import androidx.media3.datasource.TransferListener
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
@@ -79,7 +75,6 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import kotlinx.serialization.SerialName
@@ -249,26 +244,8 @@ class OpenAI {
 
         HttpStatement(builder, apiClient).execute() { httpResponse ->
             val channel = httpResponse.body<ByteReadChannel>()
-
-            class DsFac : DataSource.Factory {
-                override fun createDataSource() = object : DataSource {
-                    override fun open(dataSpec: DataSpec): Long = C.LENGTH_UNSET.toLong()
-
-                    override fun read(buffer: ByteArray, offset: Int, length: Int): Int = runBlocking {
-                        channel.readAvailable(buffer, offset, length)
-                    }
-
-                    override fun getUri() = Uri.EMPTY
-                    override fun close() {}
-
-                    override fun addTransferListener(transferListener: TransferListener) {
-                        Log.i("speech", "addTransferListener() called, will have no effect: $transferListener")
-                    }
-                }
-            }
-
             exoPlayer.addMediaSource(
-                ProgressiveMediaSource.Factory(DsFac())
+                ProgressiveMediaSource.Factory(SpeakDsFactory(channel))
                     .setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(0))
                     .createMediaSource(MediaItem.fromUri(Uri.EMPTY))
             )

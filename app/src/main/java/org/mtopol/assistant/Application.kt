@@ -64,8 +64,10 @@ import androidx.media3.extractor.SeekMap
 import androidx.media3.extractor.SeekPoint
 import androidx.media3.extractor.TrackOutput
 import androidx.preference.PreferenceManager
+import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.android.awaitFrame
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import java.io.ByteArrayOutputStream
@@ -506,6 +508,26 @@ class ExoplayerPcmExtractorsFactory(
 
             override fun release() {}
         })
+    }
+}
+
+@OptIn(UnstableApi::class)
+class SpeakDsFactory(
+    private val channel: ByteReadChannel
+) : DataSource.Factory {
+    override fun createDataSource() = object : DataSource {
+        override fun open(dataSpec: DataSpec): Long = C.LENGTH_UNSET.toLong()
+
+        override fun read(buffer: ByteArray, offset: Int, length: Int): Int = runBlocking {
+            channel.readAvailable(buffer, offset, length)
+        }
+
+        override fun getUri() = Uri.EMPTY
+        override fun close() {}
+
+        override fun addTransferListener(transferListener: TransferListener) {
+            Log.i("speech", "addTransferListener() called, will have no effect: $transferListener")
+        }
     }
 }
 
