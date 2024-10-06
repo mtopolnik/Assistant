@@ -27,23 +27,13 @@ import androidx.annotation.OptIn
 import androidx.core.net.toFile
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
-import androidx.media3.common.util.ParsableByteArray
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.common.util.Util
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.TransferListener
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
-import androidx.media3.extractor.Extractor
-import androidx.media3.extractor.ExtractorInput
-import androidx.media3.extractor.ExtractorOutput
-import androidx.media3.extractor.ExtractorsFactory
-import androidx.media3.extractor.PositionHolder
-import androidx.media3.extractor.SeekMap
-import androidx.media3.extractor.SeekPoint
-import androidx.media3.extractor.TrackOutput
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
@@ -294,96 +284,16 @@ class OpenAI {
         audioRecord: AudioRecord,
         exoPlayer: ExoPlayer
     ) {
-        class DsFac : DataSource.Factory {
-            private val bos = ByteArrayOutputStream()
-
-            fun addData(data: ByteArray) {
-                synchronized(bos) {
-                    bos.write(data)
-                }
-            }
-
-            override fun createDataSource() = object : DataSource {
-
-                override fun open(dataSpec: DataSpec): Long {
-                    return C.LENGTH_UNSET.toLong()
-                }
-
-                override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
-                    synchronized(bos) {
-                        val available = bos.size()
-                        if (available == 0) {
-                            return 0
-                        }
-                        val bytesToRead = minOf(available, length)
-                        val bosBytes = bos.toByteArray()
-                        System.arraycopy(bosBytes, 0, buffer, offset, bytesToRead)
-                        bos.reset()
-                        bos.write(bosBytes, bytesToRead, available - bytesToRead)
-                        return bytesToRead
-                    }
-                }
-                override fun getUri() = Uri.EMPTY
-                override fun close() {}
-                override fun addTransferListener(transferListener: TransferListener) {
-                    Log.i("speech", "addTransferListener() called, will have no effect: $transferListener")
-                }
-            }
-        }
-
-        val extractorsFactory = object : ExtractorsFactory {
-            override fun createExtractors(): Array<Extractor> {
-                return arrayOf(object : Extractor {
-                    private val sampleRate = 24000
-                    private val buffer = ParsableByteArray(4096)
-                    private lateinit var trackOutput: TrackOutput
-
-                    override fun init(output: ExtractorOutput) {
-                        trackOutput = output.track(0, C.TRACK_TYPE_AUDIO)
-                        trackOutput.format(Util.getPcmFormat(C.ENCODING_PCM_16BIT, 1, sampleRate))
-                        output.seekMap(object : SeekMap {
-                            override fun isSeekable() = false
-                            override fun getDurationUs() = C.TIME_UNSET
-                            override fun getSeekPoints(timeUs: Long) = SeekMap.SeekPoints(SeekPoint(0, 0))
-                        })
-                        output.endTracks()
-                    }
-                    override fun read(input: ExtractorInput, positionHolder: PositionHolder): Int {
-                        buffer.reset(buffer.data)
-                        val bytesRead = input.read(buffer.data, 0, buffer.limit())
-                        if (bytesRead == C.RESULT_END_OF_INPUT) {
-                            return Extractor.RESULT_END_OF_INPUT
-                        }
-                        if (bytesRead > 0) {
-                            buffer.position = 0
-                            buffer.setLimit(bytesRead)
-                            trackOutput.sampleData(buffer, bytesRead)
-                            val timeUs = input.position * 1_000_000L / sampleRate / 2
-                            trackOutput.sampleMetadata(timeUs, C.BUFFER_FLAG_KEY_FRAME, bytesRead, 0, null)
-                        }
-                        return Extractor.RESULT_CONTINUE
-                    }
-                    override fun sniff(input: ExtractorInput) = true
-                    override fun seek(position: Long, timeUs: Long) {
-                        Log.i("speech", "Extractor seek $position")
-                    }
-                    override fun release() {}
-                })
-            }
-        }
-
         apiClient.webSocket({
             method = HttpMethod.Get
             url(scheme = "wss", host = "api.openai.com", path = "v1/realtime?model=${AiModel.GPT_4O_REALTIME.apiId}")
             header("OpenAI-Beta", "realtime=v1")
         }) {
-            val audioReceiver = DsFac()
             exoPlayer.addMediaSource(
-                ProgressiveMediaSource.Factory(audioReceiver, extractorsFactory)
+                ProgressiveMediaSource.Factory(ExoplayerWebsocketDsFactory(), ExoplayerPcmExtractorsFactory(24000))
                     .setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(0))
                     .createMediaSource(MediaItem.fromUri(Uri.EMPTY))
             )
-
             val instructions = "Your knowledge cutoff is 2023-10. You are a helpful, witty, and friendly AI." +
                     " Act like a human, but remember that you aren't a human and that you can't do human" +
                     " things in the real world. Your voice and personality should be warm and engaging," +
@@ -433,7 +343,7 @@ class OpenAI {
                         when (event) {
                             is RealtimeEvent.ResponseAudioDelta -> {
                                 val data = Base64.decode(event.delta, Base64.DEFAULT)
-                                audioReceiver.addData(data)
+                                ExoplayerWebsocketDsFactory().addData(data)
                             }
                             else -> {
                                 Log.e("speech", "unhandled server event type: ${event::class.simpleName}")

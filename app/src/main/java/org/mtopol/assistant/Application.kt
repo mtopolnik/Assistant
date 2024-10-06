@@ -43,15 +43,32 @@ import android.os.VibratorManager
 import android.util.Log
 import android.view.View
 import android.widget.ImageView
+import androidx.annotation.OptIn
 import androidx.core.content.ContextCompat
 import androidx.core.net.toFile
 import androidx.core.os.LocaleListCompat
 import androidx.fragment.app.Fragment
+import androidx.media3.common.C
+import androidx.media3.common.util.ParsableByteArray
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.common.util.Util
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.TransferListener
+import androidx.media3.extractor.Extractor
+import androidx.media3.extractor.ExtractorInput
+import androidx.media3.extractor.ExtractorOutput
+import androidx.media3.extractor.ExtractorsFactory
+import androidx.media3.extractor.PositionHolder
+import androidx.media3.extractor.SeekMap
+import androidx.media3.extractor.SeekPoint
+import androidx.media3.extractor.TrackOutput
 import androidx.preference.PreferenceManager
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -405,6 +422,90 @@ suspend fun pushThroughDecoder(
     } finally {
         codec.stop()
         codec.release()
+    }
+}
+
+@OptIn(UnstableApi::class)
+class ExoplayerWebsocketDsFactory : DataSource.Factory {
+    private val bos = ByteArrayOutputStream()
+
+    fun addData(data: ByteArray) {
+        synchronized(bos) {
+            bos.write(data)
+        }
+    }
+
+    override fun createDataSource() = object : DataSource {
+
+        override fun open(dataSpec: DataSpec): Long {
+            return C.LENGTH_UNSET.toLong()
+        }
+
+        override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+            synchronized(bos) {
+                val available = bos.size()
+                if (available == 0) {
+                    return 0
+                }
+                val bytesToRead = minOf(available, length)
+                val bosBytes = bos.toByteArray()
+                System.arraycopy(bosBytes, 0, buffer, offset, bytesToRead)
+                bos.reset()
+                bos.write(bosBytes, bytesToRead, available - bytesToRead)
+                return bytesToRead
+            }
+        }
+        override fun getUri() = Uri.EMPTY
+        override fun close() {}
+        override fun addTransferListener(transferListener: TransferListener) {
+            Log.i("speech", "addTransferListener() called, will have no effect: $transferListener")
+        }
+    }
+}
+
+@OptIn(UnstableApi::class)
+class ExoplayerPcmExtractorsFactory(
+    val sampleRate: Int
+) : ExtractorsFactory {
+    override fun createExtractors(): Array<Extractor> {
+        return arrayOf(object : Extractor {
+            private val buffer = ParsableByteArray(4096)
+            private lateinit var trackOutput: TrackOutput
+
+            override fun init(output: ExtractorOutput) {
+                trackOutput = output.track(0, C.TRACK_TYPE_AUDIO)
+                trackOutput.format(Util.getPcmFormat(C.ENCODING_PCM_16BIT, 1, sampleRate))
+                output.seekMap(object : SeekMap {
+                    override fun isSeekable() = false
+                    override fun getDurationUs() = C.TIME_UNSET
+                    override fun getSeekPoints(timeUs: Long) = SeekMap.SeekPoints(SeekPoint(0, 0))
+                })
+                output.endTracks()
+            }
+
+            override fun read(input: ExtractorInput, positionHolder: PositionHolder): Int {
+                buffer.reset(buffer.data)
+                val bytesRead = input.read(buffer.data, 0, buffer.limit())
+                if (bytesRead == C.RESULT_END_OF_INPUT) {
+                    return Extractor.RESULT_END_OF_INPUT
+                }
+                if (bytesRead > 0) {
+                    buffer.position = 0
+                    buffer.setLimit(bytesRead)
+                    trackOutput.sampleData(buffer, bytesRead)
+                    val timeUs = input.position * 1_000_000L / sampleRate / 2
+                    trackOutput.sampleMetadata(timeUs, C.BUFFER_FLAG_KEY_FRAME, bytesRead, 0, null)
+                }
+                return Extractor.RESULT_CONTINUE
+            }
+
+            override fun sniff(input: ExtractorInput) = true
+            override fun seek(position: Long, timeUs: Long) {
+                Log.i("speech", "Extractor seek $position")
+            }
+
+            override fun release() {}
+        })
     }
 }
 
