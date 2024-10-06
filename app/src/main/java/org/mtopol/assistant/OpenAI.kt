@@ -316,7 +316,6 @@ class OpenAI {
                             return 0
                         }
                         val bytesToRead = minOf(available, length)
-                        Log.i("speech", "Playing $bytesToRead bytes")
                         val bosBytes = bos.toByteArray()
                         System.arraycopy(bosBytes, 0, buffer, offset, bytesToRead)
                         bos.reset()
@@ -335,12 +334,13 @@ class OpenAI {
         val extractorsFactory = object : ExtractorsFactory {
             override fun createExtractors(): Array<Extractor> {
                 return arrayOf(object : Extractor {
+                    private val sampleRate = 24000
                     private val buffer = ParsableByteArray(4096)
                     private lateinit var trackOutput: TrackOutput
 
                     override fun init(output: ExtractorOutput) {
                         trackOutput = output.track(0, C.TRACK_TYPE_AUDIO)
-                        trackOutput.format(Util.getPcmFormat(C.ENCODING_PCM_16BIT, 1, 24000))
+                        trackOutput.format(Util.getPcmFormat(C.ENCODING_PCM_16BIT, 1, sampleRate))
                         output.seekMap(object : SeekMap {
                             override fun isSeekable() = false
                             override fun getDurationUs() = C.TIME_UNSET
@@ -355,11 +355,11 @@ class OpenAI {
                             return Extractor.RESULT_END_OF_INPUT
                         }
                         if (bytesRead > 0) {
-                            Log.i("speech", "Extractor read $bytesRead bytes")
                             buffer.position = 0
                             buffer.setLimit(bytesRead)
                             trackOutput.sampleData(buffer, bytesRead)
-                            trackOutput.sampleMetadata(input.position, C.BUFFER_FLAG_KEY_FRAME, bytesRead, 0, null)
+                            val timeUs = input.position * 1_000_000L / sampleRate / 2
+                            trackOutput.sampleMetadata(timeUs, C.BUFFER_FLAG_KEY_FRAME, bytesRead, 0, null)
                         }
                         return Extractor.RESULT_CONTINUE
                     }
@@ -410,7 +410,6 @@ class OpenAI {
                     val readSize = withContext(Dispatchers.IO) {
                         audioRecord.read(readBuf, 0, readBufSizeShorts, AudioRecord.READ_BLOCKING)
                     }
-                    Log.i("speech", "audioRecord.read(): readSize = $readSize")
                     if (readSize <= 0) {
                         Log.e("speech", "Voice recording error, readSize = $readSize")
                         break
@@ -434,11 +433,10 @@ class OpenAI {
                         when (event) {
                             is RealtimeEvent.ResponseAudioDelta -> {
                                 val data = Base64.decode(event.delta, Base64.DEFAULT)
-                                Log.i("speech", "Adding audio data: ${data.size} bytes")
                                 audioReceiver.addData(data)
                             }
                             else -> {
-                                Log.e("speech", "unhandled server event type: $event")
+                                Log.e("speech", "unhandled server event type: ${event::class.simpleName}")
                             }
                         }
                     }
