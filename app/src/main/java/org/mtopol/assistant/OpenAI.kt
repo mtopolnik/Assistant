@@ -83,6 +83,9 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.encodeToJsonElement
+import org.mtopol.assistant.Voice.ALLOY
+import org.mtopol.assistant.Voice.ECHO
+import org.mtopol.assistant.Voice.SHIMMER
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileInputStream
@@ -256,11 +259,8 @@ class OpenAI {
     }
 
     @OptIn(UnstableApi::class)
-    suspend fun realtime(
-        voice: Voice,
-        audioRecord: AudioRecord,
-        exoPlayer: ExoPlayer
-    ) {
+    suspend fun realtime(selectedVoice: Voice, audioRecord: AudioRecord, exoPlayer: ExoPlayer) {
+        val voice = selectedVoice.takeIf { it == ALLOY || it == ECHO || it == SHIMMER } ?: ECHO
         apiClient.webSocket({
             method = HttpMethod.Get
             url(scheme = "wss", host = "api.openai.com", path = "v1/realtime?model=${AiModel.GPT_4O_REALTIME.apiId}")
@@ -278,15 +278,21 @@ class OpenAI {
                     " using the standard accent or dialect familiar to the user. Talk quickly."
             wsend("""
                 {
-                    "type": "response.create",
-                    "response": {
-                        "modalities": ["audio"],
+                    "type": "session.update",
+                    "session": {
+                        "modalities": ["audio", "text"],
                         "instructions": "$instructions",
                         "voice": "${voice.name.lowercase()}",
+                        "input_audio_transcription": { "model": "whisper-1" },
                         "output_audio_format": "pcm16",
-                        "temperature": 0.7,
-                        "max_output_tokens": 150
+                        "temperature": 0.7
                     }
+                }
+            """.trimIndent())
+            wsend("""
+                {
+                    "type": "response.create",
+                    "response": { }
                 }
                 """.trimIndent())
             launch {
@@ -323,7 +329,7 @@ class OpenAI {
                                 ExoplayerWebsocketDsFactory().addData(data)
                             }
                             else -> {
-                                Log.e("speech", "unhandled server event type: ${event::class.simpleName}")
+                                Log.i("speech", "event: $event")
                             }
                         }
                     }
@@ -533,11 +539,36 @@ class OpenAI {
 
         @Serializable
         @SerialName("session.created")
-        data class SessionCreated(val session: JsonObject) : RealtimeEvent()
+        data class SessionCreated(val session: Session) : RealtimeEvent()
 
         @Serializable
         @SerialName("session.updated")
-        data class SessionUpdated(val session: JsonObject) : RealtimeEvent()
+        data class SessionUpdated(val session: Session) : RealtimeEvent()
+
+        @Serializable
+        data class Session(
+            val modalities: Array<String>,
+            val voice: String,
+            val input_audio_format: String,
+            val output_audio_format: String,
+            val turn_detection: TurnDetection,
+            val temperature: Float,
+            val input_audio_transcription: Transcription?,
+            val instructions: String,
+        )
+
+        @Serializable
+        data class Transcription(
+            val model: String
+        )
+
+        @Serializable
+        data class TurnDetection(
+            val type: String,
+            val threshold: Float,
+            val prefix_padding_ms: Int,
+            val silence_duration_ms: Int
+        )
 
         @Serializable
         @SerialName("conversation.updated")
@@ -558,6 +589,14 @@ class OpenAI {
         @Serializable
         @SerialName("conversation.item.created")
         data class ConversationItemCreated(val item: JsonObject) : RealtimeEvent()
+
+        @Serializable
+        @SerialName("conversation.item.input_audio_transcription.completed")
+        data class InputTranscriptionCompleted(val transcript: String) : RealtimeEvent()
+
+        @Serializable
+        @SerialName("conversation.item.input_audio_transcription.failed")
+        data class InputTranscriptionFailed(val error: JsonObject) : RealtimeEvent()
 
         @Serializable
         @SerialName("response.created")
