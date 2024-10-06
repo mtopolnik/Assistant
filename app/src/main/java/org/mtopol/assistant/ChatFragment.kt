@@ -27,6 +27,8 @@ import android.content.Intent
 import android.content.pm.PackageManager.PERMISSION_GRANTED
 import android.content.res.Configuration
 import android.graphics.PointF
+import android.media.AudioFormat
+import android.media.AudioRecord
 import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.media.audiofx.LoudnessEnhancer
@@ -119,6 +121,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.tasks.await
 import kotlinx.parcelize.Parcelize
 import org.mtopol.assistant.MessageType.PROMPT
@@ -171,6 +174,7 @@ class ChatFragmentModel(
 
     var recordingGlowJob: Job? = null
     var transcriptionJob: Job? = null
+    var realtimeJob: Job? = null
     var handleResponseJob: Job? = null
     var isResponding: Boolean = false
     var autoscrollEnabled: Boolean = true
@@ -362,11 +366,19 @@ class ChatFragment : Fragment(), MenuProvider {
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
                         recordButtonPressTime = System.currentTimeMillis()
-                        startRecordingPrompt()
+                        if (appContext.mainPrefs.selectedModel == AiModel.GPT_4O_REALTIME) {
+                            startRealtimeSession()
+                        } else {
+                            startRecordingPrompt()
+                        }
                         return true
                     }
 
                     MotionEvent.ACTION_UP -> {
+                        vmodel.realtimeJob?.also {
+                            it.cancel()
+                            return true
+                        }
                         if (System.currentTimeMillis() - recordButtonPressTime < MIN_HOLD_RECORD_BUTTON_MILLIS) {
                             showRecordingHint()
                             return true
@@ -911,6 +923,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
                     var replyTextUpdateTime = 0L
                     responseFlow
+                        .onStart { vmodel.withFragment { (it.activity as MainActivity).unlockOrientation() } }
                         .onEach { token ->
                             replyMarkdown.append(token)
                             if (System.currentTimeMillis() - replyTextUpdateTime < REPLY_VIEW_UPDATE_PERIOD_MILLIS) {
@@ -1003,16 +1016,7 @@ class ChatFragment : Fragment(), MenuProvider {
     private suspend fun speakWithOpenAi(sentenceFlow: Flow<String>) {
         var lastValidVoice = appContext.mainPrefs.selectedVoice
         var amplifier: LoudnessEnhancer? = null
-        val exoPlayer = ExoPlayer.Builder(appContext)
-            .setAudioAttributes(AudioAttributes.Builder()
-                .setUsage(C.USAGE_ASSISTANT)
-                .setContentType(C.AUDIO_CONTENT_TYPE_SPEECH)
-                .build(), false)
-            .setLoadControl(DefaultLoadControl.Builder()
-                .setBufferDurationsMs(BUFFER_MS, BUFFER_MS, START_PLAYBACK_WHEN_BUFFERED_MS, AFTER_UNDERRUN_REBUFFER_MS)
-                .setPrioritizeTimeOverSizeThresholds(true)
-                .build())
-            .build().apply {
+        val exoPlayer = exoPlayer().apply {
                 addListener(object : Player.Listener {
                     override fun onPlaybackStateChanged(state: Int) {
                         if (state != Player.STATE_ENDED && amplifier == null) {
@@ -1091,6 +1095,21 @@ class ChatFragment : Fragment(), MenuProvider {
             amplifier?.release()
         }
     }
+
+    private fun exoPlayer() = ExoPlayer.Builder(appContext)
+        .setAudioAttributes(
+            AudioAttributes.Builder()
+                .setUsage(C.USAGE_ASSISTANT)
+                .setContentType(C.AUDIO_CONTENT_TYPE_SPEECH)
+                .build(), false
+        )
+        .setLoadControl(
+            DefaultLoadControl.Builder()
+                .setBufferDurationsMs(BUFFER_MS, BUFFER_MS, START_PLAYBACK_WHEN_BUFFERED_MS, AFTER_UNDERRUN_REBUFFER_MS)
+                .setPrioritizeTimeOverSizeThresholds(true)
+                .build()
+        )
+        .build()
 
     private suspend fun speakWithAndroidSpeech(sentenceFlow: Flow<String>) {
         coroutineScope {
@@ -1232,17 +1251,48 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
+    private fun startRealtimeSession() {
+        val activity = requireActivity() as MainActivity
+        var lastValidVoice = appContext.mainPrefs.selectedVoice
+        // don't extract to fun, IDE inspection for permission checks will complain
+        if (checkSelfPermission(activity, permission.RECORD_AUDIO) != PERMISSION_GRANTED) {
+            permissionRequest.launch(arrayOf(permission.RECORD_AUDIO, permission.WRITE_EXTERNAL_STORAGE))
+            return
+        }
+
+        vmodel.realtimeJob?.cancel()
+        vmodel.realtimeJob = vmodel.viewModelScope.launch {
+            val exoPlayer = exoPlayer()
+            val samplingRate = 24000;
+            //                       = (16-bit sample) * (samples per second)
+            val recorderBufSizeBytes = 2 * samplingRate
+            val audioRecord = AudioRecord(MediaRecorder.AudioSource.MIC,
+                samplingRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, recorderBufSizeBytes
+            )
+            try {
+                exoPlayer.apply { prepare(); play() }
+                audioRecord.startRecording()
+                vibrate()
+                vmodel.withFragment {
+                    it.binding.showRecordingGlow()
+                    it.binding.recordingGlow.setVolume(1.0f)
+                }
+                openAi.realtime(lastValidVoice, audioRecord, exoPlayer)
+            } finally {
+                vibrate()
+                audioRecord.apply { stop(); release() }
+                exoPlayer.apply { stop(); release() }
+                vmodel.withFragment { it.binding.recordingGlow.visibility = INVISIBLE }
+            }
+        }
+    }
+
     private fun startRecordingPrompt() {
         val activity = requireActivity() as MainActivity
 
         // don't extract to fun, IDE inspection for permission checks will complain
         if (checkSelfPermission(activity, permission.RECORD_AUDIO) != PERMISSION_GRANTED) {
-            permissionRequest.launch(
-                arrayOf(
-                    permission.RECORD_AUDIO,
-                    permission.WRITE_EXTERNAL_STORAGE
-                )
-            )
+            permissionRequest.launch(arrayOf(permission.RECORD_AUDIO, permission.WRITE_EXTERNAL_STORAGE))
             return
         }
         vmodel.transcriptionJob?.cancel()
@@ -1282,8 +1332,6 @@ class ChatFragment : Fragment(), MenuProvider {
                 stopRecording()
                 vmodel.withFragment { it.binding.buttonRecord.isEnabled = true }
             }
-        } finally {
-            activity.unlockOrientation()
         }
     }
 
@@ -1319,8 +1367,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 while (true) {
                     val frameTime = awaitFrame()
                     val mediaRecorder = _mediaRecorder ?: break
-                    val soundVolume = (log2(mediaRecorder.maxAmplitude.toDouble()) / 15).toFloat()
-                        .coerceAtLeast(0f)
+                    val soundVolume = (log2(mediaRecorder.maxAmplitude.toDouble()) / 15).toFloat().coerceAtLeast(0f)
                     val decayingPeak =
                         lastPeak * (1f - 2 * nanosToSeconds(frameTime - lastPeakTime))
                     lastRecordingVolume = if (decayingPeak > soundVolume) {

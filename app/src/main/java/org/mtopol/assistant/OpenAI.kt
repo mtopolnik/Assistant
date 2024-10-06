@@ -17,6 +17,7 @@
 
 package org.mtopol.assistant
 
+import android.media.AudioRecord
 import android.net.Uri
 import android.text.Editable
 import android.util.Base64
@@ -46,12 +47,15 @@ import io.ktor.client.plugins.logging.ANDROID
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
+import io.ktor.client.plugins.websocket.WebSockets
+import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.forms.FormBuilder
 import io.ktor.client.request.forms.append
 import io.ktor.client.request.forms.formData
 import io.ktor.client.request.forms.submitFormWithBinaryData
 import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.request.setBody
 import io.ktor.client.request.url
 import io.ktor.client.statement.HttpResponse
@@ -62,6 +66,9 @@ import io.ktor.http.contentType
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.core.writeFully
 import io.ktor.utils.io.readUTF8Line
+import io.ktor.websocket.Frame
+import io.ktor.websocket.readText
+import io.ktor.websocket.send as wsend
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -71,17 +78,22 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.encodeToJsonElement
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStream
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 val openAi get() = openAiLazy.value
 
@@ -89,6 +101,7 @@ private const val OPENAI_URL = "https://api.openai.com/v1/"
 
 const val MODEL_ID_GPT_4O_MINI = "gpt-4o-mini"
 const val MODEL_ID_GPT_4O = "gpt-4o"
+const val MODEL_ID_GPT_4O_REALTIME = "gpt-4o-realtime-preview-2024-10-01"
 
 private lateinit var openAiLazy: Lazy<OpenAI>
 
@@ -260,6 +273,125 @@ class OpenAI {
             )
             while (!channel.isClosedForRead) {
                 delay(100)
+            }
+        }
+    }
+
+    @OptIn(UnstableApi::class)
+    suspend fun realtime(
+        voice: Voice,
+        audioRecord: AudioRecord,
+        exoPlayer: ExoPlayer
+    ) {
+        class DsFac : DataSource.Factory {
+            private val bos = ByteArrayOutputStream()
+
+            fun addData(data: ByteArray) {
+                synchronized(bos) {
+                    bos.write(data)
+                }
+            }
+
+            override fun createDataSource() = object : DataSource {
+
+                override fun open(dataSpec: DataSpec): Long {
+                    return C.LENGTH_UNSET.toLong()
+                }
+
+                override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                    synchronized(bos) {
+                        val available = bos.size()
+                        if (available == 0) {
+                            return 0
+                        }
+                        val bytesToRead = minOf(available, length)
+                        val bosBytes = bos.toByteArray()
+                        System.arraycopy(bosBytes, 0, buffer, offset, bytesToRead)
+                        bos.reset()
+                        bos.write(bosBytes, bytesToRead, available - bytesToRead)
+                        return bytesToRead
+                    }
+                }
+
+                override fun getUri() = null
+                override fun close() {}
+                override fun addTransferListener(transferListener: TransferListener) {
+                    Log.i("speech", "addTransferListener() called, will have no effect: $transferListener")
+                }
+            }
+        }
+
+        apiClient.webSocket({
+                   method = HttpMethod.Get
+                   url(path = "realtime?model=${AiModel.GPT_4O_REALTIME.apiId}")
+                   header("OpenAI-Beta", "realtime=v1")
+        }) {
+            val audioReceiver = DsFac()
+            exoPlayer.addMediaSource(
+                ProgressiveMediaSource.Factory(audioReceiver)
+                    .setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(0))
+                    .createMediaSource(MediaItem.fromUri(Uri.EMPTY))
+            )
+
+            val instructions = "Your knowledge cutoff is 2023-10. You are a helpful, witty, and friendly AI." +
+                    " Act like a human, but remember that you aren't a human and that you can't do human" +
+                    " things in the real world. Your voice and personality should be warm and engaging," +
+                    " with a lively and playful tone. If interacting in a non-English language, start by" +
+                    " using the standard accent or dialect familiar to the user. Talk quickly."
+            wsend("""
+                {
+                    "type": "response.create",
+                    "response": {
+                        "modalities": ["audio"],
+                        "instructions": "$instructions",
+                        "voice": "${voice.name.lowercase()}",
+                        "output_audio_format": "pcm16",
+                        "temperature": 0.7,
+                        "max_output_tokens": 150
+                    }
+                }
+                """.trimIndent())
+            launch {
+                val readBufSizeShorts = audioRecord.bufferSizeInFrames / 10 // should hold 100 ms
+                val readBuf = ShortArray(readBufSizeShorts)
+                val byteBuf = ByteBuffer.allocate(2 * readBufSizeShorts).order(ByteOrder.LITTLE_ENDIAN)
+                while (true) {
+                    val readSize = withContext(Dispatchers.IO) {
+                        audioRecord.read(readBuf, 0, readBufSizeShorts, AudioRecord.READ_BLOCKING)
+                    }
+                    if (readSize <= 0) {
+                        Log.e("speech", "Voice recording error, readSize = $readSize")
+                        break
+                    }
+                    byteBuf.asShortBuffer().put(readBuf, 0, readSize)
+                    val audioBase64 = Base64.encodeToString(byteBuf.array(), 0, byteBuf.limit(), Base64.NO_WRAP)
+                    wsend("""
+                        {
+                            "type": "input_audio_buffer.append",
+                            "audio": "$audioBase64"
+                        }
+                        """.trimIndent())
+                }
+            }
+            launch {
+                for (frame in incoming) {
+                    when (frame) {
+                        is Frame.Text -> {
+                            val event = Json.decodeFromString<RealtimeEvent>(frame.readText())
+                            when (event) {
+                                is RealtimeEvent.ResponseAudioDelta -> {
+                                    audioReceiver.addData(Base64.decode(event.delta, Base64.DEFAULT))
+                                }
+                                else -> {
+                                    Log.e("speech", "unhandled server event type: $event")
+                                }
+                            }
+                        }
+                        else -> {
+                            Log.e("speech", "unhandled frame type ${frame.frameType}")
+                        }
+                    }
+                }
             }
         }
     }
@@ -453,6 +585,29 @@ class OpenAI {
         val voice: String,
         val model: String,
     )
+
+    @Serializable
+    sealed class RealtimeEvent {
+        @Serializable
+        @SerialName("response.audio.delta")
+        data class ResponseAudioDelta(val delta: String) : RealtimeEvent()
+
+        @Serializable
+        @SerialName("error")
+        data class Error(val error: JsonObject) : RealtimeEvent()
+
+        @Serializable
+        @SerialName("session.created")
+        data class SessionCreated(val session: JsonObject) : RealtimeEvent()
+
+        @Serializable
+        @SerialName("session.updated")
+        data class SessionUpdated(val session: JsonObject) : RealtimeEvent()
+
+        @Serializable
+        @SerialName("conversation.updated")
+        data class ConversationUpdated(val conversation: JsonObject) : RealtimeEvent()
+    }
 }
 
 private fun createOpenAiClient(apiKey: OpenAiKey) = HttpClient(OkHttp) {
@@ -466,6 +621,7 @@ private fun createOpenAiClient(apiKey: OpenAiKey) = HttpClient(OkHttp) {
             }
         }
     }
+    install(WebSockets)
     commonApiClientSetup()
 }
 

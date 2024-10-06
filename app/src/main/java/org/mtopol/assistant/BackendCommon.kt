@@ -58,6 +58,7 @@ enum class AiModel(
     DEMO(l("demo"), l("Demo")),
     GPT_4O_MINI(l(MODEL_ID_GPT_4O_MINI), l("4o min")),
     GPT_4O(l(MODEL_ID_GPT_4O), l("GPT-4o")),
+    GPT_4O_REALTIME(l(MODEL_ID_GPT_4O_REALTIME), l("4o RT")),
     CLAUDE_3_5_SONNET(l(MODEL_ID_SONNET_3_5), l("Sonnet")),
     ARTIST_3(lazy { "${ARTIST_LAZY.value.lowercase()}-3" }, ARTIST_LAZY);
 
@@ -75,6 +76,7 @@ class OpenAiKey(val text: String) {
     fun allowsGpt4() = allowsGptMini() && !text.isGptMiniOnlyKey()
     fun allowsTts() = allowsGpt4() && !text.isGptOnlyKey()
     fun allowsArtist() = text.isImageGenKey()
+    fun allowsRealtime() = allowsArtist()
 
     override fun toString() = text
 }
@@ -91,6 +93,7 @@ class ApiKeyWallet(prefs: SharedPreferences) {
             if (isDemo()) models.add(AiModel.DEMO)
             if (openaiKey.allowsGptMini()) models.add(AiModel.GPT_4O_MINI)
             if (openaiKey.allowsGpt4()) models.add(AiModel.GPT_4O)
+            if (openaiKey.allowsRealtime()) models.add(AiModel.GPT_4O_REALTIME)
             if (hasAnthropicKey()) models.add(AiModel.CLAUDE_3_5_SONNET)
             if (openaiKey.allowsArtist()) models.add(AiModel.ARTIST_3)
         }
