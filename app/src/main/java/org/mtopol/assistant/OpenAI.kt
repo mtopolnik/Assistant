@@ -27,13 +27,23 @@ import androidx.annotation.OptIn
 import androidx.core.net.toFile
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.util.ParsableByteArray
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.common.util.Util
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.TransferListener
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
+import androidx.media3.extractor.Extractor
+import androidx.media3.extractor.ExtractorInput
+import androidx.media3.extractor.ExtractorOutput
+import androidx.media3.extractor.ExtractorsFactory
+import androidx.media3.extractor.PositionHolder
+import androidx.media3.extractor.SeekMap
+import androidx.media3.extractor.SeekPoint
+import androidx.media3.extractor.TrackOutput
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
@@ -85,6 +95,7 @@ import kotlinx.coroutines.yield
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.encodeToJsonElement
 import java.io.ByteArrayOutputStream
@@ -305,6 +316,7 @@ class OpenAI {
                             return 0
                         }
                         val bytesToRead = minOf(available, length)
+                        Log.i("speech", "Playing $bytesToRead bytes")
                         val bosBytes = bos.toByteArray()
                         System.arraycopy(bosBytes, 0, buffer, offset, bytesToRead)
                         bos.reset()
@@ -312,8 +324,7 @@ class OpenAI {
                         return bytesToRead
                     }
                 }
-
-                override fun getUri() = null
+                override fun getUri() = Uri.EMPTY
                 override fun close() {}
                 override fun addTransferListener(transferListener: TransferListener) {
                     Log.i("speech", "addTransferListener() called, will have no effect: $transferListener")
@@ -321,14 +332,54 @@ class OpenAI {
             }
         }
 
+        val extractorsFactory = object : ExtractorsFactory {
+            override fun createExtractors(): Array<Extractor> {
+                return arrayOf(object : Extractor {
+                    private val buffer = ParsableByteArray(4096)
+                    private lateinit var trackOutput: TrackOutput
+
+                    override fun init(output: ExtractorOutput) {
+                        trackOutput = output.track(0, C.TRACK_TYPE_AUDIO)
+                        trackOutput.format(Util.getPcmFormat(C.ENCODING_PCM_16BIT, 1, 24000))
+                        output.seekMap(object : SeekMap {
+                            override fun isSeekable() = false
+                            override fun getDurationUs() = C.TIME_UNSET
+                            override fun getSeekPoints(timeUs: Long) = SeekMap.SeekPoints(SeekPoint(0, 0))
+                        })
+                        output.endTracks()
+                    }
+                    override fun read(input: ExtractorInput, positionHolder: PositionHolder): Int {
+                        buffer.reset(buffer.data)
+                        val bytesRead = input.read(buffer.data, 0, buffer.limit())
+                        if (bytesRead == C.RESULT_END_OF_INPUT) {
+                            return Extractor.RESULT_END_OF_INPUT
+                        }
+                        if (bytesRead > 0) {
+                            Log.i("speech", "Extractor read $bytesRead bytes")
+                            buffer.position = 0
+                            buffer.setLimit(bytesRead)
+                            trackOutput.sampleData(buffer, bytesRead)
+                            trackOutput.sampleMetadata(input.position, C.BUFFER_FLAG_KEY_FRAME, bytesRead, 0, null)
+                        }
+                        return Extractor.RESULT_CONTINUE
+                    }
+                    override fun sniff(input: ExtractorInput) = true
+                    override fun seek(position: Long, timeUs: Long) {
+                        Log.i("speech", "Extractor seek $position")
+                    }
+                    override fun release() {}
+                })
+            }
+        }
+
         apiClient.webSocket({
-                   method = HttpMethod.Get
-                   url(path = "realtime?model=${AiModel.GPT_4O_REALTIME.apiId}")
-                   header("OpenAI-Beta", "realtime=v1")
+            method = HttpMethod.Get
+            url(scheme = "wss", host = "api.openai.com", path = "v1/realtime?model=${AiModel.GPT_4O_REALTIME.apiId}")
+            header("OpenAI-Beta", "realtime=v1")
         }) {
             val audioReceiver = DsFac()
             exoPlayer.addMediaSource(
-                ProgressiveMediaSource.Factory(audioReceiver)
+                ProgressiveMediaSource.Factory(audioReceiver, extractorsFactory)
                     .setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(0))
                     .createMediaSource(MediaItem.fromUri(Uri.EMPTY))
             )
@@ -359,6 +410,7 @@ class OpenAI {
                     val readSize = withContext(Dispatchers.IO) {
                         audioRecord.read(readBuf, 0, readBufSizeShorts, AudioRecord.READ_BLOCKING)
                     }
+                    Log.i("speech", "audioRecord.read(): readSize = $readSize")
                     if (readSize <= 0) {
                         Log.e("speech", "Voice recording error, readSize = $readSize")
                         break
@@ -373,23 +425,25 @@ class OpenAI {
                         """.trimIndent())
                 }
             }
-            launch {
-                for (frame in incoming) {
-                    when (frame) {
-                        is Frame.Text -> {
-                            val event = Json.decodeFromString<RealtimeEvent>(frame.readText())
-                            when (event) {
-                                is RealtimeEvent.ResponseAudioDelta -> {
-                                    audioReceiver.addData(Base64.decode(event.delta, Base64.DEFAULT))
-                                }
-                                else -> {
-                                    Log.e("speech", "unhandled server event type: $event")
-                                }
+            val json = Json { ignoreUnknownKeys = true }
+            for (frame in incoming) {
+                when (frame) {
+                    is Frame.Text -> {
+                        val text = frame.readText()
+                        val event = json.decodeFromString<RealtimeEvent>(text)
+                        when (event) {
+                            is RealtimeEvent.ResponseAudioDelta -> {
+                                val data = Base64.decode(event.delta, Base64.DEFAULT)
+                                Log.i("speech", "Adding audio data: ${data.size} bytes")
+                                audioReceiver.addData(data)
+                            }
+                            else -> {
+                                Log.e("speech", "unhandled server event type: $event")
                             }
                         }
-                        else -> {
-                            Log.e("speech", "unhandled frame type ${frame.frameType}")
-                        }
+                    }
+                    else -> {
+                        Log.e("speech", "unhandled frame type ${frame.frameType}")
                     }
                 }
             }
@@ -589,10 +643,6 @@ class OpenAI {
     @Serializable
     sealed class RealtimeEvent {
         @Serializable
-        @SerialName("response.audio.delta")
-        data class ResponseAudioDelta(val delta: String) : RealtimeEvent()
-
-        @Serializable
         @SerialName("error")
         data class Error(val error: JsonObject) : RealtimeEvent()
 
@@ -607,6 +657,66 @@ class OpenAI {
         @Serializable
         @SerialName("conversation.updated")
         data class ConversationUpdated(val conversation: JsonObject) : RealtimeEvent()
+
+        @Serializable
+        @SerialName("input_audio_buffer.speech_started")
+        data class SpeechStarted(val audio_start_ms: Int) : RealtimeEvent()
+
+        @Serializable
+        @SerialName("input_audio_buffer.speech_stopped")
+        data class SpeechStopped(val audio_end_ms: Int) : RealtimeEvent()
+
+        @Serializable
+        @SerialName("input_audio_buffer.committed")
+        data class AudioBufferCommitted(val previous_item_id: String?) : RealtimeEvent()
+
+        @Serializable
+        @SerialName("conversation.item.created")
+        data class ConversationItemCreated(val item: JsonObject) : RealtimeEvent()
+
+        @Serializable
+        @SerialName("response.created")
+        data class ResponseCreated(val response: JsonObject) : RealtimeEvent()
+
+        @Serializable
+        @SerialName("response.done")
+        data class ResponseDone(val response: JsonObject) : RealtimeEvent()
+
+        @Serializable
+        @SerialName("response.output_item.added")
+        data class ResponseOutputItemAdded(val item: JsonObject) : RealtimeEvent()
+
+        @Serializable
+        @SerialName("response.output_item.done")
+        data class ResponseOutputItemDone(val item: JsonObject) : RealtimeEvent()
+
+        @Serializable
+        @SerialName("response.content_part.added")
+        data class ResponseContentPartAdded(val part: JsonObject) : RealtimeEvent()
+
+        @Serializable
+        @SerialName("response.content_part.done")
+        data class ResponseContentPartDone(val part: JsonObject) : RealtimeEvent()
+
+        @Serializable
+        @SerialName("response.audio_transcript.delta")
+        data class ResponseAudioTranscriptDelta(val delta: String) : RealtimeEvent()
+
+        @Serializable
+        @SerialName("response.audio_transcript.done")
+        data class ResponseAudioTranscriptDone(val transcript: String) : RealtimeEvent()
+
+        @Serializable
+        @SerialName("response.audio.delta")
+        data class ResponseAudioDelta(val delta: String) : RealtimeEvent()
+
+        @Serializable
+        @SerialName("response.audio.done")
+        data class ResponseAudioDone(val output_index: Int) : RealtimeEvent()
+
+        @Serializable
+        @SerialName("rate_limits.updated")
+        data class RateLimitsUpdated(val rate_limits: JsonArray) : RealtimeEvent()
     }
 }
 
