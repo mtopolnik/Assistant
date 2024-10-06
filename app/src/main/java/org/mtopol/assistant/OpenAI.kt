@@ -77,6 +77,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -282,18 +283,11 @@ class OpenAI {
                 voice = voice.name.lowercase(),
                 temperature = 0.7f,
                 input_audio_transcription = RealtimeEvent.Transcription(model = "whisper-1"),
-                turn_detection = RealtimeEvent.TurnDetection(
-                    type = "server_vad",
-                    prefix_padding_ms = 300,
-                    silence_duration_ms = 200,
-                    threshold = 0.5f
-                ),
                 instructions = instructions
             )).encodeToString().also {
                 Log.i("speech", "Send $it")
                 wsend(it)
             }
-            RealtimeEvent.ConversationItemCreated
             launch {
                 val readBufSizeShorts = audioRecord.bufferSizeInFrames / 10 // should hold 100 ms
                 val readBuf = ShortArray(readBufSizeShorts)
@@ -553,8 +547,10 @@ class OpenAI {
             val voice: String,
             val input_audio_format: String,
             val output_audio_format: String,
-            val turn_detection: TurnDetection?,
-            val input_audio_transcription: Transcription?,
+            @EncodeDefault(EncodeDefault.Mode.NEVER)
+            val turn_detection: TurnDetection? = null,
+            @EncodeDefault(EncodeDefault.Mode.NEVER)
+            val input_audio_transcription: Transcription? = null,
             val temperature: Float,
             val instructions: String,
         )
