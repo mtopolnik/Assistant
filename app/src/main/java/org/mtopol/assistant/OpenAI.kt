@@ -289,12 +289,6 @@ class OpenAI {
                     }
                 }
             """.trimIndent())
-            wsend("""
-                {
-                    "type": "response.create",
-                    "response": { }
-                }
-                """.trimIndent())
             launch {
                 val readBufSizeShorts = audioRecord.bufferSizeInFrames / 10 // should hold 100 ms
                 val readBuf = ShortArray(readBufSizeShorts)
