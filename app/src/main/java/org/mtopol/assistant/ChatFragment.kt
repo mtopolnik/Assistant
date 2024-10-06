@@ -1277,7 +1277,7 @@ class ChatFragment : Fragment(), MenuProvider {
                     it.binding.showRecordingGlow()
                     it.binding.recordingGlow.setVolume(1.0f)
                 }
-                openAi.realtime(lastValidVoice, audioRecord, exoPlayer)
+                openAi.realtime(audioRecord, exoPlayer)
             } finally {
                 vibrate()
                 audioRecord.apply { stop(); release() }

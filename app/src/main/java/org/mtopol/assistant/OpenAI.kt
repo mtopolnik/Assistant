@@ -83,9 +83,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.encodeToJsonElement
-import org.mtopol.assistant.Voice.ALLOY
-import org.mtopol.assistant.Voice.ECHO
-import org.mtopol.assistant.Voice.SHIMMER
+import org.mtopol.assistant.Voice.*
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileInputStream
@@ -259,15 +257,16 @@ class OpenAI {
     }
 
     @OptIn(UnstableApi::class)
-    suspend fun realtime(selectedVoice: Voice, audioRecord: AudioRecord, exoPlayer: ExoPlayer) {
-        val voice = selectedVoice.takeIf { it == ALLOY || it == ECHO || it == SHIMMER } ?: ECHO
+    suspend fun realtime(audioRecord: AudioRecord, exoPlayer: ExoPlayer) {
+        val voice = ALLOY
         apiClient.webSocket({
             method = HttpMethod.Get
             url(scheme = "wss", host = "api.openai.com", path = "v1/realtime?model=${AiModel.GPT_4O_REALTIME.apiId}")
             header("OpenAI-Beta", "realtime=v1")
         }) {
+            val dsFac = ExoplayerWebsocketDsFactory()
             exoPlayer.addMediaSource(
-                ProgressiveMediaSource.Factory(ExoplayerWebsocketDsFactory(), ExoplayerPcmExtractorsFactory(24000))
+                ProgressiveMediaSource.Factory(dsFac, ExoplayerPcmExtractorsFactory(24000))
                     .setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(0))
                     .createMediaSource(MediaItem.fromUri(Uri.EMPTY))
             )
@@ -276,19 +275,25 @@ class OpenAI {
                     " things in the real world. Your voice and personality should be warm and engaging," +
                     " with a lively and playful tone. If interacting in a non-English language, start by" +
                     " using the standard accent or dialect familiar to the user. Talk quickly."
-            wsend("""
-                {
-                    "type": "session.update",
-                    "session": {
-                        "modalities": ["audio", "text"],
-                        "instructions": "$instructions",
-                        "voice": "${voice.name.lowercase()}",
-                        "input_audio_transcription": { "model": "whisper-1" },
-                        "output_audio_format": "pcm16",
-                        "temperature": 0.7
-                    }
-                }
-            """.trimIndent())
+            RealtimeEvent.SessionUpdate(RealtimeEvent.Session(
+                modalities = arrayOf("audio", "text"),
+                input_audio_format = "pcm16",
+                output_audio_format = "pcm16",
+                voice = voice.name.lowercase(),
+                temperature = 0.7f,
+                input_audio_transcription = RealtimeEvent.Transcription(model = "whisper-1"),
+                turn_detection = RealtimeEvent.TurnDetection(
+                    type = "server_vad",
+                    prefix_padding_ms = 300,
+                    silence_duration_ms = 200,
+                    threshold = 0.5f
+                ),
+                instructions = instructions
+            )).encodeToString().also {
+                Log.i("speech", "Send $it")
+                wsend(it)
+            }
+            RealtimeEvent.ConversationItemCreated
             launch {
                 val readBufSizeShorts = audioRecord.bufferSizeInFrames / 10 // should hold 100 ms
                 val readBuf = ShortArray(readBufSizeShorts)
@@ -303,24 +308,20 @@ class OpenAI {
                     }
                     byteBuf.asShortBuffer().put(readBuf, 0, readSize)
                     val audioBase64 = Base64.encodeToString(byteBuf.array(), 0, byteBuf.limit(), Base64.NO_WRAP)
-                    wsend("""
-                        {
-                            "type": "input_audio_buffer.append",
-                            "audio": "$audioBase64"
-                        }
-                        """.trimIndent())
+                    RealtimeEvent.AudioBufferAppend(audioBase64).encodeToString().also {
+                        wsend(it)
+                    }
                 }
             }
-            val json = Json { ignoreUnknownKeys = true }
             for (frame in incoming) {
                 when (frame) {
                     is Frame.Text -> {
                         val text = frame.readText()
-                        val event = json.decodeFromString<RealtimeEvent>(text)
+                        val event = jsonCodec.decodeFromString<RealtimeEvent>(text)
                         when (event) {
                             is RealtimeEvent.ResponseAudioDelta -> {
                                 val data = Base64.decode(event.delta, Base64.DEFAULT)
-                                ExoplayerWebsocketDsFactory().addData(data)
+                                dsFac.addData(data)
                             }
                             else -> {
                                 Log.i("speech", "event: $event")
@@ -527,6 +528,9 @@ class OpenAI {
 
     @Serializable
     sealed class RealtimeEvent {
+
+        fun encodeToString() = Json.encodeToString(serializer(), this)
+
         @Serializable
         @SerialName("error")
         data class Error(val error: JsonObject) : RealtimeEvent()
@@ -534,6 +538,10 @@ class OpenAI {
         @Serializable
         @SerialName("session.created")
         data class SessionCreated(val session: Session) : RealtimeEvent()
+
+        @Serializable
+        @SerialName("session.update")
+        data class SessionUpdate(val session: Session) : RealtimeEvent()
 
         @Serializable
         @SerialName("session.updated")
@@ -545,9 +553,9 @@ class OpenAI {
             val voice: String,
             val input_audio_format: String,
             val output_audio_format: String,
-            val turn_detection: TurnDetection,
-            val temperature: Float,
+            val turn_detection: TurnDetection?,
             val input_audio_transcription: Transcription?,
+            val temperature: Float,
             val instructions: String,
         )
 
@@ -569,6 +577,10 @@ class OpenAI {
         data class ConversationUpdated(val conversation: JsonObject) : RealtimeEvent()
 
         @Serializable
+        @SerialName("input_audio_buffer.append")
+        data class AudioBufferAppend(val audio: String) : RealtimeEvent()
+
+        @Serializable
         @SerialName("input_audio_buffer.speech_started")
         data class SpeechStarted(val audio_start_ms: Int) : RealtimeEvent()
 
@@ -579,6 +591,10 @@ class OpenAI {
         @Serializable
         @SerialName("input_audio_buffer.committed")
         data class AudioBufferCommitted(val previous_item_id: String?) : RealtimeEvent()
+
+        @Serializable
+        @SerialName("conversation.item.create")
+        data class ConversationItemCreate(val item: JsonObject) : RealtimeEvent()
 
         @Serializable
         @SerialName("conversation.item.created")
