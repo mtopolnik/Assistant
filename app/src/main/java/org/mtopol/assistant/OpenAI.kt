@@ -258,19 +258,22 @@ class OpenAI {
     }
 
     @OptIn(UnstableApi::class)
-    suspend fun realtime(audioRecord: AudioRecord, exoPlayer: ExoPlayer) {
-        val voice = ALLOY
+    suspend fun realtime(selectedVoice: Voice, audioRecord: AudioRecord, exoPlayer: ExoPlayer) {
+        val voice = selectedVoice.takeIf { it == ALLOY || it == ECHO || it == SHIMMER } ?: ALLOY
         apiClient.webSocket({
             method = HttpMethod.Get
             url(scheme = "wss", host = "api.openai.com", path = "v1/realtime?model=${AiModel.GPT_4O_REALTIME.apiId}")
             header("OpenAI-Beta", "realtime=v1")
         }) {
             val dsFac = ExoplayerWebsocketDsFactory()
-            exoPlayer.addMediaSource(
-                ProgressiveMediaSource.Factory(dsFac, ExoplayerPcmExtractorsFactory(24000))
-                    .setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(0))
-                    .createMediaSource(MediaItem.fromUri(Uri.EMPTY))
-            )
+            val mediaFactory = ProgressiveMediaSource.Factory(dsFac, ExoplayerPcmExtractorsFactory(24000))
+                .setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(0))
+
+            fun addMediaSource() {
+                exoPlayer.addMediaSource(mediaFactory.createMediaSource(MediaItem.fromUri(Uri.EMPTY)))
+            }
+            addMediaSource()
+
             RealtimeEvent.SessionUpdate(RealtimeEvent.Session(
                 modalities = arrayOf("audio", "text"),
                 input_audio_format = "pcm16",
@@ -309,8 +312,20 @@ class OpenAI {
                         val event = jsonCodec.decodeFromString<RealtimeEvent>(text)
                         when (event) {
                             is RealtimeEvent.ResponseAudioDelta -> {
+                                Log.i("speech", "ResponseAudioDelta")
+                                exoPlayer.play()
                                 val data = Base64.decode(event.delta, Base64.DEFAULT)
                                 dsFac.addData(data)
+                            }
+                            is RealtimeEvent.SpeechStarted -> {
+                                Log.i("speech", "SpeechStarted")
+                                exoPlayer.apply {
+                                    pause()
+                                    dsFac.reset()
+                                    clearMediaItems()
+                                    addMediaSource()
+                                    prepare()
+                                }
                             }
                             else -> {
                                 Log.i("speech", "event: $event")

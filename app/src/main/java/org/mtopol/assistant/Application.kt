@@ -437,6 +437,12 @@ class ExoplayerWebsocketDsFactory : DataSource.Factory {
         }
     }
 
+    fun reset() {
+        synchronized(bos) {
+            bos.reset()
+        }
+    }
+
     override fun createDataSource() = object : DataSource {
 
         override fun open(dataSpec: DataSpec): Long {

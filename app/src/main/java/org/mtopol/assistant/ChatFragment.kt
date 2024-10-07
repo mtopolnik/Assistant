@@ -148,8 +148,6 @@ private const val REPLY_VIEW_UPDATE_PERIOD_MILLIS = 100L
 private const val CHATS_MENUITEM_ID_BASE = 1000
 
 private const val BUFFER_MS = 50_000
-private const val START_PLAYBACK_WHEN_BUFFERED_MS = 250
-private const val AFTER_UNDERRUN_REBUFFER_MS = 500
 
 private val sentenceDelimiterRegex = """(?<=\D[.!]['"]?)\s+|(?<=\d[.!]'?)\s+(?=\p{Lu})|(?<=.[;?]'?)\s+|\n+""".toRegex()
 private val speechImprovementRegex = """ ?[()] ?""".toRegex()
@@ -1016,7 +1014,7 @@ class ChatFragment : Fragment(), MenuProvider {
     private suspend fun speakWithOpenAi(sentenceFlow: Flow<String>) {
         var lastValidVoice = appContext.mainPrefs.selectedVoice
         var amplifier: LoudnessEnhancer? = null
-        val exoPlayer = exoPlayer().apply {
+        val exoPlayer = exoPlayer(250).apply {
                 addListener(object : Player.Listener {
                     override fun onPlaybackStateChanged(state: Int) {
                         if (state != Player.STATE_ENDED && amplifier == null) {
@@ -1096,7 +1094,7 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun exoPlayer() = ExoPlayer.Builder(appContext)
+    private fun exoPlayer(startPlaybackWhenBufferedMs: Int) = ExoPlayer.Builder(appContext)
         .setAudioAttributes(
             AudioAttributes.Builder()
                 .setUsage(C.USAGE_ASSISTANT)
@@ -1105,7 +1103,7 @@ class ChatFragment : Fragment(), MenuProvider {
         )
         .setLoadControl(
             DefaultLoadControl.Builder()
-                .setBufferDurationsMs(BUFFER_MS, BUFFER_MS, START_PLAYBACK_WHEN_BUFFERED_MS, AFTER_UNDERRUN_REBUFFER_MS)
+                .setBufferDurationsMs(BUFFER_MS, BUFFER_MS, startPlaybackWhenBufferedMs, 2 * startPlaybackWhenBufferedMs)
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build()
         )
@@ -1262,7 +1260,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
         vmodel.realtimeJob?.cancel()
         vmodel.realtimeJob = vmodel.viewModelScope.launch {
-            val exoPlayer = exoPlayer()
+            val exoPlayer = exoPlayer(50)
             val samplingRate = 24000
             //               = (16-bit sample) * (samples per second)
             val bufSizeBytes = 2 * samplingRate
@@ -1283,7 +1281,7 @@ class ChatFragment : Fragment(), MenuProvider {
                     it.binding.showRecordingGlow()
                     it.binding.recordingGlow.setVolume(1.0f)
                 }
-                openAi.realtime(audioRecord, exoPlayer)
+                openAi.realtime(appContext.mainPrefs.selectedVoice, audioRecord, exoPlayer)
             } finally {
                 vibrate()
                 audioRecord.apply { stop(); release() }
