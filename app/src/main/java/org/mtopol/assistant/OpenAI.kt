@@ -271,11 +271,6 @@ class OpenAI {
                     .setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(0))
                     .createMediaSource(MediaItem.fromUri(Uri.EMPTY))
             )
-            val instructions = "Your knowledge cutoff is 2023-10. You are a helpful, witty, and friendly AI." +
-                    " Act like a human, but remember that you aren't a human and that you can't do human" +
-                    " things in the real world. Your voice and personality should be warm and engaging," +
-                    " with a lively and playful tone. If interacting in a non-English language, start by" +
-                    " using the standard accent or dialect familiar to the user. Talk quickly."
             RealtimeEvent.SessionUpdate(RealtimeEvent.Session(
                 modalities = arrayOf("audio", "text"),
                 input_audio_format = "pcm16",
@@ -283,7 +278,7 @@ class OpenAI {
                 voice = voice.name.lowercase(),
                 temperature = 0.7f,
                 input_audio_transcription = RealtimeEvent.Transcription(model = "whisper-1"),
-                instructions = instructions
+                instructions = appContext.getString(R.string.realtime_instructions)
             )).encodeToString().also {
                 Log.i("speech", "Send $it")
                 wsend(it)
