@@ -1263,12 +1263,18 @@ class ChatFragment : Fragment(), MenuProvider {
         vmodel.realtimeJob?.cancel()
         vmodel.realtimeJob = vmodel.viewModelScope.launch {
             val exoPlayer = exoPlayer()
-            val samplingRate = 24000;
-            //                       = (16-bit sample) * (samples per second)
-            val recorderBufSizeBytes = 2 * samplingRate
-            val audioRecord = AudioRecord(MediaRecorder.AudioSource.MIC,
-                samplingRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, recorderBufSizeBytes
-            )
+            val samplingRate = 24000
+            //               = (16-bit sample) * (samples per second)
+            val bufSizeBytes = 2 * samplingRate
+            val audioRecord = AudioRecord.Builder()
+                .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
+                .setAudioFormat(AudioFormat.Builder()
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(samplingRate)
+                    .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
+                    .build())
+                .setBufferSizeInBytes(bufSizeBytes)
+                .build()
             try {
                 exoPlayer.apply { prepare(); play() }
                 audioRecord.startRecording()
