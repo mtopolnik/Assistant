@@ -78,6 +78,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -552,7 +553,9 @@ class OpenAI {
         data class SessionUpdated(val session: Session) : RealtimeEvent()
 
         @Serializable
-        data class Session(
+        data class Session 
+        @kotlin.OptIn(ExperimentalSerializationApi::class)
+        constructor(
             val modalities: Array<String>,
             val voice: String,
             val input_audio_format: String,
