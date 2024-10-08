@@ -360,12 +360,25 @@ class ChatFragment : Fragment(), MenuProvider {
                 animationStyle = android.R.style.Animation_Toast
             }
 
+            private val realtimeHintView =
+                inflater.inflate(R.layout.record_button_hint, null).also { realtimeHintView ->
+                    MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED).also {
+                        realtimeHintView.measure(it, it)
+                    }
+                    realtimeHintView.findViewById<TextView>(R.id.tooltip_text).text =
+                        appContext.getString(R.string.hold_for_entire_convo)
+                }
+            private val realtimeHintWindow = PopupWindow(realtimeHintView, WRAP_CONTENT, WRAP_CONTENT).apply {
+                animationStyle = android.R.style.Animation_Toast
+            }
+
             override fun onTouch(view: View?, event: MotionEvent): Boolean {
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
                         recordButtonPressTime = System.currentTimeMillis()
                         if (appContext.mainPrefs.selectedModel == AiModel.GPT_4O_REALTIME) {
                             startRealtimeSession()
+                            showRealtimeHint()
                         } else {
                             startRecordingPrompt()
                         }
@@ -399,6 +412,20 @@ class ChatFragment : Fragment(), MenuProvider {
                     }
                 }
                 return false
+            }
+
+            private fun showRealtimeHint() {
+                if (realtimeHintWindow.isShowing) {
+                    return
+                }
+                realtimeHintWindow.showAsDropDown(
+                    recordButton,
+                    ((recordButton.width - realtimeHintView.measuredWidth) / 2).coerceAtLeast(0),
+                    -(recordButton.height + realtimeHintView.measuredHeight + 600)
+                )
+                recordButton.postDelayed(RECORD_HINT_DURATION_MILLIS) {
+                    realtimeHintWindow.dismiss()
+                }
             }
 
             private fun showRecordingHint() {

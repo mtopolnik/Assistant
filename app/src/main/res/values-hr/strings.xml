@@ -92,6 +92,7 @@
     <string name="add_language">Dodaj jezik</string>
     <string name="drag_to_reorder">Povuci da premjestiš</string>
     <string name="press_and_hold_while_talking">Stisni i drži dok pričaš</string>
+    <string name="hold_for_entire_convo">Drži kroz cijeli razgovor</string>
     <string name="submenu_voice">Glas</string>
     <string name="submenu_chats">Razgovori</string>
     <string name="voice_builtin">ugrađeni</string>

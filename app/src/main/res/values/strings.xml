@@ -98,6 +98,7 @@
     <string name="add_language">Add language</string>
     <string name="drag_to_reorder">Drag to reorder</string>
     <string name="press_and_hold_while_talking">Press and hold while talking</string>
+    <string name="hold_for_entire_convo">Hold for the entire conversation</string>
     <string name="submenu_voice">Voice</string>
     <string name="submenu_chats">Chats</string>
     <string name="voice_builtin">built-in</string>
