@@ -76,7 +76,7 @@ class OpenAiKey(val text: String) {
     fun allowsGpt4() = allowsGptMini() && !text.isGptMiniOnlyKey()
     fun allowsTts() = allowsGpt4() && !text.isGptOnlyKey()
     fun allowsArtist() = text.isImageGenKey()
-    fun allowsRealtime() = allowsArtist()
+    fun allowsRealtime() = allowsGpt4() && !text.isRtDisabledKey()
 
     override fun toString() = text
 }
@@ -128,7 +128,15 @@ private fun String.isImageGenKey() = setContainsHashMemoized(this, IMAGE_KEY_HAS
 private val keyToIsImageGen = ConcurrentHashMap<String, Boolean>()
 private val IMAGE_KEY_HASHES = hashSetOf(
     "WlYejPDJf0ba5LefiDKy2gqb4PeXKIO36iejO7y5NuE=",
+    "YPrJZ6ypdiqNcLciJBqpZ6FTAFdcLwbsb9yi7g0u0/s="
 )
+
+private fun String.isRtDisabledKey() = setContainsHashMemoized(this, RT_DISABLED_KEY_HASHES, keyToIsDisabledRt)
+private val keyToIsDisabledRt = ConcurrentHashMap<String, Boolean>()
+private val RT_DISABLED_KEY_HASHES = hashSetOf(
+    "WlYejPDJf0ba5LefiDKy2gqb4PeXKIO36iejO7y5NuE=",
+)
+
 
 private fun setContainsHashMemoized(key: String, set: Set<String>, cache: MutableMap<String, Boolean>): Boolean {
     cache[key]?.also {
@@ -140,7 +148,7 @@ private fun setContainsHashMemoized(key: String, set: Set<String>, cache: Mutabl
     }
 }
 
-private fun apiKeyHash(apiKey: String): String =
+ fun apiKeyHash(apiKey: String): String =
     apiKey.toByteArray(Charsets.UTF_8).let {
         MessageDigest.getInstance("SHA-256").digest(it)
     }.let {
