@@ -375,11 +375,11 @@ class ChatFragment : Fragment(), MenuProvider {
             override fun onTouch(view: View?, event: MotionEvent): Boolean {
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
-                        recordButtonPressTime = System.currentTimeMillis()
                         if (appContext.mainPrefs.selectedModel == AiModel.GPT_4O_REALTIME) {
                             startRealtimeSession()
                             showRealtimeHint()
                         } else {
+                            recordButtonPressTime = System.currentTimeMillis()
                             startRecordingPrompt()
                         }
                         return true
@@ -388,6 +388,7 @@ class ChatFragment : Fragment(), MenuProvider {
                     MotionEvent.ACTION_UP -> {
                         vmodel.realtimeJob?.also {
                             it.cancel()
+                            vmodel.realtimeJob = null
                             return true
                         }
                         if (System.currentTimeMillis() - recordButtonPressTime < MIN_HOLD_RECORD_BUTTON_MILLIS) {
