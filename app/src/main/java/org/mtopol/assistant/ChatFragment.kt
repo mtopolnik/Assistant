@@ -129,6 +129,7 @@ import org.mtopol.assistant.MessageType.RESPONSE
 import org.mtopol.assistant.databinding.FragmentChatBinding
 import java.io.File
 import java.util.*
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.Result.Companion.failure
 import kotlin.Result.Companion.success
@@ -210,8 +211,9 @@ class ChatFragment : Fragment(), MenuProvider {
     private lateinit var voiceMenuItem: MenuItem
     private lateinit var chatsMenuItem: MenuItem
 
-    private var recordButtonPressTime = 0L
+    private var _recordButtonPressTime = 0L
     private var _mediaRecorder: MediaRecorder? = null
+    private var _audioRecord: AudioRecord? = null
 
     private val permissionRequest =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -376,22 +378,27 @@ class ChatFragment : Fragment(), MenuProvider {
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
                         if (appContext.mainPrefs.selectedModel == AiModel.GPT_4O_REALTIME) {
-                            startRealtimeSession()
-                            showRealtimeHint()
+                            if (vmodel.realtimeJob == null) {
+                                startRealtimeSession()
+                                showRealtimeHint()
+                            } else {
+                                _audioRecord?.startRecording()
+                                showRealtimeGlow()
+                            }
                         } else {
-                            recordButtonPressTime = System.currentTimeMillis()
+                            _recordButtonPressTime = System.currentTimeMillis()
                             startRecordingPrompt()
                         }
                         return true
                     }
 
                     MotionEvent.ACTION_UP -> {
-                        vmodel.realtimeJob?.also {
-                            it.cancel()
-                            vmodel.realtimeJob = null
+                        if (vmodel.realtimeJob != null) {
+                            _audioRecord?.stop()
+                            hideRealtimeGlow()
                             return true
                         }
-                        if (System.currentTimeMillis() - recordButtonPressTime < MIN_HOLD_RECORD_BUTTON_MILLIS) {
+                        if (System.currentTimeMillis() - _recordButtonPressTime < MIN_HOLD_RECORD_BUTTON_MILLIS) {
                             showRecordingHint()
                             return true
                         }
@@ -568,6 +575,7 @@ class ChatFragment : Fragment(), MenuProvider {
                             setSelectedModel(wallet.supportedModels[nextIndex])
                         }
                         updateText()
+                        stopRealtimeSession()
                     }
                 }
         }
@@ -1300,22 +1308,40 @@ class ChatFragment : Fragment(), MenuProvider {
                     .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
                     .build())
                 .setBufferSizeInBytes(bufSizeBytes)
-                .build()
+                .build().also {
+                    _audioRecord = it
+                }
             try {
                 exoPlayer.apply { prepare(); play() }
                 audioRecord.startRecording()
-                vibrate()
-                vmodel.withFragment {
-                    it.binding.showRecordingGlow()
-                    it.binding.recordingGlow.setVolume(1.0f)
-                }
+                showRealtimeGlow()
                 openAi.realtime(appContext.mainPrefs.selectedVoice, audioRecord, exoPlayer)
             } finally {
-                vibrate()
+                _audioRecord = null
                 audioRecord.apply { stop(); release() }
                 exoPlayer.apply { stop(); release() }
-                vmodel.withFragment { it.binding.recordingGlow.visibility = INVISIBLE }
+                hideRealtimeGlow()
             }
+        }
+    }
+
+    private fun showRealtimeGlow() {
+        vibrate()
+        vmodel.withFragment {
+            it.binding.showRecordingGlow()
+            it.binding.recordingGlow.setVolume(1.0f)
+        }
+    }
+
+    private fun hideRealtimeGlow() {
+        vibrate()
+        vmodel.withFragment { it.binding.recordingGlow.visibility = INVISIBLE }
+    }
+
+    private fun stopRealtimeSession() {
+        vmodel.realtimeJob?.also {
+            it.cancel()
+            vmodel.realtimeJob = null
         }
     }
 

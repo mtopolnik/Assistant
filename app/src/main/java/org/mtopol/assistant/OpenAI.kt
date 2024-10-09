@@ -259,7 +259,11 @@ class OpenAI {
     }
 
     @OptIn(UnstableApi::class)
-    suspend fun realtime(selectedVoice: Voice, audioRecord: AudioRecord, exoPlayer: ExoPlayer) {
+    suspend fun realtime(
+        selectedVoice: Voice,
+        audioRecord: AudioRecord,
+        exoPlayer: ExoPlayer
+    ) {
         val voice = selectedVoice.takeIf { it == ALLOY || it == ECHO || it == SHIMMER } ?: ALLOY
         apiClient.webSocket({
             method = HttpMethod.Get
@@ -274,37 +278,57 @@ class OpenAI {
                 exoPlayer.addMediaSource(mediaFactory.createMediaSource(MediaItem.fromUri(Uri.EMPTY)))
             }
             addMediaSource()
-
-            RealtimeEvent.SessionUpdate(RealtimeEvent.Session(
-                modalities = arrayOf("audio", "text"),
-                input_audio_format = "pcm16",
-                output_audio_format = "pcm16",
-                voice = voice.name.lowercase(),
-                temperature = 0.7f,
-                input_audio_transcription = RealtimeEvent.Transcription(model = "whisper-1"),
-                instructions = appContext.getString(R.string.realtime_instructions)
-            )).encodeToString().also {
-                Log.i("speech", "Send $it")
+            """
+            {
+                "type":"session.update",
+                "session":{"modalities":["audio","text"],
+                "voice":"${voice.name.lowercase()}",
+                "input_audio_format":"pcm16",
+                "output_audio_format":"pcm16",
+                "input_audio_transcription":{"model":"whisper-1"},
+                "turn_detection": null,
+                "temperature":0.7,
+                "instructions":"${appContext.getString(R.string.realtime_instructions)}"}
+            }
+            """.trimIndent().also {
+                Log.i("session", "Send $it")
                 wsend(it)
             }
             launch {
                 val readBufSizeShorts = audioRecord.bufferSizeInFrames / 10 // should hold 100 ms
                 val readBuf = ShortArray(readBufSizeShorts)
                 val byteBuf = ByteBuffer.allocate(2 * readBufSizeShorts).order(ByteOrder.LITTLE_ENDIAN)
+                var someAudioSentAfterCommit = false
                 while (true) {
                     val readSize = withContext(Dispatchers.IO) {
                         audioRecord.read(readBuf, 0, readBufSizeShorts, AudioRecord.READ_BLOCKING)
                     }
-                    if (readSize <= 0) {
+                    if (readSize < 0) {
                         Log.e("speech", "Voice recording error, readSize = $readSize")
                         break
                     }
-                    byteBuf.asShortBuffer().put(readBuf, 0, readSize)
-                    val audioBase64 = Base64.encodeToString(byteBuf.array(), 0, byteBuf.limit(), Base64.NO_WRAP)
-                    RealtimeEvent.AudioBufferAppend(audioBase64).encodeToString().also {
-                        wsend(it)
+                    if (readSize > 0) {
+                        byteBuf.asShortBuffer().put(readBuf, 0, readSize)
+                        val audioBase64 = Base64.encodeToString(byteBuf.array(), 0, byteBuf.limit(), Base64.NO_WRAP)
+                        Log.i("speech", "Send audio")
+                        if (someAudioSentAfterCommit) {
+                            wsend("""{ "type": "response.cancel" }""".trimIndent())
+                        }
+                        RealtimeEvent.AudioBufferAppend(audioBase64).encodeToString().also {
+                            wsend(it)
+                        }
+                        someAudioSentAfterCommit = true
+                    } else {
+                        if (someAudioSentAfterCommit) {
+                            wsend("""{ "type": "input_audio_buffer.commit" }""".trimIndent())
+                            wsend("""{ "type": "response.create" }""".trimIndent())
+                            someAudioSentAfterCommit = false
+                        } else {
+                            delay(50)
+                        }
                     }
                 }
+                Log.i("speech", "Done sending audio")
             }
             for (frame in incoming) {
                 when (frame) {
@@ -338,6 +362,7 @@ class OpenAI {
                     }
                 }
             }
+            Log.i("speech", "Websocket done")
         }
     }
 
