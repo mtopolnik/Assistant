@@ -70,7 +70,6 @@ import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -429,17 +428,26 @@ suspend fun pushThroughDecoder(
 
 @OptIn(UnstableApi::class)
 class ExoplayerWebsocketDsFactory : DataSource.Factory {
-    private val bos = ByteArrayOutputStream()
+    private var byteBuf = ByteBuffer.allocate(65536)
 
     fun addData(data: ByteArray) {
-        synchronized(bos) {
-            bos.write(data)
+        synchronized(byteBuf) {
+            if (byteBuf.remaining() < data.size) {
+                val newSize = byteBuf.capacity() + data.size
+                Log.w("speech", "Expanding bytebuf to $newSize bytes")
+                byteBuf.flip()
+                ByteBuffer.allocate(newSize).also { newBuf ->
+                    newBuf.put(byteBuf)
+                    byteBuf = newBuf
+                }
+            }
+            byteBuf.put(data)
         }
     }
 
     fun reset() {
-        synchronized(bos) {
-            bos.reset()
+        synchronized(byteBuf) {
+            byteBuf.clear()
         }
     }
 
@@ -450,16 +458,18 @@ class ExoplayerWebsocketDsFactory : DataSource.Factory {
         }
 
         override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
-            synchronized(bos) {
-                val available = bos.size()
+            synchronized(byteBuf) {
+                byteBuf.flip()
+                val available = byteBuf.remaining()
                 if (available == 0) {
+                    byteBuf.clear()
                     return 0
                 }
                 val bytesToRead = minOf(available, length)
-                val bosBytes = bos.toByteArray()
-                System.arraycopy(bosBytes, 0, buffer, offset, bytesToRead)
-                bos.reset()
-                bos.write(bosBytes, bytesToRead, available - bytesToRead)
+                byteBuf.apply {
+                    get(buffer, offset, bytesToRead)
+                    compact()
+                }
                 return bytesToRead
             }
         }
