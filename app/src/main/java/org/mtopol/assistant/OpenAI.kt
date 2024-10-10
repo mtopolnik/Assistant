@@ -64,6 +64,7 @@ import io.ktor.utils.io.core.writeFully
 import io.ktor.utils.io.readUTF8Line
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
+import kotlinx.coroutines.CancellationException
 import io.ktor.websocket.send as wsend
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Dispatchers.Main
@@ -352,6 +353,8 @@ class OpenAI {
                             }
                         }
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     Log.e("speech", "Error in send coroutine", e)
                 } finally {

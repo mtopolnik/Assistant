@@ -362,32 +362,19 @@ class ChatFragment : Fragment(), MenuProvider {
                 animationStyle = android.R.style.Animation_Toast
             }
 
-            private val realtimeHintView =
-                inflater.inflate(R.layout.record_button_hint, null).also { realtimeHintView ->
-                    MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED).also {
-                        realtimeHintView.measure(it, it)
-                    }
-                    realtimeHintView.findViewById<TextView>(R.id.tooltip_text).text =
-                        appContext.getString(R.string.hold_for_entire_convo)
-                }
-            private val realtimeHintWindow = PopupWindow(realtimeHintView, WRAP_CONTENT, WRAP_CONTENT).apply {
-                animationStyle = android.R.style.Animation_Toast
-            }
-
             override fun onTouch(view: View?, event: MotionEvent): Boolean {
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
-                        if (appContext.mainPrefs.selectedModel == AiModel.GPT_4O_REALTIME) {
-                            if (vmodel.realtimeJob == null) {
-                                startRealtimeSession()
-                                showRealtimeHint()
-                            } else {
-                                _audioRecord?.startRecording()
-                                showRealtimeGlow()
-                            }
-                        } else {
-                            _recordButtonPressTime = System.currentTimeMillis()
+                        _recordButtonPressTime = System.currentTimeMillis()
+                        if (appContext.mainPrefs.selectedModel != AiModel.GPT_4O_REALTIME) {
                             startRecordingPrompt()
+                            return true
+                        }
+                        if (vmodel.realtimeJob == null) {
+                            startRealtimeSession()
+                        } else {
+                            _audioRecord?.startRecording()
+                            showRealtimeGlow()
                         }
                         return true
                     }
@@ -420,20 +407,6 @@ class ChatFragment : Fragment(), MenuProvider {
                     }
                 }
                 return false
-            }
-
-            private fun showRealtimeHint() {
-                if (realtimeHintWindow.isShowing) {
-                    return
-                }
-                realtimeHintWindow.showAsDropDown(
-                    recordButton,
-                    ((recordButton.width - realtimeHintView.measuredWidth) / 2).coerceAtLeast(0),
-                    -(recordButton.height + realtimeHintView.measuredHeight + 600)
-                )
-                recordButton.postDelayed(RECORD_HINT_DURATION_MILLIS) {
-                    realtimeHintWindow.dismiss()
-                }
             }
 
             private fun showRecordingHint() {
@@ -1751,12 +1724,15 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun newChat() {
         Log.i("chats", "newChat() chatId ${vmodel.chatId} chatIds ${chatHandles()}")
-        vmodel.handleResponseJob?.cancel()
+        vmodel.apply {
+            handleResponseJob?.cancel()
+            chatId = lastChatId()
+            chatContent.clear()
+        }
+        stopRealtimeSession()
         binding.edittextPrompt.editableText.clear()
         activity?.invalidateOptionsMenu()
-        vmodel.chatId = lastChatId()
         binding.viewChat.removeAllViews()
-        vmodel.chatContent.clear()
         Log.i("chats", "newChat done, chatId ${vmodel.chatId} chatIds ${chatHandles()}")
     }
 
