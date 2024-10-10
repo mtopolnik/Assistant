@@ -1287,7 +1287,6 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun startRealtimeSession() {
         val activity = requireActivity() as MainActivity
-        val lastValidVoice = appContext.mainPrefs.selectedVoice
         // don't extract to fun, IDE inspection for permission checks will complain
         if (checkSelfPermission(activity, permission.RECORD_AUDIO) != PERMISSION_GRANTED) {
             permissionRequest.launch(arrayOf(permission.RECORD_AUDIO, permission.WRITE_EXTERNAL_STORAGE))
@@ -1312,7 +1311,6 @@ class ChatFragment : Fragment(), MenuProvider {
                     _audioRecord = it
                 }
             try {
-                exoPlayer.apply { prepare(); play() }
                 audioRecord.startRecording()
                 showRealtimeGlow()
                 openAi.realtime(appContext.mainPrefs.selectedVoice, audioRecord, exoPlayer)

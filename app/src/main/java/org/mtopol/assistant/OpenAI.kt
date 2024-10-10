@@ -66,6 +66,7 @@ import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
 import io.ktor.websocket.send as wsend
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
@@ -93,6 +94,7 @@ import java.io.FileOutputStream
 import java.io.InputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.atomic.AtomicBoolean
 
 val openAi get() = openAiLazy.value
 
@@ -270,6 +272,15 @@ class OpenAI {
             url(scheme = "wss", host = "api.openai.com", path = "v1/realtime?model=${AiModel.GPT_4O_REALTIME.apiId}")
             header("OpenAI-Beta", "realtime=v1")
         }) {
+
+            suspend fun sendWs(msg: String) {
+                wsend(msg)
+                val logEvent =
+                    if (msg.contains("input_audio_buffer.append")) msg.substring(0, 50.coerceAtMost(msg.length))
+                    else msg
+                Log.i("speech", "Send ${logEvent}")
+            }
+
             val dsFac = ExoplayerWebsocketDsFactory()
             val mediaFactory = ProgressiveMediaSource.Factory(dsFac, ExoplayerPcmExtractorsFactory(24000))
                 .setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(0))
@@ -277,58 +288,75 @@ class OpenAI {
             fun addMediaSource() {
                 exoPlayer.addMediaSource(mediaFactory.createMediaSource(MediaItem.fromUri(Uri.EMPTY)))
             }
-            addMediaSource()
-            """
-            {
-                "type":"session.update",
-                "session":{"modalities":["audio","text"],
-                "voice":"${voice.name.lowercase()}",
-                "input_audio_format":"pcm16",
-                "output_audio_format":"pcm16",
-                "input_audio_transcription":{"model":"whisper-1"},
-                "turn_detection": null,
-                "temperature":0.7,
-                "instructions":"${appContext.getString(R.string.realtime_instructions)}"}
-            }
-            """.trimIndent().also {
-                Log.i("session", "Send $it")
-                wsend(it)
-            }
-            launch {
-                val readBufSizeShorts = audioRecord.bufferSizeInFrames / 10 // should hold 100 ms
-                val readBuf = ShortArray(readBufSizeShorts)
-                val byteBuf = ByteBuffer.allocate(2 * readBufSizeShorts).order(ByteOrder.LITTLE_ENDIAN)
-                var someAudioSentAfterCommit = false
-                while (true) {
-                    val readSize = withContext(Dispatchers.IO) {
-                        audioRecord.read(readBuf, 0, readBufSizeShorts, AudioRecord.READ_BLOCKING)
-                    }
-                    if (readSize < 0) {
-                        Log.e("speech", "Voice recording error, readSize = $readSize")
-                        break
-                    }
-                    if (readSize > 0) {
-                        byteBuf.asShortBuffer().put(readBuf, 0, readSize)
-                        val audioBase64 = Base64.encodeToString(byteBuf.array(), 0, byteBuf.limit(), Base64.NO_WRAP)
-                        Log.i("speech", "Send audio")
-                        if (someAudioSentAfterCommit) {
-                            wsend("""{ "type": "response.cancel" }""".trimIndent())
-                        }
-                        RealtimeEvent.AudioBufferAppend(audioBase64).encodeToString().also {
-                            wsend(it)
-                        }
-                        someAudioSentAfterCommit = true
-                    } else {
-                        if (someAudioSentAfterCommit) {
-                            wsend("""{ "type": "input_audio_buffer.commit" }""".trimIndent())
-                            wsend("""{ "type": "response.create" }""".trimIndent())
-                            someAudioSentAfterCommit = false
-                        } else {
-                            delay(50)
-                        }
-                    }
+            sendWs("""
+                {
+                    "type":"session.update",
+                    "session":{"modalities":["audio","text"],
+                    "voice":"${voice.name.lowercase()}",
+                    "input_audio_format":"pcm16",
+                    "output_audio_format":"pcm16",
+                    "input_audio_transcription":{"model":"whisper-1"},
+                    "turn_detection": null,
+                    "temperature":0.7,
+                    "instructions":"${appContext.getString(R.string.realtime_instructions)}"}
                 }
-                Log.i("speech", "Done sending audio")
+            """.trimIndent())
+            val responseInProgress = AtomicBoolean()
+            launch {
+                try {
+                    val readBufSizeShorts = audioRecord.bufferSizeInFrames / 10 // should hold 100 ms
+                    val readBuf = ShortArray(readBufSizeShorts)
+                    val byteBuf = ByteBuffer.allocate(2 * readBufSizeShorts).order(ByteOrder.LITTLE_ENDIAN)
+                    var promptInProgress = false
+                    while (true) {
+                        val readSize = withContext(Dispatchers.IO) {
+                            audioRecord.read(readBuf, 0, readBufSizeShorts, AudioRecord.READ_BLOCKING)
+                        }
+                        if (readSize < 0) {
+                            Log.e("speech", "Voice recording error, readSize = $readSize")
+                            break
+                        }
+                        if (readSize > 0) {
+                            Log.i("speech", "Audio read")
+                            if (responseInProgress.get() && !promptInProgress) {
+                                Log.i("speech", "Cancel Response")
+                                sendWs("""{ "type": "response.cancel" }""".trimIndent())
+                                responseInProgress.set(false)
+                            }
+                            if (!promptInProgress) {
+                                promptInProgress = true
+                                Log.i("speech", "Prompt now in progress, reset ExoPlayer")
+                                withContext(Main) {
+                                    exoPlayer.apply {
+                                        pause()
+                                        dsFac.reset()
+                                        clearMediaItems()
+                                        addMediaSource()
+                                        prepare()
+                                    }
+                                }
+                            }
+                            byteBuf.asShortBuffer().put(readBuf, 0, readSize)
+                            val audioBase64 = Base64.encodeToString(byteBuf.array(), 0, byteBuf.limit(), Base64.NO_WRAP)
+                            RealtimeEvent.AudioBufferAppend(audioBase64).encodeToString().also {
+                                sendWs(it)
+                            }
+                        } else {
+                            if (promptInProgress) {
+                                promptInProgress = false
+                                sendWs("""{ "type": "input_audio_buffer.commit" }""".trimIndent())
+                                sendWs("""{ "type": "response.create" }""".trimIndent())
+                                responseInProgress.set(true)
+                            } else {
+                                delay(50)
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("speech", "Error in send coroutine", e)
+                } finally {
+                    Log.i("speech", "Done sending audio")
+                }
             }
             for (frame in incoming) {
                 when (frame) {
@@ -337,23 +365,19 @@ class OpenAI {
                         val event = jsonCodec.decodeFromString<RealtimeEvent>(text)
                         when (event) {
                             is RealtimeEvent.ResponseAudioDelta -> {
-                                Log.i("speech", "ResponseAudioDelta")
-                                exoPlayer.play()
-                                val data = Base64.decode(event.delta, Base64.DEFAULT)
-                                dsFac.addData(data)
-                            }
-                            is RealtimeEvent.SpeechStarted -> {
-                                Log.i("speech", "SpeechStarted")
-                                exoPlayer.apply {
-                                    pause()
-                                    dsFac.reset()
-                                    clearMediaItems()
-                                    addMediaSource()
-                                    prepare()
+                                Log.i("speech", "Received ResponseAudioDelta")
+                                if (responseInProgress.get()) {
+                                    exoPlayer.play()
+                                    val data = Base64.decode(event.delta, Base64.DEFAULT)
+                                    dsFac.addData(data)
                                 }
                             }
+                            is RealtimeEvent.ResponseDone -> {
+                                Log.i("speech", "Received ResponseDone")
+                                responseInProgress.set(false)
+                            }
                             else -> {
-                                Log.i("speech", "event: $event")
+                                Log.i("speech", "Received $event")
                             }
                         }
                     }
