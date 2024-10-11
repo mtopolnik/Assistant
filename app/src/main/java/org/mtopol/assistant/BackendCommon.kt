@@ -135,6 +135,7 @@ private fun String.isRtDisabledKey() = setContainsHashMemoized(this, RT_DISABLED
 private val keyToIsDisabledRt = ConcurrentHashMap<String, Boolean>()
 private val RT_DISABLED_KEY_HASHES = hashSetOf(
     "WlYejPDJf0ba5LefiDKy2gqb4PeXKIO36iejO7y5NuE=",
+    "Ej1/kPkeX2/5AVBalQHV+Fg/5QSo9UjK+XgDWFhOQ10="
 )
 
 
