@@ -95,6 +95,7 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.navigation.fragment.findNavController
 import com.google.android.material.button.MaterialButton
+import com.google.common.util.concurrent.AtomicDouble
 import com.google.mlkit.nl.languageid.IdentifiedLanguage
 import com.google.mlkit.nl.languageid.LanguageIdentification
 import com.google.mlkit.nl.languageid.LanguageIdentificationOptions
@@ -174,6 +175,7 @@ class ChatFragmentModel(
     var transcriptionJob: Job? = null
     var handleResponseJob: Job? = null
     var realtimeJob: Job? = null
+    val peakVolume = AtomicDouble()
     var isConnectionLive: Boolean = false
     var autoscrollEnabled: Boolean = true
 
@@ -377,7 +379,7 @@ class ChatFragment : Fragment(), MenuProvider {
                             startRealtimeSession()
                         } else {
                             _audioRecord?.startRecording()
-                            showRealtimeGlow()
+                            animateRealtimeGlow()
                         }
                         return true
                     }
@@ -1288,6 +1290,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
         val previousRealtimeJob = vmodel.realtimeJob?.apply { cancel() }
         vmodel.realtimeJob = vmodel.viewModelScope.launch {
+            animateRealtimeGlow()
             previousRealtimeJob?.join()
             vmodel.isConnectionLive = true
             vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
@@ -1309,8 +1312,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 }
             try {
                 audioRecord.startRecording()
-                showRealtimeGlow()
-                openAi.realtime(audioRecord, exoPlayer)
+                openAi.realtime(audioRecord, vmodel.peakVolume, exoPlayer)
             } finally {
                 _audioRecord = null
                 audioRecord.apply { stop(); release() }
@@ -1322,16 +1324,30 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun showRealtimeGlow() {
+    private fun animateRealtimeGlow() {
         vibrate()
-        vmodel.withFragment {
-            it.binding.showRecordingGlow()
-            it.binding.recordingGlow.setVolume(1.0f)
+        val isNewSession = !vmodel.isConnectionLive
+        vmodel.recordingGlowJob = vmodel.viewModelScope.launch {
+            vmodel.withFragment {
+                it.binding.showRecordingGlow()
+                if (isNewSession) {
+                    it.binding.recordingGlow.setVolume(1f)
+                }
+            }
+            vmodel.peakVolume.set(0.0)
+            while (true) {
+                awaitFrame()
+                val peak = vmodel.peakVolume.getAndSet(0.0).toFloat()
+                if (peak > 0.0) {
+                    vmodel.withFragment { it.binding.recordingGlow.setVolume(peak) }
+                }
+            }
         }
     }
 
     private fun hideRealtimeGlow() {
         vibrate()
+        vmodel.recordingGlowJob?.cancel()
         vmodel.withFragment { it.binding.recordingGlow.visibility = INVISIBLE }
     }
 

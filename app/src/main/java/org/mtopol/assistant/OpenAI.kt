@@ -30,6 +30,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
+import com.google.common.util.concurrent.AtomicDouble
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
@@ -92,9 +93,12 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStream
+import java.lang.Math.abs
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.math.log2
+import kotlin.math.max
 
 val openAi get() = openAiLazy.value
 
@@ -263,6 +267,7 @@ class OpenAI {
     @OptIn(UnstableApi::class)
     suspend fun realtime(
         audioRecord: AudioRecord,
+        peakVolumeGlobal: AtomicDouble,
         exoPlayer: ExoPlayer
     ) {
         apiClient.webSocket({
@@ -306,11 +311,15 @@ class OpenAI {
                 try {
                     val readBufSizeShorts = audioRecord.bufferSizeInFrames / 10 // should hold 100 ms
                     val readBuf = ShortArray(readBufSizeShorts)
+                    var readBufPos = 0
                     val sendBuf = ByteBuffer.allocate(2 * readBufSizeShorts).order(ByteOrder.LITTLE_ENDIAN)
                     var promptInProgress = false
+                    var peakVolume = 0.0
                     while (true) {
+                        val initialPos = readBufPos
+                        val readSizeLimit = (readBuf.size - readBufPos).coerceAtMost(111)
                         val readSize = withContext(Dispatchers.IO) {
-                            audioRecord.read(readBuf, 0, readBufSizeShorts, AudioRecord.READ_BLOCKING)
+                            audioRecord.read(readBuf, readBufPos, readSizeLimit, AudioRecord.READ_BLOCKING)
                         }
                         if (readSize < 0) {
                             Log.e("speech", "Voice recording error, readSize = $readSize")
@@ -326,7 +335,20 @@ class OpenAI {
                             }
                             continue
                         }
-                        Log.i("speech", "Audio read")
+                        readBufPos += readSize
+                        val thisIterPeak = (initialPos ..< readBufPos)
+                            .map { abs(readBuf[it].toInt()) }
+                            .fold(0, ::max)
+                            .toDouble()
+                            .let { log2(it) / 15 }
+                            .coerceAtLeast(0.0)
+                        peakVolume = max(peakVolume, thisIterPeak)
+                        if (peakVolumeGlobal.compareAndSet(0.0, peakVolume)) {
+                            peakVolume = 0.0
+                        }
+                        if (readBufPos < readBuf.size && readSize == readSizeLimit) {
+                            continue
+                        }
                         if (!promptInProgress) {
                             promptInProgress = true
                             Log.i("speech", "Prompt now in progress, reset ExoPlayer")
@@ -357,7 +379,8 @@ class OpenAI {
                                 responseId.set(null)
                             }
                         }
-                        sendBuf.asShortBuffer().put(readBuf, 0, readSize)
+                        sendBuf.asShortBuffer().put(readBuf, 0, readBufPos)
+                        readBufPos = 0
                         val audioBase64 = Base64.encodeToString(sendBuf.array(), 0, sendBuf.limit(), Base64.NO_WRAP)
                         RealtimeEvent.AudioBufferAppend(audioBase64).encodeToString().also {
                             sendWs(it)
