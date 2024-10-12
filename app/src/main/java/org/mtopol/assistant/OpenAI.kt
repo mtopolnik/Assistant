@@ -87,7 +87,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.encodeToJsonElement
-import org.mtopol.assistant.Voice.*
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileInputStream
@@ -266,7 +265,6 @@ class OpenAI {
         audioRecord: AudioRecord,
         exoPlayer: ExoPlayer
     ) {
-        val voice = appContext.mainPrefs.selectedVoice.takeIf { it == ALLOY || it == ECHO || it == SHIMMER } ?: ALLOY
         apiClient.webSocket({
             method = HttpMethod.Get
             url(scheme = "wss", host = "api.openai.com", path = "v1/realtime?model=${AiModel.GPT_4O_REALTIME.apiId}")
@@ -292,13 +290,13 @@ class OpenAI {
                 {
                     "type":"session.update",
                     "session":{"modalities":["audio","text"],
-                    "voice":"${voice.name.lowercase()}",
                     "input_audio_format":"pcm16",
                     "output_audio_format":"pcm16",
                     "input_audio_transcription":{"model":"whisper-1"},
                     "turn_detection": null,
                     "temperature":0.7,
                     "instructions":"${appContext.getString(R.string.realtime_instructions)}"}
+                        "voice": "${appContext.mainPrefs.selectedRtVoice.name.lowercase()}",
                 }
             """.trimIndent())
             val responseId = AtomicReference<String>(null)

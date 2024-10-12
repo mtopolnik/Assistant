@@ -193,7 +193,11 @@ enum class MessageType {
 enum class Voice(val itemId: Int) {
     BUILT_IN(R.id.voice_builtin),
     ALLOY(R.id.voice_alloy), ECHO(R.id.voice_echo), FABLE(R.id.voice_fable),
-    NOVA(R.id.voice_nova), ONYX(R.id.voice_onyx), SHIMMER(R.id.voice_shimmer)
+    NOVA(R.id.voice_nova), ONYX(R.id.voice_onyx), SHIMMER(R.id.voice_shimmer);
+
+    companion object {
+        val REALTIME_ITEM_IDS = listOf(ALLOY, ECHO, SHIMMER).map { it.itemId }.toSet()
+    }
 }
 
 @SuppressLint("ClickableViewAccessibility")
@@ -507,6 +511,7 @@ class ChatFragment : Fragment(), MenuProvider {
         menu.clear()
         menuInflater.inflate(R.menu.menu_main, menu)
         applyAccessRules(menu)
+        setupVoiceMenu()
         updateMuteItem(menu.findItem(R.id.action_toggle_sound))
     }
 
@@ -526,9 +531,7 @@ class ChatFragment : Fragment(), MenuProvider {
             }
             wallet.supportedModels.also { models ->
                 if (models.isNotEmpty() && mainPrefs.selectedModel !in models) {
-                    mainPrefs.applyUpdate {
-                        setSelectedModel(models[0])
-                    }
+                    updateSelectedModel(models[0])
                 }
             }
             binding.viewDrawer.menu.apply {
@@ -543,18 +546,30 @@ class ChatFragment : Fragment(), MenuProvider {
                     setOnClickListener {
                         val currIndex = wallet.supportedModels.indexOf(mainPrefs.selectedModel)
                         val nextIndex = (currIndex + 1) % wallet.supportedModels.size
-                        mainPrefs.applyUpdate {
-                            setSelectedModel(wallet.supportedModels[nextIndex])
-                        }
+                        updateSelectedModel(wallet.supportedModels[nextIndex])
                         updateText()
                         stopRealtimeSession()
                     }
                 }
         }
-        mainPrefs.selectedVoice.itemId.also { selectedVoiceItemId ->
-            for (item in voiceMenuItem.subMenu!!.children) {
-                item.setChecked(item.itemId == selectedVoiceItemId)
-            }
+    }
+
+    private fun updateSelectedModel(model: AiModel) {
+        appContext.mainPrefs.applyUpdate { setSelectedModel(model) }
+        setupVoiceMenu()
+    }
+
+    private fun setupVoiceMenu() {
+        val mainPrefs = appContext.mainPrefs
+        val rtSelected = mainPrefs.selectedModel == AiModel.GPT_4O_REALTIME
+        val selectedVoice =
+            if (rtSelected) mainPrefs.selectedRtVoice
+            else mainPrefs.selectedVoice
+        for (item in voiceMenuItem.subMenu!!.children) {
+            item.setVisible(!rtSelected || item.itemId in Voice.REALTIME_ITEM_IDS)
+        }
+        for (item in voiceMenuItem.subMenu!!.children) {
+            item.setChecked(item.itemId == selectedVoice.itemId)
         }
     }
 
@@ -633,8 +648,13 @@ class ChatFragment : Fragment(), MenuProvider {
             for (item in voiceMenuItem.subMenu!!.children) {
                 item.setChecked(item.itemId == itemId)
             }
+            val selectedVoice = Voice.entries.first { it.itemId == itemId }
             mainPrefs.applyUpdate {
-                setSelectedVoice(Voice.entries.first { it.itemId == itemId })
+                if (mainPrefs.selectedModel == AiModel.GPT_4O_REALTIME) {
+                    setSelectedRtVoice(selectedVoice)
+                } else {
+                    setSelectedVoice(selectedVoice)
+                }
             }
         }
 

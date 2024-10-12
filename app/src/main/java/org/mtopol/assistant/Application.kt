@@ -89,6 +89,7 @@ private const val KEY_IS_MUTED = "is_muted"
 private const val KEY_IS_SEND_AUDIO_PROMPT = "is_send_audio_prompt"
 private const val KEY_SELECTED_MODEL = "selected_model"
 private const val KEY_SELECTED_VOICE = "selected_voice"
+private const val KEY_SELECTED_RT_VOICE = "selected_rt_voice"
 
 lateinit var appContext: Context
 lateinit var imageCache: File
@@ -208,6 +209,13 @@ val SharedPreferences.selectedVoice: Voice get() =
 
 fun SharedPreferences.Editor.setSelectedVoice(value: Voice): SharedPreferences.Editor =
     putString(KEY_SELECTED_VOICE, value.name)
+
+val SharedPreferences.selectedRtVoice: Voice get() =
+    getString(KEY_SELECTED_RT_VOICE, Voice.ALLOY.name).let { Voice.valueOf(it!!)
+}
+
+fun SharedPreferences.Editor.setSelectedRtVoice(value: Voice): SharedPreferences.Editor =
+    putString(KEY_SELECTED_RT_VOICE, value.name)
 
 fun SharedPreferences.configuredLanguages(): List<String> =
     getStringSet(KEY_LANGUAGES, null)?.let {
