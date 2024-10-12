@@ -373,7 +373,7 @@ class ChatFragment : Fragment(), MenuProvider {
                             startRecordingPrompt()
                             return true
                         }
-                        if (vmodel.realtimeJob == null) {
+                        if (!vmodel.isConnectionLive) {
                             startRealtimeSession()
                         } else {
                             _audioRecord?.startRecording()
@@ -612,6 +612,7 @@ class ChatFragment : Fragment(), MenuProvider {
             }
             R.id.action_cancel -> {
                 vmodel.handleResponseJob?.cancel()
+                vmodel.realtimeJob?.cancel()
                 true
             }
             R.id.action_undo -> {
@@ -1285,8 +1286,12 @@ class ChatFragment : Fragment(), MenuProvider {
             return
         }
 
-        vmodel.realtimeJob?.cancel()
+        val previousRealtimeJob = vmodel.realtimeJob?.apply { cancel() }
         vmodel.realtimeJob = vmodel.viewModelScope.launch {
+            previousRealtimeJob?.join()
+            vmodel.isConnectionLive = true
+            vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
+
             val exoPlayer = exoPlayer(50)
             val samplingRate = 24000
             //               = (16-bit sample) * (samples per second)
@@ -1311,6 +1316,8 @@ class ChatFragment : Fragment(), MenuProvider {
                 audioRecord.apply { stop(); release() }
                 exoPlayer.apply { stop(); release() }
                 hideRealtimeGlow()
+                vmodel.isConnectionLive = false
+                vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
             }
         }
     }
