@@ -96,6 +96,7 @@ import java.io.InputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 val openAi get() = openAiLazy.value
 
@@ -263,11 +264,10 @@ class OpenAI {
 
     @OptIn(UnstableApi::class)
     suspend fun realtime(
-        selectedVoice: Voice,
         audioRecord: AudioRecord,
         exoPlayer: ExoPlayer
     ) {
-        val voice = selectedVoice.takeIf { it == ALLOY || it == ECHO || it == SHIMMER } ?: ALLOY
+        val voice = appContext.mainPrefs.selectedVoice.takeIf { it == ALLOY || it == ECHO || it == SHIMMER } ?: ALLOY
         apiClient.webSocket({
             method = HttpMethod.Get
             url(scheme = "wss", host = "api.openai.com", path = "v1/realtime?model=${AiModel.GPT_4O_REALTIME.apiId}")
@@ -302,12 +302,12 @@ class OpenAI {
                     "instructions":"${appContext.getString(R.string.realtime_instructions)}"}
                 }
             """.trimIndent())
-            val responseInProgress = AtomicBoolean()
+            val responseId = AtomicReference<String>(null)
             launch {
                 try {
                     val readBufSizeShorts = audioRecord.bufferSizeInFrames / 10 // should hold 100 ms
                     val readBuf = ShortArray(readBufSizeShorts)
-                    val byteBuf = ByteBuffer.allocate(2 * readBufSizeShorts).order(ByteOrder.LITTLE_ENDIAN)
+                    val sendBuf = ByteBuffer.allocate(2 * readBufSizeShorts).order(ByteOrder.LITTLE_ENDIAN)
                     var promptInProgress = false
                     while (true) {
                         val readSize = withContext(Dispatchers.IO) {
@@ -317,40 +317,51 @@ class OpenAI {
                             Log.e("speech", "Voice recording error, readSize = $readSize")
                             break
                         }
-                        if (readSize > 0) {
-                            Log.i("speech", "Audio read")
-                            if (responseInProgress.get() && !promptInProgress) {
-                                Log.i("speech", "Cancel Response")
-                                sendWs("""{ "type": "response.cancel" }""".trimIndent())
-                                responseInProgress.set(false)
-                            }
-                            if (!promptInProgress) {
-                                promptInProgress = true
-                                Log.i("speech", "Prompt now in progress, reset ExoPlayer")
-                                withContext(Main) {
-                                    exoPlayer.apply {
-                                        pause()
-                                        dsFac.reset()
-                                        clearMediaItems()
-                                        addMediaSource()
-                                        prepare()
-                                    }
-                                }
-                            }
-                            byteBuf.asShortBuffer().put(readBuf, 0, readSize)
-                            val audioBase64 = Base64.encodeToString(byteBuf.array(), 0, byteBuf.limit(), Base64.NO_WRAP)
-                            RealtimeEvent.AudioBufferAppend(audioBase64).encodeToString().also {
-                                sendWs(it)
-                            }
-                        } else {
+                        if (readSize == 0) {
                             if (promptInProgress) {
                                 promptInProgress = false
                                 sendWs("""{ "type": "input_audio_buffer.commit" }""".trimIndent())
                                 sendWs("""{ "type": "response.create" }""".trimIndent())
-                                responseInProgress.set(true)
                             } else {
                                 delay(50)
                             }
+                            continue
+                        }
+                        Log.i("speech", "Audio read")
+                        if (!promptInProgress) {
+                            promptInProgress = true
+                            Log.i("speech", "Prompt now in progress, reset ExoPlayer")
+                            val responseDuration = withContext(Main) {
+                                val currentPosition = exoPlayer.run {
+                                    if (isPlaying) currentPosition
+                                    else -1
+                                }
+                                exoPlayer.apply {
+                                    pause()
+                                    dsFac.reset()
+                                    clearMediaItems()
+                                    addMediaSource()
+                                    prepare()
+                                }
+                                currentPosition
+                            }
+                            responseId.get()?.also { itemId ->
+                                Log.i("speech", "Cancel Response, truncate to $responseDuration ms")
+                                if (responseDuration >= 0) {
+                                    sendWs(RealtimeEvent.ConversationItemTruncate(
+                                        item_id = itemId,
+                                        content_index = 0,
+                                        audio_end_ms = responseDuration
+                                    ).encodeToString())
+                                }
+                                sendWs("""{ "type": "response.cancel" }""")
+                                responseId.set(null)
+                            }
+                        }
+                        sendBuf.asShortBuffer().put(readBuf, 0, readSize)
+                        val audioBase64 = Base64.encodeToString(sendBuf.array(), 0, sendBuf.limit(), Base64.NO_WRAP)
+                        RealtimeEvent.AudioBufferAppend(audioBase64).encodeToString().also {
+                            sendWs(it)
                         }
                     }
                 } catch (e: CancellationException) {
@@ -366,22 +377,24 @@ class OpenAI {
                     is Frame.Text -> {
                         val text = frame.readText()
                         val event = jsonCodec.decodeFromString<RealtimeEvent>(text)
+                        Log.i("speech", "Received " +
+                                if (event is RealtimeEvent.ResponseAudioDelta) "ResponseAudioDelta"
+                                else event.toString()
+                        )
                         when (event) {
                             is RealtimeEvent.ResponseAudioDelta -> {
-                                Log.i("speech", "Received ResponseAudioDelta")
-                                if (responseInProgress.get()) {
-                                    exoPlayer.play()
+                                if (responseId.get() != null) {
                                     val data = Base64.decode(event.delta, Base64.DEFAULT)
                                     dsFac.addData(data)
+                                    exoPlayer.play()
                                 }
                             }
-                            is RealtimeEvent.ResponseDone -> {
-                                Log.i("speech", "Received ResponseDone")
-                                responseInProgress.set(false)
+                            is RealtimeEvent.ConversationItemCreated -> {
+                                if (event.item.role == "assistant") {
+                                    responseId.set(event.item.id)
+                                }
                             }
-                            else -> {
-                                Log.i("speech", "Received $event")
-                            }
+                            else -> {}
                         }
                     }
                     else -> {
@@ -583,10 +596,32 @@ class OpenAI {
         val model: String,
     )
 
+
     @Serializable
     sealed class RealtimeEvent {
 
         fun encodeToString() = Json.encodeToString(serializer(), this)
+
+        // Client events
+
+        @Serializable
+        @SerialName("input_audio_buffer.append")
+        data class AudioBufferAppend(val audio: String) : RealtimeEvent()
+
+        @Serializable
+        @SerialName("conversation.item.create")
+        data class ConversationItemCreate(val item: JsonObject) : RealtimeEvent()
+
+        @Serializable
+        @SerialName("conversation.item.truncate")
+        data class ConversationItemTruncate(
+            val item_id: String,
+            val content_index: Int,
+            val audio_end_ms: Long
+        ) : RealtimeEvent()
+
+
+        // Server events
 
         @Serializable
         @SerialName("error")
@@ -595,10 +630,6 @@ class OpenAI {
         @Serializable
         @SerialName("session.created")
         data class SessionCreated(val session: Session) : RealtimeEvent()
-
-        @Serializable
-        @SerialName("session.update")
-        data class SessionUpdate(val session: Session) : RealtimeEvent()
 
         @Serializable
         @SerialName("session.updated")
@@ -638,10 +669,6 @@ class OpenAI {
         data class ConversationUpdated(val conversation: JsonObject) : RealtimeEvent()
 
         @Serializable
-        @SerialName("input_audio_buffer.append")
-        data class AudioBufferAppend(val audio: String) : RealtimeEvent()
-
-        @Serializable
         @SerialName("input_audio_buffer.speech_started")
         data class SpeechStarted(val audio_start_ms: Int) : RealtimeEvent()
 
@@ -654,12 +681,18 @@ class OpenAI {
         data class AudioBufferCommitted(val previous_item_id: String?) : RealtimeEvent()
 
         @Serializable
-        @SerialName("conversation.item.create")
-        data class ConversationItemCreate(val item: JsonObject) : RealtimeEvent()
+        @SerialName("conversation.item.created")
+        data class ConversationItemCreated(val item: RealtimeItem) : RealtimeEvent()
 
         @Serializable
-        @SerialName("conversation.item.created")
-        data class ConversationItemCreated(val item: JsonObject) : RealtimeEvent()
+        @SerialName("conversation.item.truncated")
+        data class ConversationItemTruncated(val item_id: String) : RealtimeEvent()
+
+        @Serializable
+        data class RealtimeItem(
+            val id: String,
+            val role: String
+        )
 
         @Serializable
         @SerialName("conversation.item.input_audio_transcription.completed")
