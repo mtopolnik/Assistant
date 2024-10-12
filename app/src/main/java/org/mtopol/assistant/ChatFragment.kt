@@ -1286,7 +1286,7 @@ class ChatFragment : Fragment(), MenuProvider {
             try {
                 audioRecord.startRecording()
                 showRealtimeGlow()
-                openAi.realtime(appContext.mainPrefs.selectedVoice, audioRecord, exoPlayer)
+                openAi.realtime(audioRecord, exoPlayer)
             } finally {
                 _audioRecord = null
                 audioRecord.apply { stop(); release() }
