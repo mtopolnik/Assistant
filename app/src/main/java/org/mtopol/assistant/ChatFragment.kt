@@ -129,7 +129,6 @@ import org.mtopol.assistant.MessageType.RESPONSE
 import org.mtopol.assistant.databinding.FragmentChatBinding
 import java.io.File
 import java.util.*
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.Result.Companion.failure
 import kotlin.Result.Companion.success
@@ -173,8 +172,8 @@ class ChatFragmentModel(
 
     var recordingGlowJob: Job? = null
     var transcriptionJob: Job? = null
-    var realtimeJob: Job? = null
     var handleResponseJob: Job? = null
+    var realtimeJob: Job? = null
     var isResponding: Boolean = false
     var autoscrollEnabled: Boolean = true
 
@@ -217,8 +216,8 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private val permissionRequest =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
-            if (it.isNotEmpty()) Log.i("", "User granted us the requested permissions")
-            else Log.w("", "User did not grant us the requested permissions")
+            if (it.isNotEmpty()) Log.i("permissions", "User granted us the requested permissions")
+            else Log.w("permissions", "User did not grant us the requested permissions")
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
