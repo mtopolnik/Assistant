@@ -288,15 +288,17 @@ class OpenAI {
             }
             sendWs("""
                 {
-                    "type":"session.update",
-                    "session":{"modalities":["audio","text"],
-                    "input_audio_format":"pcm16",
-                    "output_audio_format":"pcm16",
-                    "input_audio_transcription":{"model":"whisper-1"},
-                    "turn_detection": null,
-                    "temperature":0.7,
-                    "instructions":"${appContext.getString(R.string.realtime_instructions)}"}
+                    "type": "session.update",
+                    "session": {
+                        "modalities":["audio","text"],
                         "voice": "${appContext.mainPrefs.selectedRtVoice.name.lowercase()}",
+                        "input_audio_format": "pcm16",
+                        "output_audio_format": "pcm16",
+                        "input_audio_transcription": { "model": "whisper-1" },
+                        "turn_detection": null,
+                        "temperature": 0.7,
+                        "instructions": "${appContext.getString(R.string.realtime_instructions)}"
+                    }
                 }
             """.trimIndent())
             val responseId = AtomicReference<String>(null)
