@@ -174,7 +174,7 @@ class ChatFragmentModel(
     var transcriptionJob: Job? = null
     var handleResponseJob: Job? = null
     var realtimeJob: Job? = null
-    var isResponding: Boolean = false
+    var isConnectionLive: Boolean = false
     var autoscrollEnabled: Boolean = true
 
     @SuppressLint("StaticFieldLeak")
@@ -575,7 +575,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
     override fun onPrepareMenu(menu: Menu) {
         Log.i("lifecycle", "onPrepareMenu")
-        val responding = vmodel.isResponding
+        val responding = vmodel.isConnectionLive
         val hasContent = vmodel.chatContent.isNotEmpty()
         menu.findItem(R.id.action_cancel).isVisible = responding
         menu.findItem(R.id.action_undo).isVisible = !responding
@@ -895,7 +895,7 @@ class ChatFragment : Fragment(), MenuProvider {
             } catch (e: Exception) {
                 Log.e("lifecycle", "Error in receiveResponseJob", e)
             } finally {
-                vmodel.isResponding = false
+                vmodel.isConnectionLive = false
                 vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
             }
         }
@@ -903,7 +903,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun prepareNewExchange(context: Context, finalPart: PromptPart): Exchange {
         getChatHandle(vmodel.chatId)!!.isDirty = true
-        vmodel.isResponding = true
+        vmodel.isConnectionLive = true
         vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
         vmodel.autoscrollEnabled = true
         binding.scrollviewChat.post { scrollToBottom() }
@@ -1023,7 +1023,7 @@ class ChatFragment : Fragment(), MenuProvider {
             } catch (e: Exception) {
                 Log.e("lifecycle", "Error in receiveResponseJob", e)
             } finally {
-                vmodel.isResponding = false
+                vmodel.isConnectionLive = false
                 vmodel.replyTextView = null
                 vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
             }
@@ -1263,7 +1263,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private suspend fun speakLastResponse() {
         val response = vmodel.chatContent.lastOrNull()?.replyText?.toString() ?: return
-        vmodel.isResponding = true
+        vmodel.isConnectionLive = true
         vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
         try {
             if (appContext.mainPrefs.selectedVoice == Voice.BUILT_IN) {
@@ -1272,7 +1272,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 speakWithOpenAi(flowOf(response))
             }
         } finally {
-            vmodel.isResponding = false
+            vmodel.isConnectionLive = false
             vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
         }
     }
@@ -1507,7 +1507,7 @@ class ChatFragment : Fragment(), MenuProvider {
                             exchange.replyMarkdown = replyMarkdown.toString()
                             addTextResponseToView(fragment.requireContext(), exchange)
                         }
-                        vmodel.isResponding = false
+                        vmodel.isConnectionLive = false
                         onLayoutScrollToBottom()
                     }
                 }
