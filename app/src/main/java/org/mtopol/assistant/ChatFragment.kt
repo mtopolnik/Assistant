@@ -1208,8 +1208,8 @@ class ChatFragment : Fragment(), MenuProvider {
             }
             val exoPlayer = exoPlayer(120_000, 50)
             val sampleRate = REALTIME_RECORD_SAMPLE_RATE
-            val recBufSizeBytes = sampleRate * 2
-            //                   = (size of buffer in seconds) * (samples per second) * (bytes in a 16-bit sample)
+            val recBufSizeBytes = sampleRate * 2 // one second of 16-bit samples
+            //                   = (seconds) * (samples per second) * (bytes in a 16-bit sample)
             val sendBufSizeBytes = 5 * sampleRate * 2
             val audioRecord = AudioRecord.Builder()
                 .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
