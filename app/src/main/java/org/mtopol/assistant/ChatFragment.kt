@@ -1421,7 +1421,6 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    @SuppressLint("Recycle")
     private fun animateRecordingGlow() {
         val previousRecordingGlowJob = vmodel.recordingGlowJob?.apply { cancel() }
         vmodel.recordingGlowJob = vmodel.viewModelScope.launch {
