@@ -251,6 +251,7 @@ class ChatFragment : Fragment(), MenuProvider {
     override fun onDestroy() {
         super.onDestroy()
         Log.i("lifecycle", "onDestroy ChatFragment")
+        stopRealtimeSession()
     }
 
     @OptIn(DelicateCoroutinesApi::class)
