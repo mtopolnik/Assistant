@@ -1303,19 +1303,9 @@ class ChatFragment : Fragment(), MenuProvider {
         return suspendCancellableCoroutine { continuation: Continuation<File> ->
             val utteranceFile = File(appContext.externalCacheDir, "utterance-$utteranceId.wav")
             setOnUtteranceProgressListener(
-                UtteranceContinuationListener(
-                    utteranceId,
-                    continuation,
-                    utteranceFile
-                )
+                UtteranceContinuationListener(utteranceId, continuation, utteranceFile)
             )
-            if (synthesizeToFile(
-                    sentence,
-                    Bundle(),
-                    utteranceFile,
-                    utteranceId
-                ) == TextToSpeech.ERROR
-            ) {
+            if (synthesizeToFile(sentence, Bundle(), utteranceFile, utteranceId) == TextToSpeech.ERROR) {
                 continuation.resumeWith(failure(Exception("synthesizeToFile() failed to enqueue its request")))
             }
         }
@@ -1398,6 +1388,20 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
+    private fun FragmentChatBinding.showRecordingGlow() {
+        recordingGlow.apply {
+            alignWithView(buttonRecord)
+            visibility = VISIBLE
+        }
+    }
+
+    private fun CoroutineScope.cleanupRecordingGlowJob() {
+        if (vmodel.recordingGlowJob == coroutineContext[Job]!!) {
+            vmodel.withFragment { it.binding.recordingGlow.visibility = INVISIBLE }
+            vmodel.recordingGlowJob = null
+        }
+    }
+
     private fun animatePromptGlow() {
         val previousRecordingGlowJob = vmodel.recordingGlowJob?.apply { cancel() }
         vmodel.recordingGlowJob = vmodel.viewModelScope.launch {
@@ -1458,20 +1462,6 @@ class ChatFragment : Fragment(), MenuProvider {
             } finally {
                 cleanupRecordingGlowJob()
             }
-        }
-    }
-
-    private fun FragmentChatBinding.showRecordingGlow() {
-        recordingGlow.apply {
-            alignWithView(buttonRecord)
-            visibility = VISIBLE
-        }
-    }
-
-    private fun CoroutineScope.cleanupRecordingGlowJob() {
-        if (vmodel.recordingGlowJob == coroutineContext[Job]!!) {
-            vmodel.withFragment { it.binding.recordingGlow.visibility = INVISIBLE }
-            vmodel.recordingGlowJob = null
         }
     }
 
