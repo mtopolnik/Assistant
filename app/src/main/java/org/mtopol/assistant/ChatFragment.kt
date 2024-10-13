@@ -417,7 +417,7 @@ class ChatFragment : Fragment(), MenuProvider {
             private fun showRecordingHint() {
                 vmodel.recordingGlowJob?.cancel()
                 vmodel.viewModelScope.launch {
-                    stopRecording()
+                    stopRecordingPrompt()
                 }
                 if (hintWindow.isShowing) {
                     return
@@ -765,7 +765,8 @@ class ChatFragment : Fragment(), MenuProvider {
         super.onPause()
         Log.i("lifecycle", "onPause ChatFragment")
         vmodel.recordingGlowJob?.cancel()
-        runBlocking { stopRecording() }
+        runBlocking { stopRecordingPrompt() }
+        stopRealtimeRecording()
         saveOrDeleteCurrentChat()
     }
 
@@ -1400,13 +1401,13 @@ class ChatFragment : Fragment(), MenuProvider {
             ).show()
             vmodel.recordingGlowJob?.cancel()
             lifecycleScope.launch {
-                stopRecording()
+                stopRecordingPrompt()
                 vmodel.withFragment { it.binding.buttonRecord.isEnabled = true }
             }
         }
     }
 
-    private suspend fun stopRecording(): Boolean {
+    private suspend fun stopRecordingPrompt(): Boolean {
         Log.i("recording", "stopRecording()")
         val mediaRecorder = _mediaRecorder ?: return false
         _mediaRecorder = null
@@ -1502,7 +1503,7 @@ class ChatFragment : Fragment(), MenuProvider {
         vmodel.transcriptionJob = vmodel.viewModelScope.launch {
             try {
                 previousTranscriptionJob?.join()
-                val recordingSuccess = stopRecording()
+                val recordingSuccess = stopRecordingPrompt()
                 if (!recordingSuccess) {
                     return@launch
                 }
@@ -1542,7 +1543,7 @@ class ChatFragment : Fragment(), MenuProvider {
     private fun sendAudioPrompt() {
         val recordingGlowJob = vmodel.recordingGlowJob
         vmodel.viewModelScope.launch {
-            val recordingSuccess = stopRecording()
+            val recordingSuccess = stopRecordingPrompt()
             recordingGlowJob?.cancel()
             if (!recordingSuccess) {
                 return@launch
