@@ -1044,14 +1044,14 @@ class ChatFragment : Fragment(), MenuProvider {
         var lastValidVoice = appContext.mainPrefs.selectedVoice
         var amplifier: LoudnessEnhancer? = null
         val exoPlayer = exoPlayer(50_000, 250).apply {
-                addListener(object : Player.Listener {
-                    override fun onPlaybackStateChanged(state: Int) {
-                        if (state != Player.STATE_ENDED && amplifier == null) {
-                            amplifier = LoudnessEnhancer(audioSessionId).apply { setTargetGain(200); enabled = true }
-                        }
+            addListener(object : Player.Listener {
+                override fun onPlaybackStateChanged(state: Int) {
+                    if (state != Player.STATE_ENDED && amplifier == null) {
+                        amplifier = LoudnessEnhancer(audioSessionId).apply { setTargetGain(200); enabled = true }
                     }
-                })
-            }
+                }
+            })
+        }
         val speakLatch = CompletableDeferred<Unit>()
         if (!appContext.mainPrefs.isMuted) {
             Log.i("speech", "speakLatch.complete()")
@@ -1247,11 +1247,10 @@ class ChatFragment : Fragment(), MenuProvider {
                 .setContentType(C.AUDIO_CONTENT_TYPE_SPEECH)
                 .build(), false
         )
-        .setLoadControl(
-            DefaultLoadControl.Builder()
-                .setBufferDurationsMs(maxBufferMs, maxBufferMs, startPlaybackWhenBufferedMs, 2 * startPlaybackWhenBufferedMs)
-                .setPrioritizeTimeOverSizeThresholds(true)
-                .build()
+        .setLoadControl(DefaultLoadControl.Builder()
+            .setBufferDurationsMs(maxBufferMs, maxBufferMs, startPlaybackWhenBufferedMs, 2 * startPlaybackWhenBufferedMs)
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .build()
         )
         .build()
 
