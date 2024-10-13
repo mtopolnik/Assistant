@@ -618,7 +618,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 true
             }
             R.id.action_undo -> {
-                viewScope.launch { undoLastPrompt() }
+                lifecycleScope.launch { undoLastPrompt() }
                 true
             }
             R.id.action_archive_chat -> {
@@ -1593,7 +1593,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun switchToVoice() {
         binding.edittextPrompt.editableText.clear()
-        viewScope.launch {
+        lifecycleScope.launch {
             delay(100)
             binding.apply {
                 buttonKeyboard.visibility = VISIBLE
@@ -1905,7 +1905,6 @@ class ChatFragment : Fragment(), MenuProvider {
 
     }
 
-    private val viewScope get() = viewLifecycleOwner.lifecycleScope
 
     private fun wordCount(text: String) = text.trim().split(whitespaceRegex).size
 
