@@ -29,6 +29,7 @@ import android.content.res.Configuration
 import android.graphics.PointF
 import android.media.AudioFormat
 import android.media.AudioRecord
+import android.media.AudioRecord.RECORDSTATE_RECORDING
 import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.media.audiofx.LoudnessEnhancer
@@ -95,7 +96,6 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.navigation.fragment.findNavController
 import com.google.android.material.button.MaterialButton
-import com.google.common.util.concurrent.AtomicDouble
 import com.google.mlkit.nl.languageid.IdentifiedLanguage
 import com.google.mlkit.nl.languageid.LanguageIdentification
 import com.google.mlkit.nl.languageid.LanguageIdentificationOptions
@@ -129,6 +129,8 @@ import org.mtopol.assistant.MessageType.PROMPT
 import org.mtopol.assistant.MessageType.RESPONSE
 import org.mtopol.assistant.databinding.FragmentChatBinding
 import java.io.File
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.util.*
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.Result.Companion.failure
@@ -136,10 +138,12 @@ import kotlin.Result.Companion.success
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import kotlin.math.log2
+import kotlin.math.max
 import kotlin.math.roundToLong
 
-private const val KEY_CHAT_ID = "chat-id"
+const val REALTIME_RECORD_SAMPLE_RATE = 24_000
 
+private const val KEY_CHAT_ID = "chat-id"
 private const val MAX_RECORDING_TIME_MILLIS = 300_000L
 private const val STOP_RECORDING_DELAY_MILLIS = 300L
 private const val MIN_HOLD_RECORD_BUTTON_MILLIS = 400L
@@ -173,7 +177,6 @@ class ChatFragmentModel(
     var transcriptionJob: Job? = null
     var handleResponseJob: Job? = null
     var realtimeJob: Job? = null
-    val peakVolume = AtomicDouble()
     var isConnectionLive: Boolean = false
     var autoscrollEnabled: Boolean = true
 
@@ -217,6 +220,7 @@ class ChatFragment : Fragment(), MenuProvider {
     private var _recordButtonPressTime = 0L
     private var _mediaRecorder: MediaRecorder? = null
     private var _audioRecord: AudioRecord? = null
+    private var _sendBuf: ByteBuffer? = null
 
     private val permissionRequest =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -1203,27 +1207,33 @@ class ChatFragment : Fragment(), MenuProvider {
                 }
             }
             val exoPlayer = exoPlayer(120_000, 50)
-            val samplingRate = 24000
-            //               = (16-bit sample) * (size of buffer in seconds) * (samples per second)
-            val bufSizeBytes = 2 * 5 * samplingRate
+            val sampleRate = REALTIME_RECORD_SAMPLE_RATE
+            val recBufSizeBytes = sampleRate * 2
+            //                   = (size of buffer in seconds) * (samples per second) * (bytes in a 16-bit sample)
+            val sendBufSizeBytes = 5 * sampleRate * 2
             val audioRecord = AudioRecord.Builder()
                 .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
                 .setAudioFormat(AudioFormat.Builder()
                     .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                    .setSampleRate(samplingRate)
+                    .setSampleRate(sampleRate)
                     .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
-                    .build())
-                .setBufferSizeInBytes(bufSizeBytes)
+                    .build()
+                )
+                .setBufferSizeInBytes(recBufSizeBytes)
                 .build().also {
                     _audioRecord = it
                 }
             try {
+                val sendBuf = ByteBuffer.allocate(sendBufSizeBytes).order(ByteOrder.LITTLE_ENDIAN).also {
+                    _sendBuf = it
+                }
                 startRealtimeRecording()
                 vmodel.isConnectionLive = true
-                openAi.realtime(audioRecord, vmodel.peakVolume, exoPlayer)
+                openAi.realtime(sendBuf, audioRecord, exoPlayer)
             } finally {
                 stopRealtimeRecording()
                 _audioRecord = null
+                _sendBuf = null
                 audioRecord.apply { stop(); release() }
                 exoPlayer.apply { stop(); release() }
                 activity.unlockOrientation()
@@ -1451,31 +1461,6 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun animateRealtimeGlow() {
-        vibrate()
-        val isNewSession = !vmodel.isConnectionLive
-        vmodel.recordingGlowJob = vmodel.viewModelScope.launch {
-            vmodel.withFragment {
-                it.binding.showRecordingGlow()
-                if (isNewSession) {
-                    it.binding.recordingGlow.setVolume(1f)
-                }
-            }
-            try {
-                vmodel.peakVolume.set(0.0)
-                while (true) {
-                    awaitFrame()
-                    val peak = vmodel.peakVolume.getAndSet(0.0).toFloat()
-                    if (peak > 0.0) {
-                        vmodel.withFragment { it.binding.recordingGlow.setVolume(peak) }
-                    }
-                }
-            } finally {
-                cleanupRecordingGlowJob()
-            }
-        }
-    }
-
     private fun FragmentChatBinding.showRecordingGlow() {
         recordingGlow.apply {
             alignWithView(buttonRecord)
@@ -1491,13 +1476,48 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun startRealtimeRecording() {
-        _audioRecord?.startRecording()
-        animateRealtimeGlow()
+        val audioRecord = _audioRecord ?: return
+        val sendBuf = _sendBuf ?: return
+        audioRecord.startRecording()
+        vibrate()
+        vmodel.recordingGlowJob = vmodel.viewModelScope.launch {
+            vmodel.withFragment { it.binding.showRecordingGlow() }
+            val readBufSizeShorts = audioRecord.bufferSizeInFrames / 10 // should hold 100 ms
+            val readBuf = ShortArray(readBufSizeShorts)
+            try {
+                while (true) {
+                    val readSize = audioRecord.read(readBuf, 0, readBuf.size, AudioRecord.READ_NON_BLOCKING)
+                    if (readSize == 0) {
+                        awaitFrame()
+                        continue
+                    }
+                    val peakVolume = (0 ..< readSize)
+                        .map { Math.abs(readBuf[it].toInt()) }
+                        .fold(0, ::max)
+                        .toDouble()
+                        .let { log2(it) / 15 }
+                        .coerceAtLeast(0.0)
+                        .toFloat()
+                    vmodel.withFragment { it.binding.recordingGlow.setVolume(peakVolume) }
+                    synchronized (sendBuf) {
+                        val putSizeInShorts = sendBuf.asShortBuffer().run {
+                            readSize.coerceAtMost(remaining()).also { putSize ->
+                                put(readBuf, 0, putSize)
+                            }
+                        }
+                        sendBuf.position(sendBuf.position() + 2 * putSizeInShorts)
+                    }
+                    awaitFrame()
+                }
+            } finally {
+                cleanupRecordingGlowJob()
+            }
+        }
     }
 
     private fun stopRealtimeRecording() {
         _audioRecord?.apply {
-            if (recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+            if (recordingState == RECORDSTATE_RECORDING) {
                 vibrate()
             }
             stop()
