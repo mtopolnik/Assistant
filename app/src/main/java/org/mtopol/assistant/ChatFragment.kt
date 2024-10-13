@@ -68,6 +68,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.PopupMenu
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat.checkSelfPermission
 import androidx.core.content.FileProvider
 import androidx.core.net.toFile
@@ -216,6 +217,8 @@ class ChatFragment : Fragment(), MenuProvider {
     private lateinit var drawerToggle: ActionBarDrawerToggle
     private lateinit var voiceMenuItem: MenuItem
     private lateinit var chatsMenuItem: MenuItem
+    private lateinit var chatLayoutParams: ConstraintLayout.LayoutParams
+    private lateinit var realtimeLayoutParams: ConstraintLayout.LayoutParams
 
     private var _recordButtonPressTime = 0L
     private var _mediaRecorder: MediaRecorder? = null
@@ -268,6 +271,12 @@ class ChatFragment : Fragment(), MenuProvider {
 
         binding = FragmentChatBinding.inflate(inflater, container, false)
         vmodel.withFragmentLiveData.observe(viewLifecycleOwner) { it.invoke(this) }
+        chatLayoutParams = binding.buttonRecord.layoutParams as ConstraintLayout.LayoutParams
+        realtimeLayoutParams = ConstraintLayout.LayoutParams(chatLayoutParams).apply {
+            height = 1200
+            bottomMargin = 600
+        }
+        adaptUiToSelectedModel()
         sharedImageViewModel.imgUriLiveData.observe(viewLifecycleOwner) { imgUris ->
             // We need this hack to prevent duplicate event observation:
             if (imgUris.isEmpty()) {
@@ -477,6 +486,7 @@ class ChatFragment : Fragment(), MenuProvider {
         if (appContext.mainPrefs.openaiApiKey.isBlank()) {
             switchToTyping()
         }
+
         return binding.root
     }
 
@@ -559,7 +569,18 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun updateSelectedModel(model: AiModel) {
         appContext.mainPrefs.applyUpdate { setSelectedModel(model) }
+        adaptUiToSelectedModel()
         setupVoiceMenu()
+    }
+
+    private fun adaptUiToSelectedModel() {
+        val isRealtime = isRealtimeModelSelected()
+        val sideButtonVisibility = if (isRealtime) GONE else VISIBLE
+        binding.apply {
+            buttonRecord.layoutParams = if (isRealtime) realtimeLayoutParams else chatLayoutParams
+            buttonKeyboard.visibility = sideButtonVisibility
+            buttonLanguage.visibility = sideButtonVisibility
+        }
     }
 
     private fun setupVoiceMenu() {
