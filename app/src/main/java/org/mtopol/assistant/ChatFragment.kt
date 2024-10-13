@@ -1047,7 +1047,7 @@ class ChatFragment : Fragment(), MenuProvider {
     private suspend fun speakWithOpenAi(sentenceFlow: Flow<String>) {
         var lastValidVoice = appContext.mainPrefs.selectedVoice
         var amplifier: LoudnessEnhancer? = null
-        val exoPlayer = exoPlayer(250).apply {
+        val exoPlayer = exoPlayer(50_000, 250).apply {
                 addListener(object : Player.Listener {
                     override fun onPlaybackStateChanged(state: Int) {
                         if (state != Player.STATE_ENDED && amplifier == null) {
@@ -1127,21 +1127,6 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun exoPlayer(startPlaybackWhenBufferedMs: Int) = ExoPlayer.Builder(appContext)
-        .setAudioAttributes(
-            AudioAttributes.Builder()
-                .setUsage(C.USAGE_ASSISTANT)
-                .setContentType(C.AUDIO_CONTENT_TYPE_SPEECH)
-                .build(), false
-        )
-        .setLoadControl(
-            DefaultLoadControl.Builder()
-                .setBufferDurationsMs(BUFFER_MS, BUFFER_MS, startPlaybackWhenBufferedMs, 2 * startPlaybackWhenBufferedMs)
-                .setPrioritizeTimeOverSizeThresholds(true)
-                .build()
-        )
-        .build()
-
     private suspend fun speakWithAndroidSpeech(sentenceFlow: Flow<String>) {
         coroutineScope {
             val voiceFileFlow: Flow<File> = channelFlow {
@@ -1208,6 +1193,21 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun lastMessageContainer() =
         binding.viewChat.run { getChildAt(childCount - 1) } as LinearLayout
+
+    private fun exoPlayer(maxBufferMs: Int, startPlaybackWhenBufferedMs: Int) = ExoPlayer.Builder(appContext)
+        .setAudioAttributes(
+            AudioAttributes.Builder()
+                .setUsage(C.USAGE_ASSISTANT)
+                .setContentType(C.AUDIO_CONTENT_TYPE_SPEECH)
+                .build(), false
+        )
+        .setLoadControl(
+            DefaultLoadControl.Builder()
+                .setBufferDurationsMs(maxBufferMs, maxBufferMs, startPlaybackWhenBufferedMs, 2 * startPlaybackWhenBufferedMs)
+                .setPrioritizeTimeOverSizeThresholds(true)
+                .build()
+        )
+        .build()
 
     private suspend fun MediaPlayer.play(file: File) {
         reset()
