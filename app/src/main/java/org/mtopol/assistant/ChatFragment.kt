@@ -372,7 +372,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
                         _recordButtonPressTime = System.currentTimeMillis()
-                        if (appContext.mainPrefs.selectedModel != AiModel.GPT_4O_REALTIME) {
+                        if (!isRealtimeModelSelected()) {
                             startRecordingPrompt()
                             return true
                         }
@@ -563,8 +563,8 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun setupVoiceMenu() {
+        val rtSelected = isRealtimeModelSelected()
         val mainPrefs = appContext.mainPrefs
-        val rtSelected = mainPrefs.selectedModel == AiModel.GPT_4O_REALTIME
         val selectedVoice =
             if (rtSelected) mainPrefs.selectedRtVoice
             else mainPrefs.selectedVoice
@@ -654,7 +654,7 @@ class ChatFragment : Fragment(), MenuProvider {
             }
             val selectedVoice = Voice.entries.first { it.itemId == itemId }
             mainPrefs.applyUpdate {
-                if (mainPrefs.selectedModel == AiModel.GPT_4O_REALTIME) {
+                if (isRealtimeModelSelected()) {
                     setSelectedRtVoice(selectedVoice)
                 } else {
                     setSelectedVoice(selectedVoice)
@@ -1906,6 +1906,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
     }
 
+    private fun isRealtimeModelSelected() = appContext.mainPrefs.selectedModel == AiModel.GPT_4O_REALTIME
 
     private fun wordCount(text: String) = text.trim().split(whitespaceRegex).size
 
