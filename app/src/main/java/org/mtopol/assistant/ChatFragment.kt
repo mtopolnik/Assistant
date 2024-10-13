@@ -148,8 +148,6 @@ private const val DALLE_IMAGE_DIMENSION = 512
 private const val REPLY_VIEW_UPDATE_PERIOD_MILLIS = 100L
 private const val CHATS_MENUITEM_ID_BASE = 1000
 
-private const val BUFFER_MS = 50_000
-
 private val sentenceDelimiterRegex = """(?<=\D[.!]['"]?)\s+|(?<=\d[.!]'?)\s+(?=\p{Lu})|(?<=.[;?]'?)\s+|\n+""".toRegex()
 private val speechImprovementRegex = """ ?[()] ?""".toRegex()
 private val whitespaceRegex = """\s+""".toRegex()
@@ -379,16 +377,14 @@ class ChatFragment : Fragment(), MenuProvider {
                         if (!vmodel.isConnectionLive) {
                             startRealtimeSession()
                         } else {
-                            _audioRecord?.startRecording()
-                            animateRealtimeGlow()
+                            startRealtimeRecording()
                         }
                         return true
                     }
 
                     MotionEvent.ACTION_UP -> {
-                        if (vmodel.realtimeJob != null) {
-                            _audioRecord?.stop()
-                            hideRealtimeGlow()
+                        if (isRealtimeModelSelected()) {
+                            stopRealtimeRecording()
                             return true
                         }
                         if (System.currentTimeMillis() - _recordButtonPressTime < MIN_HOLD_RECORD_BUTTON_MILLIS) {
@@ -1191,6 +1187,57 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
+    private fun startRealtimeSession() {
+        val activity = requireActivity() as MainActivity
+        if (checkSelfPermission(activity, permission.RECORD_AUDIO) != PERMISSION_GRANTED) {
+            permissionRequest.launch(arrayOf(permission.RECORD_AUDIO, permission.WRITE_EXTERNAL_STORAGE))
+            return
+        }
+
+        val previousRealtimeJob = vmodel.realtimeJob?.apply { cancel() }
+        vmodel.realtimeJob = vmodel.viewModelScope.launch {
+            previousRealtimeJob?.join()
+            vmodel.isConnectionLive = true
+            vmodel.withFragment {
+                (it.activity as MainActivity?)?.apply {
+                    lockOrientation()
+                    invalidateOptionsMenu()
+                }
+            }
+            val exoPlayer = exoPlayer(120_000, 50)
+            val samplingRate = 24000
+            //               = (16-bit sample) * (size of buffer in seconds) * (samples per second)
+            val bufSizeBytes = 2 * 5 * samplingRate
+            val audioRecord = AudioRecord.Builder()
+                .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
+                .setAudioFormat(AudioFormat.Builder()
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(samplingRate)
+                    .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
+                    .build())
+                .setBufferSizeInBytes(bufSizeBytes)
+                .build().also {
+                    _audioRecord = it
+                }
+            try {
+                startRealtimeRecording()
+                openAi.realtime(audioRecord, vmodel.peakVolume, exoPlayer)
+            } finally {
+                stopRealtimeRecording()
+                _audioRecord = null
+                audioRecord.apply { stop(); release() }
+                exoPlayer.apply { stop(); release() }
+                activity.unlockOrientation()
+                vmodel.isConnectionLive = false
+                vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
+            }
+        }
+    }
+
+    private fun stopRealtimeSession() {
+        vmodel.realtimeJob?.cancel()
+    }
+
     private fun lastMessageContainer() =
         binding.viewChat.run { getChildAt(childCount - 1) } as LinearLayout
 
@@ -1282,88 +1329,9 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun startRealtimeSession() {
-        val activity = requireActivity() as MainActivity
-        // don't extract to fun, IDE inspection for permission checks will complain
-        if (checkSelfPermission(activity, permission.RECORD_AUDIO) != PERMISSION_GRANTED) {
-            permissionRequest.launch(arrayOf(permission.RECORD_AUDIO, permission.WRITE_EXTERNAL_STORAGE))
-            return
-        }
-
-        val previousRealtimeJob = vmodel.realtimeJob?.apply { cancel() }
-        vmodel.realtimeJob = vmodel.viewModelScope.launch {
-            animateRealtimeGlow()
-            previousRealtimeJob?.join()
-            vmodel.isConnectionLive = true
-            vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
-
-            val exoPlayer = exoPlayer(50)
-            val samplingRate = 24000
-            //               = (16-bit sample) * (samples per second)
-            val bufSizeBytes = 2 * samplingRate
-            val audioRecord = AudioRecord.Builder()
-                .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
-                .setAudioFormat(AudioFormat.Builder()
-                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                    .setSampleRate(samplingRate)
-                    .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
-                    .build())
-                .setBufferSizeInBytes(bufSizeBytes)
-                .build().also {
-                    _audioRecord = it
-                }
-            try {
-                audioRecord.startRecording()
-                openAi.realtime(audioRecord, vmodel.peakVolume, exoPlayer)
-            } finally {
-                _audioRecord = null
-                audioRecord.apply { stop(); release() }
-                exoPlayer.apply { stop(); release() }
-                hideRealtimeGlow()
-                vmodel.isConnectionLive = false
-                vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
-            }
-        }
-    }
-
-    private fun animateRealtimeGlow() {
-        vibrate()
-        val isNewSession = !vmodel.isConnectionLive
-        vmodel.recordingGlowJob = vmodel.viewModelScope.launch {
-            vmodel.withFragment {
-                it.binding.showRecordingGlow()
-                if (isNewSession) {
-                    it.binding.recordingGlow.setVolume(1f)
-                }
-            }
-            vmodel.peakVolume.set(0.0)
-            while (true) {
-                awaitFrame()
-                val peak = vmodel.peakVolume.getAndSet(0.0).toFloat()
-                if (peak > 0.0) {
-                    vmodel.withFragment { it.binding.recordingGlow.setVolume(peak) }
-                }
-            }
-        }
-    }
-
-    private fun hideRealtimeGlow() {
-        vibrate()
-        vmodel.recordingGlowJob?.cancel()
-        vmodel.withFragment { it.binding.recordingGlow.visibility = INVISIBLE }
-    }
-
-    private fun stopRealtimeSession() {
-        vmodel.realtimeJob?.also {
-            it.cancel()
-            vmodel.realtimeJob = null
-        }
-    }
-
     private fun startRecordingPrompt() {
         val activity = requireActivity() as MainActivity
 
-        // don't extract to fun, IDE inspection for permission checks will complain
         if (checkSelfPermission(activity, permission.RECORD_AUDIO) != PERMISSION_GRANTED) {
             permissionRequest.launch(arrayOf(permission.RECORD_AUDIO, permission.WRITE_EXTERNAL_STORAGE))
             return
@@ -1487,6 +1455,39 @@ class ChatFragment : Fragment(), MenuProvider {
                 }
             }
         }
+    }
+
+    private fun animateRealtimeGlow() {
+        vibrate()
+        val isNewSession = !vmodel.isConnectionLive
+        vmodel.recordingGlowJob = vmodel.viewModelScope.launch {
+            vmodel.withFragment {
+                it.binding.showRecordingGlow()
+                if (isNewSession) {
+                    it.binding.recordingGlow.setVolume(1f)
+                }
+            }
+            vmodel.peakVolume.set(0.0)
+            while (true) {
+                awaitFrame()
+                val peak = vmodel.peakVolume.getAndSet(0.0).toFloat()
+                if (peak > 0.0) {
+                    vmodel.withFragment { it.binding.recordingGlow.setVolume(peak) }
+                }
+            }
+        }
+    }
+
+    private fun startRealtimeRecording() {
+        _audioRecord?.startRecording()
+        animateRealtimeGlow()
+    }
+
+    private fun stopRealtimeRecording() {
+        vibrate()
+        _audioRecord?.stop()
+        vmodel.recordingGlowJob?.cancel()
+        vmodel.withFragment { it.binding.recordingGlow.visibility = INVISIBLE }
     }
 
     private fun sendRecordedPrompt() {
