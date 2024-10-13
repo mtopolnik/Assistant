@@ -1495,8 +1495,7 @@ class ChatFragment : Fragment(), MenuProvider {
                         continue
                     }
                     val thisPeak = (0 ..< readSize)
-                        .map { Math.abs(readBuf[it].toInt()) }
-                        .fold(0, ::max)
+                        .fold(0) { acc, i -> max(acc, Math.abs(readBuf[i].toInt())) }
                         .toDouble()
                         .let { log2(it) / 15 }
                         .coerceAtLeast(0.0)
