@@ -1485,20 +1485,31 @@ class ChatFragment : Fragment(), MenuProvider {
             val readBufSizeShorts = audioRecord.bufferSizeInFrames / 10 // should hold 100 ms
             val readBuf = ShortArray(readBufSizeShorts)
             try {
+                var lastPeak = 0f
+                var lastPeakTime = 0L
+                var lastRecordingVolume: Float
                 while (true) {
+                    val frameTime = awaitFrame()
                     val readSize = audioRecord.read(readBuf, 0, readBuf.size, AudioRecord.READ_NON_BLOCKING)
                     if (readSize == 0) {
-                        awaitFrame()
                         continue
                     }
-                    val peakVolume = (0 ..< readSize)
+                    val thisPeak = (0 ..< readSize)
                         .map { Math.abs(readBuf[it].toInt()) }
                         .fold(0, ::max)
                         .toDouble()
                         .let { log2(it) / 15 }
                         .coerceAtLeast(0.0)
                         .toFloat()
-                    vmodel.withFragment { it.binding.recordingGlow.setVolume(peakVolume) }
+                    val decayingPeak = lastPeak * (1f - 2 * nanosToSeconds(frameTime - lastPeakTime))
+                    lastRecordingVolume = if (decayingPeak > thisPeak) {
+                        decayingPeak
+                    } else {
+                        lastPeak = thisPeak
+                        lastPeakTime = frameTime
+                        thisPeak
+                    }
+                    vmodel.withFragment { it.binding.recordingGlow.setVolume(lastRecordingVolume) }
                     synchronized (sendBuf) {
                         val putSizeInShorts = sendBuf.asShortBuffer().run {
                             readSize.coerceAtMost(remaining()).also { putSize ->
@@ -1507,7 +1518,6 @@ class ChatFragment : Fragment(), MenuProvider {
                         }
                         sendBuf.position(sendBuf.position() + 2 * putSizeInShorts)
                     }
-                    awaitFrame()
                 }
             } finally {
                 cleanupRecordingGlowJob()
