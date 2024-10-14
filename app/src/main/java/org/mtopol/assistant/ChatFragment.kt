@@ -217,8 +217,10 @@ class ChatFragment : Fragment(), MenuProvider {
     private lateinit var drawerToggle: ActionBarDrawerToggle
     private lateinit var voiceMenuItem: MenuItem
     private lateinit var chatsMenuItem: MenuItem
-    private lateinit var chatLayoutParams: ConstraintLayout.LayoutParams
-    private lateinit var realtimeLayoutParams: ConstraintLayout.LayoutParams
+    private lateinit var recordButtonLayoutParams_chat: ConstraintLayout.LayoutParams
+    private lateinit var recordButtonLayoutParams_realtime: ConstraintLayout.LayoutParams
+    private lateinit var promptSectionLayoutParams_chat: LinearLayout.LayoutParams
+    private lateinit var promptSectionLayoutParams_realtime: LinearLayout.LayoutParams
 
     private var _recordButtonPressTime = 0L
     private var _mediaRecorder: MediaRecorder? = null
@@ -271,12 +273,25 @@ class ChatFragment : Fragment(), MenuProvider {
 
         binding = FragmentChatBinding.inflate(inflater, container, false)
         vmodel.withFragmentLiveData.observe(viewLifecycleOwner) { it.invoke(this) }
-        chatLayoutParams = binding.buttonRecord.layoutParams as ConstraintLayout.LayoutParams
-        realtimeLayoutParams = ConstraintLayout.LayoutParams(chatLayoutParams).apply {
-            height = 1200
-            bottomMargin = 600
+        recordButtonLayoutParams_chat = binding.buttonRecord.layoutParams as ConstraintLayout.LayoutParams
+        promptSectionLayoutParams_chat = binding.promptSection.layoutParams as LinearLayout.LayoutParams
+        binding.root.requestLayout()
+        binding.root.doOnLayout {
+            val fullHeight = binding.root.height - binding.appbarLayout.height
+            val density = resources.displayMetrics.density
+            //                                         16 == 2 * padding on promptSection
+            val width = binding.promptSection.width - (16 * density).toInt()
+            recordButtonLayoutParams_realtime = ConstraintLayout.LayoutParams(recordButtonLayoutParams_chat).apply {
+                height = width
+                bottomMargin = (fullHeight - width) / 2
+            }
+            promptSectionLayoutParams_realtime = LinearLayout.LayoutParams(promptSectionLayoutParams_chat).apply {
+                height = 0
+                weight = 1f
+            }
+            adaptUiToSelectedModel()
         }
-        adaptUiToSelectedModel()
+        updateLanguageButton()
         sharedImageViewModel.imgUriLiveData.observe(viewLifecycleOwner) { imgUris ->
             // We need this hack to prevent duplicate event observation:
             if (imgUris.isEmpty()) {
@@ -451,7 +466,6 @@ class ChatFragment : Fragment(), MenuProvider {
                 else -> false
             }
         }
-        updateLanguageButton()
         binding.buttonKeyboard.onClickWithVibrate {
             switchToTyping()
             showKeyboard()
@@ -575,11 +589,13 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun adaptUiToSelectedModel() {
         val isRealtime = isRealtimeModelSelected()
-        val sideButtonVisibility = if (isRealtime) GONE else VISIBLE
+        val targetVisibility = if (isRealtime) GONE else VISIBLE
         binding.apply {
-            buttonRecord.layoutParams = if (isRealtime) realtimeLayoutParams else chatLayoutParams
-            buttonKeyboard.visibility = sideButtonVisibility
-            buttonLanguage.visibility = sideButtonVisibility
+            buttonRecord.layoutParams = if (isRealtime) recordButtonLayoutParams_realtime else recordButtonLayoutParams_chat
+            promptSection.layoutParams = if (isRealtime) promptSectionLayoutParams_realtime else promptSectionLayoutParams_chat
+            buttonKeyboard.visibility = targetVisibility
+            buttonLanguage.visibility = targetVisibility
+            scrollviewChat.visibility = targetVisibility
         }
     }
 
