@@ -41,6 +41,7 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.text.Editable
 import android.text.TextWatcher
+import android.util.DisplayMetrics
 import android.util.Log
 import android.view.GestureDetector
 import android.view.Gravity
@@ -53,6 +54,7 @@ import android.view.View
 import android.view.View.*
 import android.view.ViewGroup
 import android.view.ViewTreeObserver.OnGlobalLayoutListener
+import android.view.WindowManager
 import android.view.animation.LinearInterpolator
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
@@ -277,13 +279,19 @@ class ChatFragment : Fragment(), MenuProvider {
         promptSectionLayoutParams_chat = binding.promptSection.layoutParams as LinearLayout.LayoutParams
         binding.root.requestLayout()
         binding.root.doOnLayout {
-            val fullHeight = binding.root.height - binding.appbarLayout.height
+            val windowHeight = (requireActivity().getSystemService(Context.WINDOW_SERVICE) as WindowManager).run {
+                DisplayMetrics().let {
+                    defaultDisplay.getMetrics(it)
+                    it.heightPixels
+                }
+            }
+            val chatAreaHeight = windowHeight - binding.appbarLayout.height
             val density = resources.displayMetrics.density
             //                                         16 == 2 * padding on promptSection
             val width = binding.promptSection.width - (16 * density).toInt()
             recordButtonLayoutParams_realtime = ConstraintLayout.LayoutParams(recordButtonLayoutParams_chat).apply {
                 height = width
-                bottomMargin = (fullHeight - width) / 2
+                bottomMargin = (chatAreaHeight - width) / 2
             }
             promptSectionLayoutParams_realtime = LinearLayout.LayoutParams(promptSectionLayoutParams_chat).apply {
                 height = 0
