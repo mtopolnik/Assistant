@@ -142,6 +142,7 @@ import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import kotlin.math.log2
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToLong
 
 const val REALTIME_RECORD_SAMPLE_RATE = 24_000
@@ -279,19 +280,15 @@ class ChatFragment : Fragment(), MenuProvider {
         promptSectionLayoutParams_chat = binding.promptSection.layoutParams as LinearLayout.LayoutParams
         binding.root.requestLayout()
         binding.root.doOnLayout {
-            val windowHeight = (requireActivity().getSystemService(Context.WINDOW_SERVICE) as WindowManager).run {
-                DisplayMetrics().let {
-                    defaultDisplay.getMetrics(it)
-                    it.heightPixels
-                }
-            }
-            val chatAreaHeight = windowHeight - binding.appbarLayout.height
             val density = resources.displayMetrics.density
-            //                                         16 == 2 * padding on promptSection
-            val width = binding.promptSection.width - (16 * density).toInt()
+            val padding = (16 * density).toInt()
+            val availableHeight = binding.scrollviewChat.height + binding.promptSection.height - padding
+            val availableWidth = binding.promptSection.width - padding
+            val buttonDiameter = min(availableWidth, availableHeight)
             recordButtonLayoutParams_realtime = ConstraintLayout.LayoutParams(recordButtonLayoutParams_chat).apply {
-                height = width
-                bottomMargin = (chatAreaHeight - width) / 2
+                height = buttonDiameter
+                width = buttonDiameter
+                bottomMargin = (availableHeight - buttonDiameter) / 2
             }
             promptSectionLayoutParams_realtime = LinearLayout.LayoutParams(promptSectionLayoutParams_chat).apply {
                 height = 0
