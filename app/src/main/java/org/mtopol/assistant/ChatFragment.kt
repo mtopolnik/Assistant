@@ -164,6 +164,7 @@ private const val KEY_CHAT_ID = "chat-id"
 private const val MAX_RECORDING_TIME_MILLIS = 300_000L
 private const val STOP_RECORDING_DELAY_MILLIS = 300L
 private const val MIN_HOLD_RECORD_BUTTON_MILLIS = 400L
+private const val KEEP_REALTIME_SESSION_IN_BG_MILLIS = 1_000L
 private const val RECORD_HINT_DURATION_MILLIS = 3_000L
 private const val DALLE_IMAGE_DIMENSION = 512
 private const val REPLY_VIEW_UPDATE_PERIOD_MILLIS = 100L
@@ -194,6 +195,7 @@ class ChatFragmentModel(
     var transcriptionJob: Job? = null
     var handleResponseJob: Job? = null
     var realtimeJob: Job? = null
+    var timedCancelRealtimeJob: Job? = null
     var isConnectionLive: Boolean = false
     var autoscrollEnabled: Boolean = true
 
@@ -274,7 +276,6 @@ class ChatFragment : Fragment(), MenuProvider {
     override fun onDestroy() {
         super.onDestroy()
         Log.i("lifecycle", "onDestroy ChatFragment")
-        stopRealtimeSession()
     }
 
     @OptIn(DelicateCoroutinesApi::class)
@@ -289,6 +290,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
         binding = FragmentChatBinding.inflate(inflater, container, false)
         vmodel.withFragmentLiveData.observe(viewLifecycleOwner) { it.invoke(this) }
+        vmodel.timedCancelRealtimeJob?.cancel()
         recordButtonLayoutParams_chat = binding.buttonRecord.layoutParams as ConstraintLayout.LayoutParams
         promptSectionLayoutParams_chat = binding.promptSection.layoutParams as LinearLayout.LayoutParams
         binding.root.requestLayout()
@@ -827,6 +829,12 @@ class ChatFragment : Fragment(), MenuProvider {
         vmodel.recordingGlowJob?.cancel()
         runBlocking { stopRecordingPrompt() }
         stopRealtimeRecording()
+        if (vmodel.realtimeJob?.isActive == true) {
+            vmodel.timedCancelRealtimeJob = vmodel.viewModelScope.launch {
+                delay(KEEP_REALTIME_SESSION_IN_BG_MILLIS)
+                stopRealtimeSession()
+            }
+        }
         saveOrDeleteCurrentChat()
     }
 
@@ -1259,12 +1267,7 @@ class ChatFragment : Fragment(), MenuProvider {
         val previousRealtimeJob = vmodel.realtimeJob?.apply { cancel() }
         vmodel.realtimeJob = vmodel.viewModelScope.launch {
             previousRealtimeJob?.join()
-            vmodel.withFragment {
-                (it.activity as MainActivity?)?.apply {
-                    lockOrientation()
-                    invalidateOptionsMenu()
-                }
-            }
+            vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
             val exoPlayer = exoPlayer(120_000, 50)
             val sampleRate = REALTIME_RECORD_SAMPLE_RATE
             val recBufSizeBytes = sampleRate * 2 // one second of 16-bit samples
@@ -1531,7 +1534,10 @@ class ChatFragment : Fragment(), MenuProvider {
         audioRecord.startRecording()
         vibrate()
         vmodel.recordingGlowJob = vmodel.viewModelScope.launch {
-            vmodel.withFragment { it.binding.showRecordingGlow() }
+            vmodel.withFragment {
+                (it.activity as MainActivity?)?.lockOrientation()
+                it.binding.showRecordingGlow()
+            }
             val readBufSizeShorts = audioRecord.bufferSizeInFrames / 10 // should hold 100 ms
             val readBuf = ShortArray(readBufSizeShorts)
             try {
@@ -1570,6 +1576,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 }
             } finally {
                 cleanupRecordingGlowJob()
+                vmodel.withFragment { (it.activity as MainActivity?)?.unlockOrientation() }
             }
         }
     }
