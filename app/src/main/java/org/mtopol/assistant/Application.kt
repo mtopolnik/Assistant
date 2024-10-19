@@ -563,3 +563,10 @@ suspend fun Fragment.awaitContext(): Context {
         awaitFrame()
     }
 }
+
+fun <E> MutableList<E>.removeLastItem(): E {
+    if (isEmpty()) {
+        throw NoSuchElementException()
+    }
+    return removeAt(size - 1)
+}

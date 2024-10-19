@@ -156,6 +156,7 @@ import kotlin.math.log2
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToLong
+import androidx.annotation.OptIn as OptInAndroid
 
 const val REALTIME_RECORD_SAMPLE_RATE = 24_000
 
@@ -911,7 +912,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 // The prompt contains just text/audio and no image. Remove the prompt view.
                 binding.viewChat.apply { removeViewAt(childCount - 1) }
             }
-            vmodel.chatContent.removeLast()
+            vmodel.chatContent.removeLastItem()
         }
 
         // Put the prompt text back into the edit box
@@ -1099,7 +1100,7 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    @androidx.annotation.OptIn(UnstableApi::class)
+    @OptInAndroid(UnstableApi::class)
     private suspend fun speakWithOpenAi(sentenceFlow: Flow<String>) {
         var lastValidVoice = appContext.mainPrefs.selectedVoice
         var amplifier: LoudnessEnhancer? = null
@@ -1306,6 +1307,7 @@ class ChatFragment : Fragment(), MenuProvider {
     private fun lastMessageContainer() =
         binding.viewChat.run { getChildAt(childCount - 1) } as LinearLayout
 
+    @OptInAndroid(UnstableApi::class)
     private fun exoPlayer(maxBufferMs: Int, startPlaybackWhenBufferedMs: Int) = ExoPlayer.Builder(appContext)
         .setAudioAttributes(
             AudioAttributes.Builder()
@@ -2062,7 +2064,7 @@ data class Exchange(
     fun promptText(): CharSequence? = (promptParts.lastOrNull() as? PromptPart.Text)?.text
     fun removePromptText() {
         if (promptParts.lastOrNull() is PromptPart.Text) {
-            promptParts.removeLast()
+            promptParts.removeLastItem()
         }
     }
 }
