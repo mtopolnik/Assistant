@@ -22,9 +22,9 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.util.AttributeSet
 import android.view.View
+import com.google.android.material.button.MaterialButton
 import java.lang.IllegalArgumentException
 
-private const val MIN_GLOW_RADIUS = 25
 private const val MAX_GROW_DP = 150
 
 class RecordingGlowView(context: Context, attrs: AttributeSet) : View(context, attrs) {
@@ -32,24 +32,26 @@ class RecordingGlowView(context: Context, attrs: AttributeSet) : View(context, a
     private var centerX: Float = 0f
     private var centerY: Float = 0f
     private var glowRadius: Float = 0f
+    private var minGlowRadius: Int = 0
 
     // Temporary storage
     private val location = IntArray(2)
 
-    fun alignWithView(view: View) {
-        view.getLocationInWindow(location)
-        centerX = location[0] + view.width / 2f
-        centerY = location[1] + view.height / 2f
+    fun alignWithButton(button: MaterialButton) {
+        button.getLocationInWindow(location)
+        centerX = location[0] + button.width / 2f
+        centerY = location[1] + button.height / 2f
         this.getLocationInWindow(location)
         centerX -= location[0]
         centerY -= location[1]
+        minGlowRadius = button.iconSize * 3 / 5
     }
     
     fun setVolume(volume: Float) {
         if (volume < 0.0 || volume > 1.0) {
             throw IllegalArgumentException("Radius must be normalized to [0..1]")
         }
-        glowRadius = MIN_GLOW_RADIUS + volume * MAX_GROW_DP
+        glowRadius = minGlowRadius + (volume * MAX_GROW_DP).dp
         invalidate()
     }
 
@@ -62,7 +64,7 @@ class RecordingGlowView(context: Context, attrs: AttributeSet) : View(context, a
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        paint.strokeWidth = (glowRadius - MIN_GLOW_RADIUS).dp
-        canvas.drawCircle(centerX, centerY, (glowRadius + MIN_GLOW_RADIUS).dp / 2f, paint)
+        paint.strokeWidth = glowRadius - minGlowRadius
+        canvas.drawCircle(centerX, centerY, (glowRadius + minGlowRadius) / 2f, paint)
     }
 }

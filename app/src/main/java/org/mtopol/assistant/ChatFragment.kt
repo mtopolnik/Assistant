@@ -292,8 +292,7 @@ class ChatFragment : Fragment(), MenuProvider {
         promptSectionLayoutParams_chat = binding.promptSection.layoutParams as LinearLayout.LayoutParams
         binding.root.requestLayout()
         binding.root.doOnLayout {
-            val density = resources.displayMetrics.density
-            val padding = (16 * density).toInt()
+            val padding = 16.dp
             val availableHeight = binding.scrollviewChat.height + binding.promptSection.height - padding
             val availableWidth = binding.promptSection.width - padding
             val buttonDiameter = min(availableWidth, availableHeight)
@@ -608,11 +607,14 @@ class ChatFragment : Fragment(), MenuProvider {
         val isRealtime = isRealtimeModelSelected()
         val targetVisibility = if (isRealtime) GONE else VISIBLE
         binding.apply {
-            buttonRecord.layoutParams = if (isRealtime) recordButtonLayoutParams_realtime else recordButtonLayoutParams_chat
+            val buttParams = (if (isRealtime) recordButtonLayoutParams_realtime else recordButtonLayoutParams_chat)
+            buttonRecord.layoutParams = buttParams
             promptSection.layoutParams = if (isRealtime) promptSectionLayoutParams_realtime else promptSectionLayoutParams_chat
             buttonKeyboard.visibility = targetVisibility
             buttonLanguage.visibility = targetVisibility
             scrollviewChat.visibility = targetVisibility
+            val buttHeight = buttParams.height
+            buttonRecord.iconSize = if (isRealtime) buttHeight / 3 else buttHeight * 3 / 5
         }
     }
 
@@ -1444,7 +1446,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun FragmentChatBinding.showRecordingGlow() {
         recordingGlow.apply {
-            alignWithView(buttonRecord)
+            alignWithButton(buttonRecord)
             visibility = VISIBLE
         }
     }

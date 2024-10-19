@@ -117,7 +117,7 @@
                             app:backgroundTint="@color/keyboard_button"
                             android:contentDescription="@string/keyboard" />
 
-                    <Button
+                    <com.google.android.material.button.MaterialButton
                             android:id="@+id/button_record"
                             android:layout_width="0dp"
                             android:layout_height="58dp"
