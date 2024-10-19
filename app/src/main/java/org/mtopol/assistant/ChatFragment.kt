@@ -676,7 +676,9 @@ class ChatFragment : Fragment(), MenuProvider {
                 true
             }
             R.id.action_undo -> {
-                lifecycleScope.launch { undoLastPrompt() }
+                if (!isRealtimeModelSelected()) {
+                    lifecycleScope.launch { undoLastPrompt() }
+                }
                 true
             }
             R.id.action_archive_chat -> {
