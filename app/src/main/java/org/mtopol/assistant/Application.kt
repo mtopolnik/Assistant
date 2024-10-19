@@ -570,3 +570,17 @@ fun <E> MutableList<E>.removeLastItem(): E {
     }
     return removeAt(size - 1)
 }
+
+enum class MessageType {
+    PROMPT, RESPONSE
+}
+
+enum class Voice(val itemId: Int) {
+    BUILT_IN(R.id.voice_builtin),
+    ALLOY(R.id.voice_alloy), ECHO(R.id.voice_echo), FABLE(R.id.voice_fable),
+    NOVA(R.id.voice_nova), ONYX(R.id.voice_onyx), SHIMMER(R.id.voice_shimmer);
+
+    companion object {
+        val REALTIME_ITEM_IDS = listOf(ALLOY, ECHO, SHIMMER).map { it.itemId }.toSet()
+    }
+}
