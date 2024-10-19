@@ -73,6 +73,7 @@ import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.PopupMenu
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.content.ContextCompat.checkSelfPermission
 import androidx.core.content.FileProvider
 import androidx.core.net.toFile
@@ -222,9 +223,9 @@ class ChatFragment : Fragment(), MenuProvider {
     private lateinit var voiceMenuItem: MenuItem
     private lateinit var chatsMenuItem: MenuItem
     private lateinit var recordButtonLayoutParams_chat: ConstraintLayout.LayoutParams
-    private lateinit var recordButtonLayoutParams_realtime: ConstraintLayout.LayoutParams
+    private lateinit var recordButtonLayoutParams_voice: ConstraintLayout.LayoutParams
     private lateinit var promptSectionLayoutParams_chat: LinearLayout.LayoutParams
-    private lateinit var promptSectionLayoutParams_realtime: LinearLayout.LayoutParams
+    private lateinit var promptSectionLayoutParams_voice: LinearLayout.LayoutParams
 
     private var _recordButtonPressTime = 0L
     private var _mediaRecorder: MediaRecorder? = null
@@ -285,16 +286,16 @@ class ChatFragment : Fragment(), MenuProvider {
             val availableHeight = binding.scrollviewChat.height + binding.promptSection.height - padding
             val availableWidth = binding.promptSection.width - padding
             val buttonDiameter = min(availableWidth, availableHeight)
-            recordButtonLayoutParams_realtime = ConstraintLayout.LayoutParams(recordButtonLayoutParams_chat).apply {
+            recordButtonLayoutParams_voice = ConstraintLayout.LayoutParams(recordButtonLayoutParams_chat).apply {
                 height = buttonDiameter
                 width = buttonDiameter
                 bottomMargin = (availableHeight - buttonDiameter) / 2
             }
-            promptSectionLayoutParams_realtime = LinearLayout.LayoutParams(promptSectionLayoutParams_chat).apply {
+            promptSectionLayoutParams_voice = LinearLayout.LayoutParams(promptSectionLayoutParams_chat).apply {
                 height = 0
                 weight = 1f
             }
-            adaptUiToSelectedModel()
+            adaptUiToSelectedMode()
         }
         updateLanguageButton()
         sharedImageViewModel.imgUriLiveData.observe(viewLifecycleOwner) { imgUris ->
@@ -471,6 +472,12 @@ class ChatFragment : Fragment(), MenuProvider {
                 else -> false
             }
         }
+        binding.buttonRealtimeSwitch.onClickWithVibrate {
+            appContext.mainPrefs.applyUpdate {
+                setIsVoiceModeSelected(!appContext.mainPrefs.isVoiceModeSelected)
+            }
+            adaptUiToSelectedMode()
+        }
         binding.buttonKeyboard.onClickWithVibrate {
             switchToTyping()
             showKeyboard()
@@ -588,22 +595,47 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun updateSelectedModel(model: AiModel) {
         appContext.mainPrefs.applyUpdate { setSelectedModel(model) }
-        adaptUiToSelectedModel()
+        adaptUiToSelectedMode()
         setupVoiceMenu()
     }
 
-    private fun adaptUiToSelectedModel() {
+    private fun adaptUiToSelectedMode() {
         val isRealtime = isRealtimeModelSelected()
-        val targetVisibility = if (isRealtime) GONE else VISIBLE
+        val isVoiceMode = isRealtime && appContext.mainPrefs.isVoiceModeSelected
         binding.apply {
-            val buttParams = (if (isRealtime) recordButtonLayoutParams_realtime else recordButtonLayoutParams_chat)
+            promptSection.layoutParams =
+                if (isVoiceMode) promptSectionLayoutParams_voice else promptSectionLayoutParams_chat
+
+            val buttParams = (if (isVoiceMode) recordButtonLayoutParams_voice else recordButtonLayoutParams_chat)
             buttonRecord.layoutParams = buttParams
-            promptSection.layoutParams = if (isRealtime) promptSectionLayoutParams_realtime else promptSectionLayoutParams_chat
-            buttonKeyboard.visibility = targetVisibility
-            buttonLanguage.visibility = targetVisibility
-            scrollviewChat.visibility = targetVisibility
             val buttHeight = buttParams.height
-            buttonRecord.iconSize = if (isRealtime) buttHeight / 3 else buttHeight * 3 / 5
+            (buttonRecord as MaterialButton).iconSize = if (isVoiceMode) buttHeight / 3 else buttHeight * 3 / 5
+
+            val chatVisibility = if (isVoiceMode) GONE else VISIBLE
+            buttonKeyboard.visibility = chatVisibility
+            scrollviewChat.visibility = chatVisibility
+
+            buttonLanguage.visibility = if (isRealtime) GONE else VISIBLE
+            buttonRealtimeSwitch.visibility = if (isRealtime) VISIBLE else GONE
+
+            if (isRealtime) {
+                (buttonRealtimeSwitch as MaterialButton).setIconResource(
+                    if (isVoiceMode) R.drawable.baseline_chat_28
+                    else R.drawable.baseline_headset_mic_28
+                )
+                ConstraintSet().apply {
+                    clone(promptSection)
+                    connect(
+                        R.id.button_realtime_switch, ConstraintSet.BOTTOM,
+                        R.id.prompt_section, ConstraintSet.BOTTOM
+                    )
+                    connect(
+                        R.id.button_record, ConstraintSet.END,
+                        R.id.button_realtime_switch, if (isVoiceMode) ConstraintSet.END else ConstraintSet.START
+                    )
+                    applyTo(promptSection)
+                }
+            }
         }
     }
 
@@ -1439,7 +1471,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun FragmentChatBinding.showRecordingGlow() {
         recordingGlow.apply {
-            alignWithButton(buttonRecord)
+            alignWithButton(buttonRecord as MaterialButton)
             visibility = VISIBLE
         }
     }
@@ -1655,13 +1687,12 @@ class ChatFragment : Fragment(), MenuProvider {
         setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    vibrate(); true
+                    vibrate()
+                    true
                 }
-
                 MotionEvent.ACTION_UP -> {
                     pointerUpAction(); true
                 }
-
                 else -> false
             }
         }

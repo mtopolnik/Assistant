@@ -90,6 +90,7 @@ private const val KEY_IS_SEND_AUDIO_PROMPT = "is_send_audio_prompt"
 private const val KEY_SELECTED_MODEL = "selected_model"
 private const val KEY_SELECTED_VOICE = "selected_voice"
 private const val KEY_SELECTED_RT_VOICE = "selected_rt_voice"
+private const val KEY_IS_VOICE_MODE_SELECTED = "selected_rt_ui_mode"
 
 lateinit var appContext: Context
 lateinit var imageCache: File
@@ -176,6 +177,11 @@ val SharedPreferences.isSendAudioPrompt: Boolean get() = getBoolean(KEY_IS_SEND_
 
 fun SharedPreferences.Editor.setIsSendAudioPrompt(value: Boolean): SharedPreferences.Editor =
     putBoolean(KEY_IS_SEND_AUDIO_PROMPT, value)
+
+val SharedPreferences.isVoiceModeSelected: Boolean get() = getBoolean(KEY_IS_VOICE_MODE_SELECTED, true)
+
+fun SharedPreferences.Editor.setIsVoiceModeSelected(value: Boolean): SharedPreferences.Editor =
+    putBoolean(KEY_IS_VOICE_MODE_SELECTED, value)
 
 val SharedPreferences.systemPrompt: String get() = getString(KEY_SYSTEM_PROMPT,
     appContext.getString(R.string.system_prompt_default))!!

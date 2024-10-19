@@ -84,6 +84,7 @@
     <string name="close">Zatvori</string>
     <string name="action_about">O aplikaciji</string>
     <string name="listen_language">Jezik na kojem pričaš</string>
+    <string name="realtime_switch">Odabir sučelja tekst/govor</string>
     <string name="action_play_store">Pokaži na Trgovini Play</string>
     <string name="action_translate">Prevedi na…</string>
     <string name="title_edit_languages">Dodaj/ukloni jezik</string>

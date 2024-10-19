@@ -117,7 +117,7 @@
                             app:backgroundTint="@color/keyboard_button"
                             android:contentDescription="@string/keyboard" />
 
-                    <com.google.android.material.button.MaterialButton
+                    <Button
                             android:id="@+id/button_record"
                             android:layout_width="0dp"
                             android:layout_height="58dp"
@@ -148,6 +148,21 @@
                             android:textSize="18dp"
                             android:visibility="visible"
                             android:contentDescription="@string/listen_language" />
+
+                    <Button
+                            android:id="@+id/button_realtime_switch"
+                            android:layout_width="58dp"
+                            android:layout_height="58dp"
+                            app:layout_constraintBottom_toBottomOf="parent"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            style="?attr/materialIconButtonFilledStyle"
+                            app:icon="@drawable/baseline_chat_28"
+                            app:iconSize="28dp"
+                            app:iconTint="@color/on_keyboard_button"
+                            app:iconGravity="textEnd"
+                            app:backgroundTint="@color/keyboard_button"
+                            android:visibility="visible"
+                            android:contentDescription="@string/realtime_switch" />
 
                 </androidx.constraintlayout.widget.ConstraintLayout>
 

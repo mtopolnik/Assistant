@@ -90,6 +90,7 @@
     <string name="close">Close</string>
     <string name="action_about">About</string>
     <string name="listen_language">Voice recognition language</string>
+    <string name="realtime_switch">Switch between text/voice</string>
     <string name="action_play_store">See on Play Store</string>
     <string name="action_translate">Translate to…</string>
     <string name="title_edit_languages">Add/Remove Languages</string>
