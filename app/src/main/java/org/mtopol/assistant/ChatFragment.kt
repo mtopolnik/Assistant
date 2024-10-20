@@ -621,7 +621,11 @@ class ChatFragment : Fragment(), MenuProvider {
             (buttonRecord as MaterialButton).iconSize = if (isVoiceMode) buttHeight / 3 else buttHeight * 3 / 5
 
             scrollviewChat.visibility = if (isVoiceMode) GONE else VISIBLE
-            buttonKeyboard.visibility = if (isRealtime) INVISIBLE else VISIBLE
+            buttonKeyboard.visibility = when {
+                isVoiceMode -> GONE
+                isRealtime -> INVISIBLE
+                else -> VISIBLE
+            }
             buttonLanguage.visibility = if (isRealtime) GONE else VISIBLE
             buttonRealtimeSwitch.visibility = if (isRealtime) VISIBLE else GONE
 
