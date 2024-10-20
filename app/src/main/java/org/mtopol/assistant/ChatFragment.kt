@@ -194,6 +194,11 @@ class ChatFragmentModel(
 
     val chatContent: MutableList<Exchange> = loadChatContent(chatId)
 
+    val markwon = Markwon.builder(appContext)
+        .usePlugin(CorePlugin.create())
+        .usePlugin(SoftBreakAddsNewLinePlugin.create())
+        .build();
+
     var recordingGlowJob: Job? = null
     var transcriptionJob: Job? = null
     var handleResponseJob: Job? = null
@@ -220,7 +225,6 @@ class ChatFragment : Fragment(), MenuProvider {
     private lateinit var binding: FragmentChatBinding
     private lateinit var audioPathname: String
     private lateinit var languageIdentifier: LanguageIdentifier
-    private lateinit var markwon: Markwon
     private lateinit var drawerToggle: ActionBarDrawerToggle
     private lateinit var voiceMenuItem: MenuItem
     private lateinit var chatsMenuItem: MenuItem
@@ -347,10 +351,6 @@ class ChatFragment : Fragment(), MenuProvider {
             }
             configureNavigationDrawerBehavior(activity)
         }
-        markwon = Markwon.builder(context)
-            .usePlugin(CorePlugin.create())
-            .usePlugin(SoftBreakAddsNewLinePlugin.create())
-            .build();
         syncChatView()
         syncChatsMenu()
         // Reduce the size of the scrollview when soft keyboard shown
@@ -501,7 +501,10 @@ class ChatFragment : Fragment(), MenuProvider {
                     if (editable.isEmpty() && hadTextLastTime) {
                         if (!appContext.mainPrefs.openaiApiKey.isBlank()) {
                             hideKeyboard()
-                            switchToVoice()
+                            lifecycleScope.launch {
+                                delay(100)
+                                switchToVoice()
+                            }
                         }
                     } else if (editable.isNotEmpty() && !hadTextLastTime) {
                         switchToTyping()
@@ -599,6 +602,8 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun updateSelectedModel(model: AiModel) {
         appContext.mainPrefs.applyUpdate { setSelectedModel(model) }
+        hideKeyboard()
+        switchToVoice()
         adaptUiToSelectedMode()
         setupVoiceMenu()
     }
@@ -615,10 +620,8 @@ class ChatFragment : Fragment(), MenuProvider {
             val buttHeight = buttParams.height
             (buttonRecord as MaterialButton).iconSize = if (isVoiceMode) buttHeight / 3 else buttHeight * 3 / 5
 
-            val chatVisibility = if (isVoiceMode) GONE else VISIBLE
-            buttonKeyboard.visibility = chatVisibility
-            scrollviewChat.visibility = chatVisibility
-
+            scrollviewChat.visibility = if (isVoiceMode) GONE else VISIBLE
+            buttonKeyboard.visibility = if (isRealtime) INVISIBLE else VISIBLE
             buttonLanguage.visibility = if (isRealtime) GONE else VISIBLE
             buttonRealtimeSwitch.visibility = if (isRealtime) VISIBLE else GONE
 
@@ -974,6 +977,10 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
+    private fun undoLastExchange() {
+
+    }
+
     private fun sendPromptAndReceiveImageResponse(prompt: CharSequence) {
         val previousResponseJob = vmodel.handleResponseJob?.apply { cancel() }
         vmodel.handleResponseJob = vmodel.viewModelScope.launch {
@@ -1040,8 +1047,8 @@ class ChatFragment : Fragment(), MenuProvider {
                 exchange.replyMarkdown = replyMarkdown
                 vmodel.replyTextView = addTextResponseToView(context, exchange)
 
-                suspend fun updateReplyTextView(replyMarkdown: StringBuilder) {
-                    Log.i("scroll", "updateReplyTextView")
+                suspend fun updateReplyTextView(replyMarkdown: CharSequence) {
+                    val markwon = vmodel.markwon
                     withContext(Default) {
                         replyMarkdown.toString()
                             .let { markwon.parse(it) }
@@ -1739,18 +1746,20 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun switchToVoice() {
-        binding.edittextPrompt.editableText.clear()
-        lifecycleScope.launch {
-            delay(100)
-            binding.apply {
-                buttonKeyboard.visibility = VISIBLE
-                buttonRecord.visibility = VISIBLE
-                buttonLanguage.visibility = VISIBLE
-                buttonSend.visibility = GONE
-                edittextPrompt.apply {
-                    visibility = GONE
-                    clearFocus()
-                }
+        binding.edittextPrompt.editableText.apply {
+            if (isNotEmpty()) {
+                clear() // this will trigger calling switchToVoice() again, with empty edit box
+                return
+            }
+        }
+        binding.apply {
+            buttonKeyboard.visibility = if (isRealtimeModelSelected()) INVISIBLE else VISIBLE
+            buttonRecord.visibility = VISIBLE
+            buttonLanguage.visibility = VISIBLE
+            buttonSend.visibility = GONE
+            edittextPrompt.apply {
+                visibility = GONE
+                clearFocus()
             }
         }
     }
@@ -1815,7 +1824,7 @@ class ChatFragment : Fragment(), MenuProvider {
         val color =
             if (messageType == PROMPT) R.color.prompt_foreground else R.color.response_foreground
         editText.setTextColor(requireContext().getColorCompat(color))
-        markwon.setMarkdown(editText, text.toString())
+        vmodel.markwon.setMarkdown(editText, text.toString())
         container.addView(editText)
         return editText
     }

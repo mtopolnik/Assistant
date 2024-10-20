@@ -70,6 +70,7 @@ import io.ktor.websocket.readText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Dispatchers.Default
 import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -300,7 +301,8 @@ class OpenAI {
             fun addMediaSource() {
                 exoPlayer.addMediaSource(mediaFactory.createMediaSource(MediaItem.fromUri(Uri.EMPTY)))
             }
-            sendWs("""
+            sendWs(
+                """
                 {
                     "type": "session.update",
                     "session": {
@@ -315,22 +317,31 @@ class OpenAI {
                         "instructions": "${appContext.getString(R.string.realtime_instructions)}"
                     }
                 }
-            """.trimIndent())
+            """.trimIndent()
+            )
             for (exchange in vmodel.chatContent) {
-                sendWs(RealtimeEvent.ConversationItemCreate(
-                    RealtimeEvent.ClientConversationItem(
-                        type = "message",
-                        role = "user",
-                        content = listOf(RealtimeEvent.ContentPart.InputText(exchange.promptText()?.toString() ?: ""))
+                sendWs(
+                    RealtimeEvent.ConversationItemCreate(
+                        RealtimeEvent.ClientConversationItem(
+                            type = "message",
+                            role = "user",
+                            content = listOf(
+                                RealtimeEvent.ContentPart.InputText(
+                                    exchange.promptText()?.toString() ?: ""
+                                )
+                            )
+                        )
                     )
-                ))
-                sendWs(RealtimeEvent.ConversationItemCreate(
-                    RealtimeEvent.ClientConversationItem(
-                        type = "message",
-                        role = "assistant",
-                        content = listOf(RealtimeEvent.ContentPart.Text(exchange.replyMarkdown.toString()))
+                )
+                sendWs(
+                    RealtimeEvent.ConversationItemCreate(
+                        RealtimeEvent.ClientConversationItem(
+                            type = "message",
+                            role = "assistant",
+                            content = listOf(RealtimeEvent.ContentPart.Text(exchange.replyMarkdown.toString()))
+                        )
                     )
-                ))
+                )
             }
             val bytesFor50ms = REALTIME_RECORD_SAMPLE_RATE / 10
             val responseId = AtomicReference<String>(null)
@@ -378,11 +389,13 @@ class OpenAI {
                             responseId.get()?.also { itemId ->
                                 Log.i("speech", "Cancel Response, truncate to $responseDuration ms")
                                 if (responseDuration >= 0) {
-                                    sendWs(RealtimeEvent.ConversationItemTruncate(
-                                        item_id = itemId,
-                                        content_index = 0,
-                                        audio_end_ms = responseDuration
-                                    ))
+                                    sendWs(
+                                        RealtimeEvent.ConversationItemTruncate(
+                                            item_id = itemId,
+                                            content_index = 0,
+                                            audio_end_ms = responseDuration
+                                        )
+                                    )
                                 }
                                 sendWs("""{ "type": "response.cancel" }""")
                                 responseId.set(null)
@@ -409,6 +422,16 @@ class OpenAI {
                     cd.complete(Unit)
                 }
                 cd.await()
+            }
+
+            suspend fun setResponseText(text: String) {
+                currentExchange!!.replyMarkdown = text
+                val markwon = vmodel.markwon
+                withContext(Default) {
+                    text.let { markwon.parse(it) }
+                        .let { markwon.render(it) }
+                }.let { markwon.setParsedMarkdown(vmodel.replyTextView!!, it) }
+                withFragmentSync { it.onLayoutScrollToBottom() }
             }
 
             suspend fun handleEvent(event: RealtimeEvent) {
@@ -448,22 +471,18 @@ class OpenAI {
                             currentPromptView!!.text = prompt
                         }
                     }
-                    is RealtimeEvent.ResponseContentPartAdded -> {
-                        val transcript = (event.part.transcript ?: return).trim()
+                    is RealtimeEvent.ResponseCreated -> {
                         withFragmentSync { fragment ->
-                            val exchange = currentExchange!!
-                            exchange.replyMarkdown = transcript
-                            vmodel.replyTextView = fragment.addTextResponseToView(fragment.requireContext(), exchange)
+                            vmodel.replyTextView =
+                                fragment.addTextResponseToView(fragment.requireContext(), currentExchange!!)
                             fragment.onLayoutScrollToBottom()
                         }
                     }
-                    is RealtimeEvent.ResponseContentPartDone -> {
-                        val transcript = (event.part.transcript ?: return).trim()
-                        withFragmentSync { fragment ->
-                            currentExchange!!.replyMarkdown = transcript
-                            vmodel.replyTextView!!.text = transcript
-                            fragment.onLayoutScrollToBottom()
-                        }
+                    is RealtimeEvent.ResponseTextDone -> {
+                        setResponseText(event.text)
+                    }
+                    is RealtimeEvent.ResponseAudioTranscriptDone -> {
+                        setResponseText(event.transcript)
                     }
                     else -> {}
                 }
@@ -718,14 +737,14 @@ class OpenAI {
         @Serializable
         sealed class ContentPart {
             @Serializable
-            @SerialName("audio")
-            data class Audio(
+            @SerialName("input_audio")
+            data class InputAudio(
                 val transcript: String?
             ) : ContentPart()
 
             @Serializable
-            @SerialName("input_audio")
-            data class InputAudio(
+            @SerialName("audio")
+            data class Audio(
                 val transcript: String?
             ) : ContentPart()
 
@@ -851,11 +870,11 @@ class OpenAI {
 
         @Serializable
         @SerialName("response.content_part.added")
-        data class ResponseContentPartAdded(val part: ContentPart.Audio) : RealtimeEvent()
+        data class ResponseContentPartAdded(val part: ContentPart) : RealtimeEvent()
 
         @Serializable
         @SerialName("response.content_part.done")
-        data class ResponseContentPartDone(val part: ContentPart.Audio) : RealtimeEvent()
+        data class ResponseContentPartDone(val part: ContentPart) : RealtimeEvent()
 
         @Serializable
         @SerialName("response.audio_transcript.delta")
