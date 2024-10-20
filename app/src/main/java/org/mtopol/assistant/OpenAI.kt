@@ -66,7 +66,6 @@ import io.ktor.utils.io.readUTF8Line
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
 import kotlinx.coroutines.CancellationException
-import io.ktor.websocket.send as wsend
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.delay
@@ -95,6 +94,7 @@ import java.io.FileOutputStream
 import java.io.InputStream
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicReference
+import io.ktor.websocket.send as wsend
 
 val openAi get() = openAiLazy.value
 
@@ -102,7 +102,8 @@ private const val OPENAI_URL = "https://api.openai.com/v1/"
 
 const val MODEL_ID_GPT_4O_MINI = "gpt-4o-mini"
 const val MODEL_ID_GPT_4O = "gpt-4o"
-const val MODEL_ID_GPT_4O_REALTIME = "gpt-4o-realtime-preview-2024-10-01"
+const val MODEL_ID_GPT_4O_AUDIO = "gpt-4o-audio-preview"
+const val MODEL_ID_GPT_4O_REALTIME = "gpt-4o-realtime-preview"
 
 private lateinit var openAiLazy: Lazy<OpenAI>
 
@@ -126,10 +127,14 @@ class OpenAI {
         if (demoMode) {
             return mockResponse.toCharArray().asList().chunked(4).asFlow().map { delay(120); it.joinToString("") }
         }
-        Log.i("client", "Model: ${model.apiId}")
+        val modelId =
+            if (model == AiModel.GPT_4O && history.find { it.hasAudioPrompt() } != null) MODEL_ID_GPT_4O_AUDIO
+            else model.apiId
+
+        Log.i("client", "Model: $modelId")
         return chatCompletions(
             ChatCompletionRequest(
-                model = model.apiId,
+                model = modelId,
                 messages = systemPrompt() + history.toDto().dropLast(1),
             )
         )
@@ -459,22 +464,22 @@ class OpenAI {
 
     private suspend fun PromptPart.toContentPart() = withContext(Dispatchers.IO) {
 
-        fun read(mediaType: String, uri: Uri): String {
+        fun readBase64(uri: Uri): String {
             val bytes = uri.inputStream().use { input ->
                 ByteArrayOutputStream().also { input.copyTo(it) }.toByteArray()
             }
-            return "data:$mediaType/${uri.toFile().extension};base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
+            return Base64.encodeToString(bytes, Base64.NO_WRAP)
         }
 
         when (this@toContentPart) {
             is PromptPart.Text -> ContentPart.Text(text.toString())
             is PromptPart.Image -> ContentPart.Image(
-                try { read("image", uri) }
+                try { "data:image/${uri.toFile().extension};base64," + readBase64(uri) }
                 catch (e: Exception) { "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" }
             )
             is PromptPart.Audio -> ContentPart.Audio(
-                try { read("audio", uri) }
-                catch (e: Exception) { "data:audio/pcm;base64,bXAzIGJ5dGVzIGhlcmUK" }
+                try { InputAudio(readBase64(uri), uri.toFile().extension) }
+                catch (e: Exception) { InputAudio("UklGRvj///9XQVZFZm10IBAAAAABAAEAwF0AAIC7AAACABAAZGF0YdT///8=", "wav") }
             )
         }
     }
@@ -523,14 +528,21 @@ class OpenAI {
         class Image(val image_url: DataUrl) : ContentPart()
 
         @Serializable
-        @SerialName("audio_url")
-        class Audio(val audio_url: DataUrl) : ContentPart()
+        @SerialName("input_audio")
+        class Audio(
+            val input_audio: InputAudio
+        ) : ContentPart()
 
         companion object {
             fun Image(imgUrl: String) = Image(DataUrl(imgUrl))
-            fun Audio(audioUrl: String) = Audio(DataUrl(audioUrl))
         }
     }
+
+    @Serializable
+    class InputAudio(
+        val data: String,
+        val format: String
+    )
 
     @Serializable
     class DataUrl(

@@ -74,8 +74,10 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStream
+import java.io.RandomAccessFile
 import java.nio.ByteBuffer
-import java.util.*
+import java.nio.ByteOrder
+import java.util.Locale
 import kotlin.math.min
 
 const val FILE_PROVIDER_AUTHORITY = "org.mtopol.assistant.fileprovider"
@@ -91,6 +93,8 @@ private const val KEY_SELECTED_MODEL = "selected_model"
 private const val KEY_SELECTED_VOICE = "selected_voice"
 private const val KEY_SELECTED_RT_VOICE = "selected_rt_voice"
 private const val KEY_IS_VOICE_MODE_SELECTED = "selected_rt_ui_mode"
+private const val WAV_HEADER_SIZE = 44
+
 
 lateinit var appContext: Context
 lateinit var imageCache: File
@@ -369,23 +373,28 @@ fun vibrate() {
         )
 }
 
-suspend fun decodeAudioToFile(inputPath: String, outputPath: String) = withContext(IO) {
+suspend fun convertToWav(inputPath: String, outputPath: String) = withContext(IO) {
     val extractor = MediaExtractor()
-    val outputFile = FileOutputStream(File(outputPath))
+    val raf = RandomAccessFile(outputPath, "rw")
     try {
+        raf.seek(WAV_HEADER_SIZE.toLong()) // size of WAV header, to be written in the end
         extractor.setDataSource(inputPath)
         val trackIndex = (0..< extractor.trackCount).first {
             extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true
         }
         extractor.selectTrack(trackIndex)
+        val mediaFormat = extractor.getTrackFormat(trackIndex)
         pushThroughDecoder(
-            extractor.getTrackFormat(trackIndex),
+            mediaFormat,
             { buf -> extractor.readSampleData(buf, 0).also { if (it >= 0) extractor.advance() } },
-            { buf -> outputFile.channel.write(buf) }
+            { buf -> raf.channel.write(buf) }
         )
+        val headerBuf = buildWavHeader(raf.length(), mediaFormat)
+        raf.seek(0)
+        raf.channel.write(headerBuf)
     } finally {
         extractor.release()
-        outputFile.close()
+        raf.close()
     }
 }
 
@@ -415,9 +424,9 @@ suspend fun pushThroughDecoder(
                 val inputBufferIndex = codec.dequeueInputBuffer(bufTimeoutMicros)
                 if (inputBufferIndex >= 0) {
                     val inputBuffer = codec.getInputBuffer(inputBufferIndex)!!
-                    val sampleSize = fillInputBuf(inputBuffer)
-                    if (sampleSize >= 0) {
-                        codec.queueInputBuffer(inputBufferIndex, 0, sampleSize, sampleSize * microsPerByte, 0)
+                    val bytesRead = fillInputBuf(inputBuffer)
+                    if (bytesRead >= 0) {
+                        codec.queueInputBuffer(inputBufferIndex, 0, bytesRead, bytesRead * microsPerByte, 0)
                     } else {
                         codec.queueInputBuffer(inputBufferIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
                         sawInputEOS = true
@@ -437,6 +446,37 @@ suspend fun pushThroughDecoder(
     } finally {
         codec.stop()
         codec.release()
+    }
+}
+
+private fun buildWavHeader(fileSize: Long, mediaFormat: MediaFormat): ByteBuffer {
+    val riffHeaderSize = 8
+    val bytesPerSample = 2
+
+    val riffChunkSize = (fileSize - riffHeaderSize).toInt()
+    val subChunk1Size = 16 // subchunk 1 size when AudioFormat = PCM
+    val audioFormat = 1.toShort() // PCM audio format
+    val channelCount = mediaFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT).toShort()
+    val sampleRate = mediaFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+    val byteRate = sampleRate * channelCount * bytesPerSample
+    val blockAlign = (channelCount * bytesPerSample).toShort()
+    val bitsPerSample = (8 * bytesPerSample).toShort()
+    val subChunk2Size = (fileSize - WAV_HEADER_SIZE).toInt()
+
+    return ByteBuffer.allocate(WAV_HEADER_SIZE).order(ByteOrder.LITTLE_ENDIAN).apply {
+        put("RIFF".toByteArray())
+        putInt(riffChunkSize)
+        put("WAVEfmt ".toByteArray()) // RIFF chunk, type WAVE; WAVE subchunk 1, type fmt
+        putInt(subChunk1Size)
+        putShort(audioFormat)
+        putShort(channelCount)
+        putInt(sampleRate)
+        putInt(byteRate)
+        putShort(blockAlign)
+        putShort(bitsPerSample)
+        put("data".toByteArray()) // WAVE subchunk 2, type data
+        putInt(subChunk2Size)
+        flip()
     }
 }
 

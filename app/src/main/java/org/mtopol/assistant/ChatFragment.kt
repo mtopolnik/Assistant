@@ -174,6 +174,8 @@ private const val CHATS_MENUITEM_ID_BASE = 1000
 private val sentenceDelimiterRegex = """(?<=\D[.!]['"]?)\s+|(?<=\d[.!]'?)\s+(?=\p{Lu})|(?<=.[;?]'?)\s+|\n+""".toRegex()
 private val speechImprovementRegex = """ ?[()] ?""".toRegex()
 private val whitespaceRegex = """\s+""".toRegex()
+private val mediaRecorderCanUseOpus = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+
 
 class ChatFragmentModel(
     savedState: SavedStateHandle
@@ -361,7 +363,9 @@ class ChatFragment : Fragment(), MenuProvider {
         languageIdentifier = LanguageIdentification.getClient(
             LanguageIdentificationOptions.Builder().setConfidenceThreshold(0.2f).build()
         )
-        audioPathname = File(context.externalCacheDir, "prompt.ogg").absolutePath
+        audioPathname = File(context.externalCacheDir,
+            if (mediaRecorderCanUseOpus) "prompt.ogg" else "prompt.m4a"
+        ).absolutePath
         binding.root.doOnLayout {
             if (vmodel.recordingGlowJob != null) {
                 binding.showRecordingGlow()
@@ -1034,8 +1038,9 @@ class ChatFragment : Fragment(), MenuProvider {
                     val selectedModel = appContext.mainPrefs.selectedModel
                     val responseFlow = if (selectedModel == AiModel.CLAUDE_3_5_SONNET)
                         anthropic.messages(vmodel.chatContent, selectedModel)
-                    else
+                    else {
                         openAi.chatCompletions(vmodel.chatContent, selectedModel)
+                    }
 
                     var replyTextUpdateTime = 0L
                     responseFlow
@@ -1419,7 +1424,7 @@ class ChatFragment : Fragment(), MenuProvider {
         activity.lockOrientation()
         try {
             val mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                MediaRecorder(requireContext())
+                MediaRecorder(appContext)
             } else {
                 @Suppress("DEPRECATION")
                 MediaRecorder()
@@ -1430,8 +1435,13 @@ class ChatFragment : Fragment(), MenuProvider {
                 setAudioSource(MediaRecorder.AudioSource.MIC)
                 setAudioChannels(1)
                 setAudioSamplingRate(16000)
-                setOutputFormat(MediaRecorder.OutputFormat.OGG)
-                setAudioEncoder(MediaRecorder.AudioEncoder.OPUS)
+                if (mediaRecorderCanUseOpus) {
+                    setOutputFormat(MediaRecorder.OutputFormat.OGG)
+                    setAudioEncoder(MediaRecorder.AudioEncoder.OPUS)
+                } else {
+                    setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                    setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                }
                 setOutputFile(audioPathname)
                 prepare()
                 start()
@@ -1669,13 +1679,14 @@ class ChatFragment : Fragment(), MenuProvider {
             if (!recordingSuccess) {
                 return@launch
             }
-            val pcmPathname = audioPathname.replaceAfterLast('.', "pcm")
-            Log.i("audio", "Converting recorded OGG to PCM")
+            val wavPathname = audioPathname.replaceAfterLast('.', "wav")
+            Log.i("audio", "Converting recorded OGG to WAV")
             try {
-                decodeAudioToFile(audioPathname, pcmPathname)
-                Log.i("audio", "PCM saved: ${File(pcmPathname).length()} bytes")
+                convertToWav(audioPathname, wavPathname)
+                val wavFile = File(wavPathname)
+                Log.i("audio", "WAV saved: ${wavFile.length()} bytes in $wavPathname")
                 vmodel.withFragment {
-                    sendPromptAndReceiveTextResponse(PromptPart.Audio(Uri.fromFile(File(pcmPathname))))
+                    sendPromptAndReceiveTextResponse(PromptPart.Audio(Uri.fromFile(wavFile)))
                 }
             } catch (e: Exception) {
                 Log.e("audio", "Conversion failed", e)
@@ -2093,6 +2104,7 @@ data class Exchange(
             promptParts.removeLastItem()
         }
     }
+    fun hasAudioPrompt() = promptParts.find { it is PromptPart.Audio } != null
 }
 
 fun Exchange(part: PromptPart) = Exchange().apply { promptParts.add(part) }
