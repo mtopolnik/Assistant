@@ -720,7 +720,13 @@ class ChatFragment : Fragment(), MenuProvider {
                 true
             }
             R.id.action_undo -> {
-                lifecycleScope.launch { undoLastPrompt() }
+                lifecycleScope.launch {
+                    if (isRealtimeModelSelected()) {
+                        undoLastExchange()
+                    } else {
+                        undoLastPrompt()
+                    }
+                }
                 true
             }
             R.id.action_archive_chat -> {
@@ -982,7 +988,18 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun undoLastExchange() {
-
+        if (vmodel.chatContent.isEmpty()) {
+            return
+        }
+        getChatHandle(vmodel.chatId)?.apply { isDirty = true }
+            ?: Log.e("chats",
+                "chatHandle is null in undoLastPrompt(), chatId ${vmodel.chatId}, chatIds: ${chatHandles()}"
+            )
+        binding.viewChat.apply {
+            removeViewAt(childCount - 1)
+            removeViewAt(childCount - 1)
+        }
+        vmodel.chatContent.removeLastItem()
     }
 
     private fun sendPromptAndReceiveImageResponse(prompt: CharSequence) {
