@@ -23,9 +23,11 @@ import android.net.Uri
 import android.text.Editable
 import android.util.Base64
 import android.util.Log
+import android.widget.TextView
 import android.widget.Toast
 import androidx.annotation.OptIn
 import androidx.core.net.toFile
+import androidx.core.view.children
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -66,6 +68,7 @@ import io.ktor.utils.io.readUTF8Line
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.delay
@@ -269,7 +272,8 @@ class OpenAI {
     suspend fun realtime(
         sendBuf: ByteBuffer,
         audioRecord: AudioRecord,
-        exoPlayer: ExoPlayer
+        exoPlayer: ExoPlayer,
+        vmodel: ChatFragmentModel
     ) {
         apiClient.webSocket({
             method = HttpMethod.Get
@@ -283,6 +287,10 @@ class OpenAI {
                     if (msg.contains("input_audio_buffer.append")) msg.substring(0, 50.coerceAtMost(msg.length))
                     else msg
                 Log.i("speech", "Send ${logEvent}")
+            }
+
+            suspend fun sendWs(event: RealtimeEvent) {
+                sendWs(event.encodeToString())
             }
 
             val dsFac = ExoplayerWebsocketDsFactory()
@@ -302,7 +310,8 @@ class OpenAI {
                         "output_audio_format": "pcm16",
                         "input_audio_transcription": { "model": "whisper-1" },
                         "turn_detection": null,
-                        "temperature": 0.7,
+                        "temperature": 0.8,
+                        "max_response_output_tokens": 4096,
                         "instructions": "${appContext.getString(R.string.realtime_instructions)}"
                     }
                 }
@@ -357,15 +366,14 @@ class OpenAI {
                                         item_id = itemId,
                                         content_index = 0,
                                         audio_end_ms = responseDuration
-                                    ).encodeToString())
+                                    ))
                                 }
                                 sendWs("""{ "type": "response.cancel" }""")
                                 responseId.set(null)
                             }
                         }
-                        RealtimeEvent.AudioBufferAppend(audioBase64).encodeToString().also {
-                            sendWs(it)
-                        }
+                        sendWs(RealtimeEvent.AudioBufferAppend(audioBase64))
+
                     }
                 } catch (e: CancellationException) {
                     throw e
@@ -375,37 +383,92 @@ class OpenAI {
                     Log.i("speech", "Done sending audio")
                 }
             }
-            for (frame in incoming) {
-                when (frame) {
-                    is Frame.Text -> {
-                        val text = frame.readText()
-                        val event = jsonCodec.decodeFromString<RealtimeEvent>(text)
-                        Log.i("speech", "Received " +
-                                if (event is RealtimeEvent.ResponseAudioDelta) "ResponseAudioDelta"
-                                else event.toString()
-                        )
-                        when (event) {
-                            is RealtimeEvent.ResponseAudioDelta -> {
-                                if (responseId.get() != null) {
-                                    val data = Base64.decode(event.delta, Base64.DEFAULT)
-                                    dsFac.addData(data)
-                                    exoPlayer.play()
-                                }
-                            }
-                            is RealtimeEvent.ConversationItemCreated -> {
-                                if (event.item.role == "assistant") {
-                                    responseId.set(event.item.id)
-                                }
-                            }
-                            else -> {}
+            var currentExchange: Exchange? = null
+            var currentPromptView: TextView? = null
+
+            suspend fun withFragmentSync(task: (ChatFragment) -> Unit) {
+                val cd = CompletableDeferred<Unit>()
+                vmodel.withFragment {
+                    task(it)
+                    cd.complete(Unit)
+                }
+                cd.await()
+            }
+
+            suspend fun handleEvent(event: RealtimeEvent) {
+                when (event) {
+                    is RealtimeEvent.ResponseAudioDelta -> {
+                        if (responseId.get() != null) {
+                            val data = Base64.decode(event.delta, Base64.DEFAULT)
+                            dsFac.addData(data)
+                            exoPlayer.play()
                         }
                     }
-                    else -> {
-                        Log.e("speech", "unhandled frame type ${frame.frameType}")
+                    is RealtimeEvent.ConversationItemCreated -> {
+                        when (event.item.role) {
+                            "user" -> {
+                                withFragmentSync { fragment ->
+                                    Log.i("speech", "Setting current exchange")
+                                    currentExchange =
+                                        fragment.prepareNewExchange(fragment.requireContext(), PromptPart.Text("..."))
+                                    currentPromptView = fragment.lastMessageContainer().children.first() as TextView
+                                }
+                            }
+                            "assistant" -> {
+                                responseId.set(event.item.id)
+                            }
+                        }
                     }
+                    is RealtimeEvent.InputTranscriptionCompleted -> {
+                        val prompt = event.transcript.trim()
+                        withContext(Main) {
+                            (currentExchange!!.promptParts[0] as PromptPart.Text).text = prompt
+                            currentPromptView!!.text = prompt
+                        }
+                    }
+                    is RealtimeEvent.ResponseContentPartAdded -> {
+                        withFragmentSync { fragment ->
+                            val exchange = currentExchange!!
+                            exchange.replyMarkdown = event.part.transcript.trim()
+                            vmodel.replyTextView = fragment.addTextResponseToView(fragment.requireContext(), exchange)
+                            fragment.onLayoutScrollToBottom()
+                        }
+                    }
+                    is RealtimeEvent.ResponseContentPartDone -> {
+                        val text = event.part.transcript.trim()
+                        withFragmentSync { fragment ->
+                            currentExchange!!.replyMarkdown = text
+                            vmodel.replyTextView!!.text = text
+                            fragment.onLayoutScrollToBottom()
+                        }
+                    }
+                    else -> {}
                 }
             }
-            Log.i("speech", "Websocket done")
+
+            try {
+                for (frame in incoming) {
+                    if (frame !is Frame.Text) {
+                        Log.e("speech", "unhandled WebSocket frame type ${frame.frameType}")
+                        continue
+                    }
+                    val rawEventText = frame.readText()
+                    try {
+                        val event = jsonCodec.decodeFromString<RealtimeEvent>(rawEventText)
+                        Log.i(
+                            "speech", "Received " +
+                                    if (event is RealtimeEvent.ResponseAudioDelta) "ResponseAudioDelta"
+                                    else event.toString()
+                        )
+                        handleEvent(event)
+                    } catch (e: Exception) {
+                        Log.e("speech", "Error processing WebSocket event $rawEventText", e)
+                    }
+                }
+            } finally {
+                vmodel.replyTextView = null
+                Log.i("speech", "Websocket done")
+            }
         }
     }
 
@@ -730,11 +793,17 @@ class OpenAI {
 
         @Serializable
         @SerialName("response.content_part.added")
-        data class ResponseContentPartAdded(val part: JsonObject) : RealtimeEvent()
+        data class ResponseContentPartAdded(val part: ContentPart) : RealtimeEvent()
+
+        @Serializable
+        data class ContentPart(
+            val type: String,
+            val transcript: String
+        )
 
         @Serializable
         @SerialName("response.content_part.done")
-        data class ResponseContentPartDone(val part: JsonObject) : RealtimeEvent()
+        data class ResponseContentPartDone(val part: ContentPart) : RealtimeEvent()
 
         @Serializable
         @SerialName("response.audio_transcript.delta")

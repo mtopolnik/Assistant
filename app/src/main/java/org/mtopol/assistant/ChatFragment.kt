@@ -192,7 +192,7 @@ class ChatFragmentModel(
         withFragmentLiveData.value = task
     }
 
-    val chatContent = loadChatContent(chatId)
+    val chatContent: MutableList<Exchange> = loadChatContent(chatId)
 
     var recordingGlowJob: Job? = null
     var transcriptionJob: Job? = null
@@ -713,9 +713,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 true
             }
             R.id.action_undo -> {
-                if (!isRealtimeModelSelected()) {
-                    lifecycleScope.launch { undoLastPrompt() }
-                }
+                lifecycleScope.launch { undoLastPrompt() }
                 true
             }
             R.id.action_archive_chat -> {
@@ -819,19 +817,24 @@ class ChatFragment : Fragment(), MenuProvider {
                         val chatId = item.itemId - CHATS_MENUITEM_ID_BASE
                         Log.i("chats", "chatId $chatId vmodel.chatId ${vmodel.chatId}")
                         if (chatId != vmodel.chatId) {
-                            saveOrDeleteCurrentChat()
-                            vmodel.handleResponseJob?.cancel()
-                            binding.edittextPrompt.editableText.clear()
-                            activity.invalidateOptionsMenu()
-                            val chat = loadChatContent(chatId)
-                            vmodel.chatContent.apply {
-                                clear()
-                                addAll(chat)
+                            lifecycleScope.launch {
+                                saveOrDeleteCurrentChat()
+                                vmodel.handleResponseJob?.cancel()
+                                vmodel.realtimeJob?.cancel()
+                                vmodel.handleResponseJob?.join()
+                                vmodel.realtimeJob?.join()
+                                binding.edittextPrompt.editableText.clear()
+                                activity.invalidateOptionsMenu()
+                                val chat = loadChatContent(chatId)
+                                vmodel.chatContent.apply {
+                                    clear()
+                                    addAll(chat)
+                                }
+                                vmodel.chatId = chatId
+                                syncChatView()
+                                vmodel.autoscrollEnabled = true
+                                binding.scrollviewChat.post { scrollToBottom(false) }
                             }
-                            vmodel.chatId = chatId
-                            syncChatView()
-                            vmodel.autoscrollEnabled = true
-                            binding.scrollviewChat.post { scrollToBottom(false) }
                         } else {
                             Log.i("chats", "Selected current chat $chatId")
                         }
@@ -1008,7 +1011,7 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun prepareNewExchange(context: Context, finalPart: PromptPart): Exchange {
+    fun prepareNewExchange(context: Context, finalPart: PromptPart): Exchange {
         getChatHandle(vmodel.chatId)!!.isDirty = true
         vmodel.isConnectionLive = true
         vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
@@ -1327,7 +1330,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 }
                 startRealtimeRecording()
                 vmodel.isConnectionLive = true
-                openAi.realtime(sendBuf, audioRecord, exoPlayer)
+                openAi.realtime(sendBuf, audioRecord, exoPlayer, vmodel)
             } finally {
                 stopRealtimeRecording()
                 _audioRecord = null
@@ -1345,7 +1348,7 @@ class ChatFragment : Fragment(), MenuProvider {
         vmodel.realtimeJob?.cancel()
     }
 
-    private fun lastMessageContainer() =
+    fun lastMessageContainer() =
         binding.viewChat.run { getChildAt(childCount - 1) } as LinearLayout
 
     @OptInAndroid(UnstableApi::class)
@@ -1823,7 +1826,7 @@ class ChatFragment : Fragment(), MenuProvider {
         exchange.promptText()?.also { addTextToView(promptContainer, it, PROMPT) }
     }
 
-    private fun addTextResponseToView(context: Context, exchange: Exchange): TextView {
+    fun addTextResponseToView(context: Context, exchange: Exchange): TextView {
         val responseContainer = addMessageContainerToView(context, RESPONSE)
         return addTextToView(responseContainer, exchange.replyMarkdown, RESPONSE)
     }
@@ -1928,7 +1931,7 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun onLayoutScrollToBottom() {
+    fun onLayoutScrollToBottom() {
         binding.scrollviewChat.viewTreeObserver.also { observer ->
             observer.addOnGlobalLayoutListener(object : OnGlobalLayoutListener {
                 override fun onGlobalLayout() {
