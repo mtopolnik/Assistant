@@ -449,18 +449,19 @@ class OpenAI {
                         }
                     }
                     is RealtimeEvent.ResponseContentPartAdded -> {
+                        val transcript = (event.part.transcript ?: return).trim()
                         withFragmentSync { fragment ->
                             val exchange = currentExchange!!
-                            exchange.replyMarkdown = event.part.transcript.trim()
+                            exchange.replyMarkdown = transcript
                             vmodel.replyTextView = fragment.addTextResponseToView(fragment.requireContext(), exchange)
                             fragment.onLayoutScrollToBottom()
                         }
                     }
                     is RealtimeEvent.ResponseContentPartDone -> {
-                        val text = event.part.transcript.trim()
+                        val transcript = (event.part.transcript ?: return).trim()
                         withFragmentSync { fragment ->
-                            currentExchange!!.replyMarkdown = text
-                            vmodel.replyTextView!!.text = text
+                            currentExchange!!.replyMarkdown = transcript
+                            vmodel.replyTextView!!.text = transcript
                             fragment.onLayoutScrollToBottom()
                         }
                     }
@@ -719,7 +720,7 @@ class OpenAI {
             @Serializable
             @SerialName("audio")
             data class Audio(
-                val transcript: String
+                val transcript: String?
             ) : ContentPart()
 
             @Serializable
@@ -875,6 +876,10 @@ class OpenAI {
         @Serializable
         @SerialName("response.text.delta")
         data class ResponseTextDelta(val delta: String) : RealtimeEvent()
+
+        @Serializable
+        @SerialName("response.text.done")
+        data class ResponseTextDone(val text: String) : RealtimeEvent()
 
         @Serializable
         @SerialName("rate_limits.updated")
