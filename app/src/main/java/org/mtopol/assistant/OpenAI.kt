@@ -316,6 +316,22 @@ class OpenAI {
                     }
                 }
             """.trimIndent())
+            for (exchange in vmodel.chatContent) {
+                sendWs(RealtimeEvent.ConversationItemCreate(
+                    RealtimeEvent.ClientConversationItem(
+                        type = "message",
+                        role = "user",
+                        content = listOf(RealtimeEvent.ContentPart.InputText(exchange.promptText()?.toString() ?: ""))
+                    )
+                ))
+                sendWs(RealtimeEvent.ConversationItemCreate(
+                    RealtimeEvent.ClientConversationItem(
+                        type = "message",
+                        role = "assistant",
+                        content = listOf(RealtimeEvent.ContentPart.Text(exchange.replyMarkdown.toString()))
+                    )
+                ))
+            }
             val bytesFor50ms = REALTIME_RECORD_SAMPLE_RATE / 10
             val responseId = AtomicReference<String>(null)
             launch {
@@ -405,6 +421,12 @@ class OpenAI {
                         }
                     }
                     is RealtimeEvent.ConversationItemCreated -> {
+                        val contentPart = event.item.content.firstOrNull()
+                        if (contentPart is RealtimeEvent.ContentPart.InputText
+                            || contentPart is RealtimeEvent.ContentPart.Text
+                        ) {
+                            return
+                        }
                         when (event.item.role) {
                             "user" -> {
                                 withFragmentSync { fragment ->
@@ -683,7 +705,41 @@ class OpenAI {
 
         @Serializable
         @SerialName("conversation.item.create")
-        data class ConversationItemCreate(val item: JsonObject) : RealtimeEvent()
+        data class ConversationItemCreate(val item: ClientConversationItem) : RealtimeEvent()
+
+        @Serializable
+        data class ClientConversationItem(
+            val type: String,
+            val role: String,
+            val content: List<ContentPart>
+        )
+
+        @Serializable
+        sealed class ContentPart {
+            @Serializable
+            @SerialName("audio")
+            data class Audio(
+                val transcript: String
+            ) : ContentPart()
+
+            @Serializable
+            @SerialName("input_audio")
+            data class InputAudio(
+                val transcript: String?
+            ) : ContentPart()
+
+            @Serializable
+            @SerialName("input_text")
+            data class InputText(
+                val text: String
+            ) : ContentPart()
+
+            @Serializable
+            @SerialName("text")
+            data class Text(
+                val text: String
+            ) : ContentPart()
+        }
 
         @Serializable
         @SerialName("conversation.item.truncate")
@@ -755,17 +811,18 @@ class OpenAI {
 
         @Serializable
         @SerialName("conversation.item.created")
-        data class ConversationItemCreated(val item: RealtimeItem) : RealtimeEvent()
+        data class ConversationItemCreated(val item: ServerConversationItem) : RealtimeEvent()
+
+        @Serializable
+        data class ServerConversationItem(
+            val id: String,
+            val role: String,
+            val content: List<ContentPart>
+        )
 
         @Serializable
         @SerialName("conversation.item.truncated")
         data class ConversationItemTruncated(val item_id: String) : RealtimeEvent()
-
-        @Serializable
-        data class RealtimeItem(
-            val id: String,
-            val role: String
-        )
 
         @Serializable
         @SerialName("conversation.item.input_audio_transcription.completed")
@@ -793,17 +850,11 @@ class OpenAI {
 
         @Serializable
         @SerialName("response.content_part.added")
-        data class ResponseContentPartAdded(val part: ContentPart) : RealtimeEvent()
-
-        @Serializable
-        data class ContentPart(
-            val type: String,
-            val transcript: String
-        )
+        data class ResponseContentPartAdded(val part: ContentPart.Audio) : RealtimeEvent()
 
         @Serializable
         @SerialName("response.content_part.done")
-        data class ResponseContentPartDone(val part: ContentPart) : RealtimeEvent()
+        data class ResponseContentPartDone(val part: ContentPart.Audio) : RealtimeEvent()
 
         @Serializable
         @SerialName("response.audio_transcript.delta")
@@ -820,6 +871,10 @@ class OpenAI {
         @Serializable
         @SerialName("response.audio.done")
         data class ResponseAudioDone(val output_index: Int) : RealtimeEvent()
+
+        @Serializable
+        @SerialName("response.text.delta")
+        data class ResponseTextDelta(val delta: String) : RealtimeEvent()
 
         @Serializable
         @SerialName("rate_limits.updated")
