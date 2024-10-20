@@ -639,6 +639,19 @@ class ChatFragment : Fragment(), MenuProvider {
                     )
                     applyTo(promptSection)
                 }
+            } else {
+                ConstraintSet().apply {
+                    clone(promptSection)
+                    connect(
+                        R.id.button_language, ConstraintSet.BOTTOM,
+                        R.id.prompt_section, ConstraintSet.BOTTOM
+                    )
+                    connect(
+                        R.id.button_record, ConstraintSet.END,
+                        R.id.button_language, ConstraintSet.START
+                    )
+                    applyTo(promptSection)
+                }
             }
         }
     }
