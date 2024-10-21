@@ -228,6 +228,7 @@ class ChatFragment : Fragment(), MenuProvider {
     private lateinit var drawerToggle: ActionBarDrawerToggle
     private lateinit var voiceMenuItem: MenuItem
     private lateinit var chatsMenuItem: MenuItem
+    private lateinit var mainMenu: Menu
     private lateinit var recordButtonLayoutParams_chat: ConstraintLayout.LayoutParams
     private lateinit var recordButtonLayoutParams_voice: ConstraintLayout.LayoutParams
     private lateinit var promptSectionLayoutParams_chat: LinearLayout.LayoutParams
@@ -301,7 +302,6 @@ class ChatFragment : Fragment(), MenuProvider {
                 height = 0
                 weight = 1f
             }
-            adaptUiToSelectedMode()
         }
         updateLanguageButton()
         sharedImageViewModel.imgUriLiveData.observe(viewLifecycleOwner) { imgUris ->
@@ -557,8 +557,10 @@ class ChatFragment : Fragment(), MenuProvider {
         menu.clear()
         menuInflater.inflate(R.menu.menu_main, menu)
         applyAccessRules(menu)
+        mainMenu = menu
         setupVoiceMenu()
-        updateMuteItem(menu.findItem(R.id.action_toggle_sound))
+        updateMuteItem(menu.findItem(R.id.action_toggle_sound), appContext.mainPrefs.isMuted)
+        adaptUiToSelectedMode()
     }
 
     private fun applyAccessRules(mainMenu: Menu) {
@@ -611,6 +613,12 @@ class ChatFragment : Fragment(), MenuProvider {
     private fun adaptUiToSelectedMode() {
         val isRealtime = isRealtimeModelSelected()
         val isVoiceMode = isRealtime && appContext.mainPrefs.isVoiceModeSelected
+        if (::mainMenu.isInitialized) {
+            mainMenu.findItem(R.id.action_toggle_sound).also { item ->
+                updateMuteItem(item, if (isRealtime) false else appContext.mainPrefs.isMuted)
+                item.setEnabled(!isRealtime)
+            }
+        }
         binding.apply {
             promptSection.layoutParams =
                 if (isVoiceMode) promptSectionLayoutParams_voice else promptSectionLayoutParams_chat
@@ -687,8 +695,8 @@ class ChatFragment : Fragment(), MenuProvider {
             !appContext.mainPrefs.isMuted && !responding && hasContent
     }
 
-    private fun updateMuteItem(item: MenuItem) {
-        item.isChecked = appContext.mainPrefs.isMuted
+    private fun updateMuteItem(item: MenuItem, newMutedState: Boolean) {
+        item.isChecked = newMutedState
         item.setIcon(if (item.isChecked) R.drawable.baseline_volume_off_24 else R.drawable.baseline_volume_up_24)
     }
 
@@ -708,8 +716,9 @@ class ChatFragment : Fragment(), MenuProvider {
                 true
             }
             R.id.action_toggle_sound -> {
-                appContext.mainPrefs.applyUpdate { setIsMuted(!appContext.mainPrefs.isMuted) }
-                updateMuteItem(item)
+                val newMutedState = !appContext.mainPrefs.isMuted
+                appContext.mainPrefs.applyUpdate { setIsMuted(newMutedState) }
+                updateMuteItem(item, newMutedState)
                 activity?.invalidateOptionsMenu()
                 vmodel.muteToggledCallback?.invoke()
                 true
