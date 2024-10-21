@@ -205,9 +205,9 @@ fun SharedPreferences.Editor.setIsMuted(value: Boolean): SharedPreferences.Edito
 
 val SharedPreferences.selectedModel: AiModel get() =
     try {
-        getString(KEY_SELECTED_MODEL, AiModel.GPT_4O_MINI.name).let { AiModel.valueOf(it!!) }
+        getString(KEY_SELECTED_MODEL, AiModel.GPT_4O.name).let { AiModel.valueOf(it!!) }
     } catch (e: Exception) {
-        AiModel.GPT_4O_MINI
+        AiModel.GPT_4O
     }
 
 fun SharedPreferences.Editor.setSelectedModel(value: AiModel): SharedPreferences.Editor =

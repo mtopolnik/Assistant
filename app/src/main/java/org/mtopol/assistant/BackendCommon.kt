@@ -56,7 +56,6 @@ enum class AiModel(
     private val uiIdLazy: Lazy<String>
 ) {
     DEMO(l("demo"), l("Demo")),
-    GPT_4O_MINI(l(MODEL_ID_GPT_4O_MINI), l("4o min")),
     GPT_4O(l(MODEL_ID_GPT_4O), l("GPT-4o")),
     GPT_4O_REALTIME(l(MODEL_ID_GPT_4O_REALTIME), l("4o RT")),
     CLAUDE_3_5_SONNET(l(MODEL_ID_SONNET_3_5), l("Sonnet")),
@@ -72,8 +71,7 @@ class OpenAiKey(val text: String) {
     fun isBlank() = text.isBlank()
     fun isNotBlank() = text.isNotBlank()
     fun isDemoKey() = text.isDemoKey()
-    fun allowsGptMini() = isNotBlank() && !isDemoKey()
-    fun allowsGpt4() = allowsGptMini() && !text.isGptMiniOnlyKey()
+    fun allowsGpt4() = isNotBlank() && !isDemoKey()
     fun allowsTts() = allowsGpt4() && !text.isGptOnlyKey()
     fun allowsArtist() = text.isImageGenKey()
     fun allowsRealtime() = allowsGpt4() && !text.isRtDisabledKey()
@@ -91,7 +89,6 @@ class ApiKeyWallet(prefs: SharedPreferences) {
         openaiKey = prefs.openaiApiKey
         supportedModels = mutableListOf<AiModel>().also { models ->
             if (isDemo()) models.add(AiModel.DEMO)
-            if (openaiKey.allowsGptMini()) models.add(AiModel.GPT_4O_MINI)
             if (openaiKey.allowsGpt4()) models.add(AiModel.GPT_4O)
             if (openaiKey.allowsRealtime()) models.add(AiModel.GPT_4O_REALTIME)
             if (hasAnthropicKey()) models.add(AiModel.CLAUDE_3_5_SONNET)
@@ -112,15 +109,10 @@ fun String.looksLikeApiKey() = isDemoKey() || looksLikeOpenAiKey() || looksLikeA
 fun String.looksLikeAnthropicKey() = length == 108 && startsWith("sk-ant-")
 fun String.looksLikeOpenAiKey() = length >= 51 && startsWith("sk-")
 
-private fun String.isGptMiniOnlyKey() = setContainsHashMemoized(this, GPT_MINI_ONLY_KEY_HASHES, keyToIsGptMiniOnly)
-private val keyToIsGptMiniOnly = ConcurrentHashMap<String, Boolean>()
-private val GPT_MINI_ONLY_KEY_HASHES = hashSetOf(
-    "DIkQ9HIwN3Ky+t53aMHyojOYAsXBFBnZQvnhbU2oyPs=",
-)
-
 private fun String.isGptOnlyKey() = setContainsHashMemoized(this, GPT_ONLY_KEY_HASHES, keyToIsGptOnly)
 private val keyToIsGptOnly = ConcurrentHashMap<String, Boolean>()
 private val GPT_ONLY_KEY_HASHES = hashSetOf(
+    "DIkQ9HIwN3Ky+t53aMHyojOYAsXBFBnZQvnhbU2oyPs=",
     "Ej1/kPkeX2/5AVBalQHV+Fg/5QSo9UjK+XgDWFhOQ10="
 )
 
@@ -134,6 +126,7 @@ private val IMAGE_KEY_HASHES = hashSetOf(
 private fun String.isRtDisabledKey() = setContainsHashMemoized(this, RT_DISABLED_KEY_HASHES, keyToIsDisabledRt)
 private val keyToIsDisabledRt = ConcurrentHashMap<String, Boolean>()
 private val RT_DISABLED_KEY_HASHES = hashSetOf(
+    "DIkQ9HIwN3Ky+t53aMHyojOYAsXBFBnZQvnhbU2oyPs=",
     "WlYejPDJf0ba5LefiDKy2gqb4PeXKIO36iejO7y5NuE=",
     "Ej1/kPkeX2/5AVBalQHV+Fg/5QSo9UjK+XgDWFhOQ10="
 )
