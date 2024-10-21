@@ -287,22 +287,6 @@ class ChatFragment : Fragment(), MenuProvider {
         vmodel.timedCancelRealtimeJob?.cancel()
         recordButtonLayoutParams_chat = binding.buttonRecord.layoutParams as ConstraintLayout.LayoutParams
         promptSectionLayoutParams_chat = binding.promptSection.layoutParams as LinearLayout.LayoutParams
-        binding.root.requestLayout()
-        binding.root.doOnLayout {
-            val padding = 16.dp
-            val availableHeight = binding.scrollviewChat.height + binding.promptSection.height - padding
-            val availableWidth = binding.promptSection.width - padding
-            val buttonDiameter = min(availableWidth, availableHeight)
-            recordButtonLayoutParams_voice = ConstraintLayout.LayoutParams(recordButtonLayoutParams_chat).apply {
-                height = buttonDiameter
-                width = buttonDiameter
-                bottomMargin = (availableHeight - buttonDiameter) / 2
-            }
-            promptSectionLayoutParams_voice = LinearLayout.LayoutParams(promptSectionLayoutParams_chat).apply {
-                height = 0
-                weight = 1f
-            }
-        }
         updateLanguageButton()
         sharedImageViewModel.imgUriLiveData.observe(viewLifecycleOwner) { imgUris ->
             // We need this hack to prevent duplicate event observation:
@@ -559,8 +543,6 @@ class ChatFragment : Fragment(), MenuProvider {
         applyAccessRules(menu)
         mainMenu = menu
         setupVoiceMenu()
-        updateMuteItem(menu.findItem(R.id.action_toggle_sound), appContext.mainPrefs.isMuted)
-        adaptUiToSelectedMode()
     }
 
     private fun applyAccessRules(mainMenu: Menu) {
@@ -613,12 +595,6 @@ class ChatFragment : Fragment(), MenuProvider {
     private fun adaptUiToSelectedMode() {
         val isRealtime = isRealtimeModelSelected()
         val isVoiceMode = isRealtime && appContext.mainPrefs.isVoiceModeSelected
-        if (::mainMenu.isInitialized) {
-            mainMenu.findItem(R.id.action_toggle_sound).also { item ->
-                updateMuteItem(item, if (isRealtime) false else appContext.mainPrefs.isMuted)
-                item.setEnabled(!isRealtime)
-            }
-        }
         binding.apply {
             promptSection.layoutParams =
                 if (isVoiceMode) promptSectionLayoutParams_voice else promptSectionLayoutParams_chat
@@ -688,16 +664,20 @@ class ChatFragment : Fragment(), MenuProvider {
     override fun onPrepareMenu(menu: Menu) {
         Log.i("lifecycle", "onPrepareMenu")
         val responding = vmodel.isConnectionLive
-        val hasContent = vmodel.chatContent.isNotEmpty()
+        val hasContent = vmodel.chatContent.isNotEmpty() || binding.edittextPrompt.text.isNotEmpty()
+        val realtimeMode = isRealtimeModelSelected()
+        val isMuted = appContext.mainPrefs.isMuted
         menu.findItem(R.id.action_cancel).isVisible = responding
-        menu.findItem(R.id.action_undo).isVisible = !responding
-        menu.findItem(R.id.action_speak_again).isEnabled =
-            !appContext.mainPrefs.isMuted && !responding && hasContent
-    }
-
-    private fun updateMuteItem(item: MenuItem, newMutedState: Boolean) {
-        item.isChecked = newMutedState
-        item.setIcon(if (item.isChecked) R.drawable.baseline_volume_off_24 else R.drawable.baseline_volume_up_24)
+        menu.findItem(R.id.action_undo).apply {
+            isVisible = !responding
+            isEnabled = hasContent
+        }
+        menu.findItem(R.id.action_toggle_sound).apply {
+            isChecked = isMuted
+            isEnabled = !responding && !realtimeMode
+            setIcon(if (isChecked) R.drawable.baseline_volume_off_24 else R.drawable.baseline_volume_up_24)
+        }
+        menu.findItem(R.id.action_speak_again).isEnabled = !isMuted && !responding && hasContent && !realtimeMode
     }
 
     override fun onMenuItemSelected(item: MenuItem): Boolean {
@@ -718,8 +698,7 @@ class ChatFragment : Fragment(), MenuProvider {
             R.id.action_toggle_sound -> {
                 val newMutedState = !appContext.mainPrefs.isMuted
                 appContext.mainPrefs.applyUpdate { setIsMuted(newMutedState) }
-                updateMuteItem(item, newMutedState)
-                activity?.invalidateOptionsMenu()
+                requireActivity().invalidateOptionsMenu()
                 vmodel.muteToggledCallback?.invoke()
                 true
             }
@@ -735,16 +714,19 @@ class ChatFragment : Fragment(), MenuProvider {
                     } else {
                         undoLastPrompt()
                     }
+                    requireActivity().invalidateOptionsMenu()
                 }
                 true
             }
             R.id.action_archive_chat -> {
                 archiveCurrentChat()
+                requireActivity().invalidateOptionsMenu()
                 true
             }
             R.id.action_delete_chat -> {
                 deleteChat(vmodel.chatId)
                 newChat()
+                requireActivity().invalidateOptionsMenu()
                 true
             }
             else -> false
@@ -885,6 +867,21 @@ class ChatFragment : Fragment(), MenuProvider {
         super.onResume()
         Log.i("lifecycle", "onResume ChatFragment")
         userLanguages = appContext.mainPrefs.configuredLanguages()
+        binding.root.doOnLayout {
+            val padding = 16.dp
+            val availableHeight = binding.scrollviewChat.height + binding.promptSection.height - padding
+            val availableWidth = binding.promptSection.width - padding
+            val buttonDiameter = min(availableWidth, availableHeight)
+            recordButtonLayoutParams_voice = ConstraintLayout.LayoutParams(recordButtonLayoutParams_chat).apply {
+                height = buttonDiameter
+                width = buttonDiameter
+                bottomMargin = (availableHeight - buttonDiameter) / 2
+            }
+            promptSectionLayoutParams_voice = LinearLayout.LayoutParams(promptSectionLayoutParams_chat).apply {
+                height = 0
+                weight = 1f
+            }
+        }
     }
 
     override fun onPause() {
