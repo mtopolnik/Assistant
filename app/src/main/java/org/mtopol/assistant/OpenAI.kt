@@ -319,30 +319,6 @@ class OpenAI {
                 }
             """.trimIndent()
             )
-            for (exchange in vmodel.chatContent) {
-                sendWs(
-                    RealtimeEvent.ConversationItemCreate(
-                        RealtimeEvent.ClientConversationItem(
-                            type = "message",
-                            role = "user",
-                            content = listOf(
-                                RealtimeEvent.ContentPart.InputText(
-                                    exchange.promptText()?.toString() ?: ""
-                                )
-                            )
-                        )
-                    )
-                )
-                sendWs(
-                    RealtimeEvent.ConversationItemCreate(
-                        RealtimeEvent.ClientConversationItem(
-                            type = "message",
-                            role = "assistant",
-                            content = listOf(RealtimeEvent.ContentPart.Text(exchange.replyMarkdown.toString()))
-                        )
-                    )
-                )
-            }
             val bytesFor50ms = REALTIME_RECORD_SAMPLE_RATE / 10
             val responseId = AtomicReference<String>(null)
             launch {
@@ -739,7 +715,8 @@ class OpenAI {
             @Serializable
             @SerialName("input_audio")
             data class InputAudio(
-                val transcript: String?
+                val audio: String? = null,
+                val transcript: String? = null
             ) : ContentPart()
 
             @Serializable

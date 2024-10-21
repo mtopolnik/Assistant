@@ -730,9 +730,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 true
             }
             R.id.action_archive_chat -> {
-                getChatHandle(vmodel.chatId)!!.isDirty = true
-                saveOrDeleteCurrentChat()
-                newChat()
+                archiveCurrentChat()
                 true
             }
             R.id.action_delete_chat -> {
@@ -742,6 +740,12 @@ class ChatFragment : Fragment(), MenuProvider {
             }
             else -> false
         }
+    }
+
+    private fun archiveCurrentChat() {
+        getChatHandle(vmodel.chatId)!!.isDirty = true
+        saveOrDeleteCurrentChat()
+        newChat()
     }
 
     private fun configureNavigationDrawerBehavior(activity: MainActivity) {
@@ -1334,6 +1338,7 @@ class ChatFragment : Fragment(), MenuProvider {
         val previousRealtimeJob = vmodel.realtimeJob?.apply { cancel() }
         vmodel.realtimeJob = vmodel.viewModelScope.launch {
             previousRealtimeJob?.join()
+            archiveCurrentChat()
             vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
             val exoPlayer = exoPlayer(120_000, 50)
             val sampleRate = REALTIME_RECORD_SAMPLE_RATE
