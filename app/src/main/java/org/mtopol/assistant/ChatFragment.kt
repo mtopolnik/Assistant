@@ -283,6 +283,23 @@ class ChatFragment : Fragment(), MenuProvider {
         GlobalScope.launch(IO) { openAi; anthropic }
 
         binding = FragmentChatBinding.inflate(inflater, container, false)
+        binding.root.doOnLayout {  }
+        binding.root.addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
+            val padding = 16.dp
+            val availableHeight = bottom - top - binding.appbarLayout.height - padding
+            val availableWidth = right - left - padding
+            val buttonDiameter = min(availableWidth, availableHeight)
+            recordButtonLayoutParams_voice = ConstraintLayout.LayoutParams(recordButtonLayoutParams_chat).apply {
+                height = buttonDiameter
+                width = buttonDiameter
+                bottomMargin = (availableHeight - buttonDiameter) / 2
+            }
+            promptSectionLayoutParams_voice = LinearLayout.LayoutParams(promptSectionLayoutParams_chat).apply {
+                height = 0
+                weight = 1f
+            }
+            adaptUiToSelectedMode()
+        }
         vmodel.withFragmentLiveData.observe(viewLifecycleOwner) { it.invoke(this) }
         vmodel.timedCancelRealtimeJob?.cancel()
         recordButtonLayoutParams_chat = binding.buttonRecord.layoutParams as ConstraintLayout.LayoutParams
@@ -867,21 +884,6 @@ class ChatFragment : Fragment(), MenuProvider {
         super.onResume()
         Log.i("lifecycle", "onResume ChatFragment")
         userLanguages = appContext.mainPrefs.configuredLanguages()
-        binding.root.doOnLayout {
-            val padding = 16.dp
-            val availableHeight = binding.scrollviewChat.height + binding.promptSection.height - padding
-            val availableWidth = binding.promptSection.width - padding
-            val buttonDiameter = min(availableWidth, availableHeight)
-            recordButtonLayoutParams_voice = ConstraintLayout.LayoutParams(recordButtonLayoutParams_chat).apply {
-                height = buttonDiameter
-                width = buttonDiameter
-                bottomMargin = (availableHeight - buttonDiameter) / 2
-            }
-            promptSectionLayoutParams_voice = LinearLayout.LayoutParams(promptSectionLayoutParams_chat).apply {
-                height = 0
-                weight = 1f
-            }
-        }
     }
 
     override fun onPause() {
