@@ -574,6 +574,7 @@ class ChatFragment : Fragment(), MenuProvider {
             binding.viewDrawer.menu.apply {
                 findItem(R.id.action_delete_anthropic_key).setVisible(wallet.hasAnthropicKey())
                 findItem(R.id.action_delete_openai_key).setVisible(wallet.hasOpenaiKey())
+                findItem(R.id.action_delete_xai_key).setVisible(wallet.hasXaiKey())
             }
 
             mainMenu.findItem(R.id.action_model_toggle)
@@ -830,6 +831,12 @@ class ChatFragment : Fragment(), MenuProvider {
                     R.id.action_delete_anthropic_key -> {
                         mainPrefs.applyUpdate {
                             setAnthropicApiKey("")
+                        }
+                        onApiKeyDeleted()
+                    }
+                    R.id.action_delete_xai_key -> {
+                        mainPrefs.applyUpdate {
+                            setXaiApiKey("")
                         }
                         onApiKeyDeleted()
                     }
@@ -1106,10 +1113,9 @@ class ChatFragment : Fragment(), MenuProvider {
 
                 val sentenceFlow: Flow<String> = channelFlow {
                     val selectedModel = appContext.mainPrefs.selectedModel
-                    val responseFlow = if (selectedModel == AiModel.CLAUDE_3_5_SONNET)
-                        anthropic.messages(vmodel.chatContent, selectedModel)
-                    else {
-                        openAi.chatCompletions(vmodel.chatContent, selectedModel)
+                    val responseFlow = when (selectedModel) {
+                        AiModel.CLAUDE_3_5_SONNET, AiModel.GROK -> anthropic.messages(vmodel.chatContent, selectedModel)
+                        else -> openAi.chatCompletions(vmodel.chatContent, selectedModel)
                     }
 
                     var replyTextUpdateTime = 0L

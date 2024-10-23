@@ -41,10 +41,10 @@ class ApiKeyFragment : Fragment() {
             val apiKey = binding.edittextApiKey.text.toString().trim()
             if (apiKey.looksLikeApiKey()) {
                 requireContext().mainPrefs.applyUpdate {
-                    if (apiKey.looksLikeAnthropicKey()) {
-                        setAnthropicApiKey(apiKey)
-                    } else {
-                        setOpenaiApiKey(apiKey)
+                    when {
+                        apiKey.looksLikeAnthropicKey() -> setAnthropicApiKey(apiKey)
+                        apiKey.looksLikeXaiKey() -> setXaiApiKey(apiKey)
+                        else -> setOpenaiApiKey(apiKey)
                     }
                 }
                 resetClients()

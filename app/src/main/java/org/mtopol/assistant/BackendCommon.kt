@@ -56,9 +56,10 @@ enum class AiModel(
     private val uiIdLazy: Lazy<String>
 ) {
     DEMO(l("demo"), l("Demo")),
+    CLAUDE_3_5_SONNET(l(MODEL_ID_SONNET_3_5), l("Sonnet")),
+    GROK(l(MODEL_ID_GROK), l("Grok")),
     GPT_4O(l(MODEL_ID_GPT_4O), l("GPT-4o")),
     GPT_4O_REALTIME(l(MODEL_ID_GPT_4O_REALTIME), l("4o RT")),
-    CLAUDE_3_5_SONNET(l(MODEL_ID_SONNET_3_5), l("Sonnet")),
     ARTIST_3(lazy { "${ARTIST_LAZY.value.lowercase()}-3" }, ARTIST_LAZY);
 
     val apiId: String get() = apiIdLazy.value
@@ -81,32 +82,34 @@ class OpenAiKey(val text: String) {
 
 class ApiKeyWallet(prefs: SharedPreferences) {
     val supportedModels: List<AiModel>
-    private val anthropicKey: String
-    private val openaiKey: OpenAiKey
+    private val anthropicKey: String = prefs.anthropicApiKey
+    private val openaiKey: OpenAiKey = prefs.openaiApiKey
+    private val xaiKey: String = prefs.xaiApiKey
 
     init {
-        anthropicKey = prefs.anthropicApiKey
-        openaiKey = prefs.openaiApiKey
         supportedModels = mutableListOf<AiModel>().also { models ->
             if (isDemo()) models.add(AiModel.DEMO)
             if (openaiKey.allowsGpt4()) models.add(AiModel.GPT_4O)
             if (openaiKey.allowsRealtime()) models.add(AiModel.GPT_4O_REALTIME)
             if (hasAnthropicKey()) models.add(AiModel.CLAUDE_3_5_SONNET)
+            if (hasXaiKey()) models.add(AiModel.GROK)
             if (openaiKey.allowsArtist()) models.add(AiModel.ARTIST_3)
         }
     }
 
     fun hasAnthropicKey() = anthropicKey.isNotBlank()
     fun hasOpenaiKey() = openaiKey.isNotBlank()
-    fun isNotEmpty() = hasAnthropicKey() || hasOpenaiKey()
+    fun hasXaiKey() = xaiKey.isNotBlank()
+    fun isNotEmpty() = hasXaiKey() || hasAnthropicKey() || hasOpenaiKey()
     fun isEmpty() = !isNotEmpty()
     fun allowsTts() = openaiKey.allowsTts()
     fun isDemo() = openaiKey.isDemoKey()
 }
 
 fun String.isDemoKey() = this.trim().lowercase() == DEMO_API_KEY
-fun String.looksLikeApiKey() = isDemoKey() || looksLikeOpenAiKey() || looksLikeAnthropicKey()
+fun String.looksLikeApiKey() = isDemoKey() || looksLikeAnthropicKey() || looksLikeXaiKey() || looksLikeOpenAiKey()
 fun String.looksLikeAnthropicKey() = length == 108 && startsWith("sk-ant-")
+fun String.looksLikeXaiKey() = length == 84 && startsWith("xai-")
 fun String.looksLikeOpenAiKey() = length >= 51 && startsWith("sk-")
 
 private fun String.isGptOnlyKey() = setContainsHashMemoized(this, GPT_ONLY_KEY_HASHES, keyToIsGptOnly)

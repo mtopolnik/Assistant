@@ -49,10 +49,12 @@ import kotlinx.serialization.json.encodeToJsonElement
 import java.io.ByteArrayOutputStream
 
 const val MODEL_ID_SONNET_3_5 = "claude-3-5-sonnet-latest"
+const val MODEL_ID_GROK = "grok-beta"
 
 val anthropic get() = anthropicLazy.value
 
 private const val ANTHROPIC_URL = "https://api.anthropic.com/v1/"
+private const val XAI_URL = "https://api.x.ai/v1/"
 private const val ANTHROPIC_VERSION = "2023-06-01"
 
 private lateinit var anthropicLazy: Lazy<Anthropic>
@@ -65,11 +67,14 @@ fun resetAnthropic(): Lazy<Anthropic> {
 }
 
 class Anthropic {
-    private val anthropicClient = createAnthropicClient(appContext.mainPrefs.anthropicApiKey)
+    private val anthropicClient = createAnthropicClient(ANTHROPIC_URL, appContext.mainPrefs.anthropicApiKey)
+    private val xaiClient = createAnthropicClient(XAI_URL, appContext.mainPrefs.xaiApiKey)
 
     suspend fun messages(history: List<Exchange>, model: AiModel): Flow<String> {
         Log.i("client", "Model: ${model.apiId}")
+        val client = if (model == AiModel.CLAUDE_3_5_SONNET) anthropicClient else xaiClient
         val request = MessageRequest(
+            model = model.apiId,
             system = appContext.mainPrefs.systemPrompt,
             messages = history.toDto().dropLast(1),
         )
@@ -80,7 +85,7 @@ class Anthropic {
                 contentType(ContentType.Application.Json)
                 setBody(jsonCodec.encodeToJsonElement<MessageRequest>(request))
             }
-            HttpStatement(builder, anthropicClient).execute { emitStreamingResponse(it) }
+            HttpStatement(builder, client).execute { emitStreamingResponse(it) }
         }
             .map { chunk -> chunk.delta.text }
             .filterNotNull()
@@ -164,8 +169,8 @@ class Anthropic {
         val stream: Boolean,
     )
 
-    private fun MessageRequest(system: String, messages: List<Message>) = MessageRequest(
-        model = MODEL_ID_SONNET_3_5,
+    private fun MessageRequest(model: String, system: String, messages: List<Message>) = MessageRequest(
+        model = model,
         system = system,
         messages = messages,
         max_tokens = 4096,
@@ -173,9 +178,9 @@ class Anthropic {
     )
 }
 
-private fun createAnthropicClient(apiKey: String) = HttpClient(OkHttp) {
+private fun createAnthropicClient(baseUrl: String, apiKey: String) = HttpClient(OkHttp) {
     defaultRequest {
-        url(ANTHROPIC_URL)
+        url(baseUrl)
         headers {
             append("x-api-key", apiKey)
             append("anthropic-version", ANTHROPIC_VERSION)
