@@ -21,7 +21,7 @@
         xmlns:tools="http://schemas.android.com/tools"
         >
     <item
-            android:id="@+id/action_gpt_toggle"
+            android:id="@+id/action_model_toggle"
             android:title="@string/selected_model"
             app:actionLayout="@layout/button_gpt_toggle"
             app:showAsAction="always"

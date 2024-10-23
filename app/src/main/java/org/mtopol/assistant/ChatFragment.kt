@@ -53,6 +53,7 @@ import android.view.View
 import android.view.View.GONE
 import android.view.View.INVISIBLE
 import android.view.View.MeasureSpec
+import android.view.View.OnLayoutChangeListener
 import android.view.View.OnTouchListener
 import android.view.View.VISIBLE
 import android.view.ViewGroup
@@ -283,22 +284,11 @@ class ChatFragment : Fragment(), MenuProvider {
         GlobalScope.launch(IO) { openAi; anthropic }
 
         binding = FragmentChatBinding.inflate(inflater, container, false)
-        binding.root.doOnLayout {  }
-        binding.root.addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
-            val padding = 16.dp
-            val availableHeight = bottom - top - binding.appbarLayout.height - padding
-            val availableWidth = right - left - padding
-            val buttonDiameter = min(availableWidth, availableHeight)
-            recordButtonLayoutParams_voice = ConstraintLayout.LayoutParams(recordButtonLayoutParams_chat).apply {
-                height = buttonDiameter
-                width = buttonDiameter
-                bottomMargin = (availableHeight - buttonDiameter) / 2
+        binding.root.addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
+            if (bottom - top == oldBottom - oldTop && right - left == oldRight - oldLeft) {
+                return@addOnLayoutChangeListener
             }
-            promptSectionLayoutParams_voice = LinearLayout.LayoutParams(promptSectionLayoutParams_chat).apply {
-                height = 0
-                weight = 1f
-            }
-            adaptUiToSelectedMode()
+            updateLayoutParams(bottom, top, right, left)
         }
         vmodel.withFragmentLiveData.observe(viewLifecycleOwner) { it.invoke(this) }
         vmodel.timedCancelRealtimeJob?.cancel()
@@ -477,11 +467,11 @@ class ChatFragment : Fragment(), MenuProvider {
                 else -> false
             }
         }
-        binding.buttonRealtimeSwitch.onClickWithVibrate {
+        binding.buttonTranscriptSwitch.onClickWithVibrate {
             appContext.mainPrefs.applyUpdate {
                 setIsVoiceModeSelected(!appContext.mainPrefs.isVoiceModeSelected)
             }
-            adaptUiToSelectedMode()
+            configureUi()
         }
         binding.buttonKeyboard.onClickWithVibrate {
             switchToTyping()
@@ -586,7 +576,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 findItem(R.id.action_delete_openai_key).setVisible(wallet.hasOpenaiKey())
             }
 
-            mainMenu.findItem(R.id.action_gpt_toggle)
+            mainMenu.findItem(R.id.action_model_toggle)
                 .actionView!!
                 .findViewById<TextView>(R.id.textview_model_selector).apply {
                     updateText()
@@ -605,45 +595,69 @@ class ChatFragment : Fragment(), MenuProvider {
         appContext.mainPrefs.applyUpdate { setSelectedModel(model) }
         hideKeyboard()
         switchToVoice()
-        adaptUiToSelectedMode()
+        configureUi()
+        requireActivity().invalidateOptionsMenu()
         setupVoiceMenu()
     }
 
-    private fun adaptUiToSelectedMode() {
-        val isRealtime = isRealtimeModelSelected()
-        val isVoiceMode = isRealtime && appContext.mainPrefs.isVoiceModeSelected
-        binding.apply {
-            promptSection.layoutParams =
-                if (isVoiceMode) promptSectionLayoutParams_voice else promptSectionLayoutParams_chat
+    private fun updateLayoutParams(bottom: Int, top: Int, right: Int, left: Int) {
+        val padding = 16.dp
+        val availableHeight = bottom - top - binding.appbarLayout.height - padding
+        val availableWidth = right - left - padding
+        val buttonDiameter = min(availableWidth, availableHeight)
+        recordButtonLayoutParams_voice = ConstraintLayout.LayoutParams(recordButtonLayoutParams_chat).apply {
+            height = buttonDiameter
+            width = buttonDiameter
+            bottomMargin = (availableHeight - buttonDiameter) / 2
+        }
+        promptSectionLayoutParams_voice = LinearLayout.LayoutParams(promptSectionLayoutParams_chat).apply {
+            height = 0
+            weight = 1f
+        }
+        configureUi()
+    }
 
-            val buttParams = (if (isVoiceMode) recordButtonLayoutParams_voice else recordButtonLayoutParams_chat)
+    private fun configureUi() {
+        Log.i("lifecycle", "configureUi")
+        binding.apply {
+            val isRealtime = isRealtimeModelSelected()
+            val isRtVoiceMode = isRealtime && appContext.mainPrefs.isVoiceModeSelected
+            val isTypingMode = edittextPrompt.isVisible
+
+            promptSection.layoutParams =
+                if (isRtVoiceMode) promptSectionLayoutParams_voice else promptSectionLayoutParams_chat
+
+            val buttParams = (if (isRtVoiceMode) recordButtonLayoutParams_voice else recordButtonLayoutParams_chat)
             buttonRecord.layoutParams = buttParams
             val buttHeight = buttParams.height
-            (buttonRecord as MaterialButton).iconSize = if (isVoiceMode) buttHeight / 3 else buttHeight * 3 / 5
+            (buttonRecord as MaterialButton).iconSize = if (isRtVoiceMode) buttHeight / 3 else buttHeight * 3 / 5
 
-            scrollviewChat.visibility = if (isVoiceMode) GONE else VISIBLE
+            scrollviewChat.visibility = if (isRtVoiceMode) GONE else VISIBLE
             buttonKeyboard.visibility = when {
-                isVoiceMode -> GONE
+                isRtVoiceMode -> GONE
                 isRealtime -> INVISIBLE
+                isTypingMode -> GONE
                 else -> VISIBLE
             }
-            buttonLanguage.visibility = if (isRealtime) GONE else VISIBLE
-            buttonRealtimeSwitch.visibility = if (isRealtime) VISIBLE else GONE
-
+            buttonSend.isVisible = isTypingMode
+            buttonRecord.isVisible = !isTypingMode
+            buttonLanguage.isVisible = !isTypingMode && !isRealtime
+            buttonTranscriptSwitch.isVisible = !isTypingMode && isRealtime
+            buttonKeyboard.isVisible = !isTypingMode && !isRtVoiceMode
             if (isRealtime) {
-                (buttonRealtimeSwitch as MaterialButton).setIconResource(
-                    if (isVoiceMode) R.drawable.baseline_chat_28
+                (buttonTranscriptSwitch as MaterialButton).setIconResource(
+                    if (isRtVoiceMode) R.drawable.baseline_chat_28
                     else R.drawable.baseline_headset_mic_28
                 )
                 ConstraintSet().apply {
                     clone(promptSection)
                     connect(
-                        R.id.button_realtime_switch, ConstraintSet.BOTTOM,
+                        R.id.button_transcript_switch, ConstraintSet.BOTTOM,
                         R.id.prompt_section, ConstraintSet.BOTTOM
                     )
                     connect(
                         R.id.button_record, ConstraintSet.END,
-                        R.id.button_realtime_switch, if (isVoiceMode) ConstraintSet.END else ConstraintSet.START
+                        R.id.button_transcript_switch, if (isRtVoiceMode) ConstraintSet.END else ConstraintSet.START
                     )
                     applyTo(promptSection)
                 }
@@ -691,7 +705,7 @@ class ChatFragment : Fragment(), MenuProvider {
         }
         menu.findItem(R.id.action_toggle_sound).apply {
             isChecked = isMuted
-            isEnabled = !responding && !realtimeMode
+            isEnabled = !realtimeMode
             setIcon(if (isChecked) R.drawable.baseline_volume_off_24 else R.drawable.baseline_volume_up_24)
         }
         menu.findItem(R.id.action_speak_again).isEnabled = !isMuted && !responding && hasContent && !realtimeMode
@@ -1768,34 +1782,26 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun switchToTyping() {
         binding.apply {
-            buttonKeyboard.visibility = GONE
-            buttonRecord.visibility = GONE
-            buttonLanguage.visibility = GONE
-            buttonSend.visibility = VISIBLE
             edittextPrompt.apply {
-                visibility = VISIBLE
+                isVisible = true
                 requestFocus()
             }
         }
+        configureUi()
     }
 
     private fun switchToVoice() {
-        binding.edittextPrompt.editableText.apply {
-            if (isNotEmpty()) {
-                clear() // this will trigger calling switchToVoice() again, with empty edit box
-                return
+        binding.edittextPrompt.apply {
+            editableText.apply {
+                if (isNotEmpty()) {
+                    clear() // this will trigger calling switchToVoice() again, with empty edit box
+                    return
+                }
             }
+            isVisible = false
+            clearFocus()
         }
-        binding.apply {
-            buttonKeyboard.visibility = if (isRealtimeModelSelected()) INVISIBLE else VISIBLE
-            buttonRecord.visibility = VISIBLE
-            buttonLanguage.visibility = VISIBLE
-            buttonSend.visibility = GONE
-            edittextPrompt.apply {
-                visibility = GONE
-                clearFocus()
-            }
-        }
+        configureUi()
     }
 
     private fun showKeyboard() {
