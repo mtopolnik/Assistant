@@ -90,10 +90,10 @@ class ApiKeyWallet(prefs: SharedPreferences) {
         supportedModels = mutableListOf<AiModel>().also { models ->
             if (isDemo()) models.add(AiModel.DEMO)
             if (openaiKey.allowsGpt4()) models.add(AiModel.GPT_4O)
-            if (openaiKey.allowsRealtime()) models.add(AiModel.GPT_4O_REALTIME)
             if (hasAnthropicKey()) models.add(AiModel.CLAUDE_3_5_SONNET)
             if (hasXaiKey()) models.add(AiModel.GROK)
             if (openaiKey.allowsArtist()) models.add(AiModel.ARTIST_3)
+            if (openaiKey.allowsRealtime()) models.add(AiModel.GPT_4O_REALTIME)
         }
     }
 
