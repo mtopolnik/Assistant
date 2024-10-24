@@ -22,9 +22,9 @@
     <color name="on_primary">#F3F3F3</color>
     <color name="secondary">#8083C5</color>
     <color name="on_secondary">@color/white</color>
-    <color name="background">#00111B</color>
+    <color name="background">#03001B</color>
     <color name="on_background">#cde5ff</color>
-    <color name="surface">#002A43</color>
+    <color name="surface">#16315B</color>
     <color name="on_surface">#FBFBFB</color>
 
     <color name="app_bar">@color/surface</color>
