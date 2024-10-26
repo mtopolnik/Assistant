@@ -18,7 +18,7 @@
 <resources>
     <!-- App Theme, generated from Solarized Blue and Magenta -->
     <!-- on https://m3.material.io/theme-builder#/custom -->
-    <color name="primary">#268bd2</color>
+    <color name="primary">#307EFF</color>
     <color name="on_primary">#F3F3F3</color>
     <color name="secondary">#8083C5</color>
     <color name="on_secondary">@color/white</color>
@@ -35,9 +35,9 @@
     <color name="on_keyboard_button">#F3F3F3</color>
     <color name="prompt_foreground">@color/on_surface</color>
     <color name="prompt_background">@color/dark_grey</color>
-    <color name="prompt_border">#666666</color>
+    <color name="prompt_border">#5F5E5E</color>
     <color name="response_foreground">@color/on_surface</color>
-    <color name="response_background">#004a76</color>
-    <color name="response_border">#286A8F</color>
+    <color name="response_background">#193E8A</color>
+    <color name="response_border">#3D68C3</color>
 
 </resources>
