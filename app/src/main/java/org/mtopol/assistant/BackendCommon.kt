@@ -115,8 +115,7 @@ fun String.looksLikeOpenAiKey() = length >= 51 && startsWith("sk-")
 private fun String.isGptOnlyKey() = setContainsHashMemoized(this, GPT_ONLY_KEY_HASHES, keyToIsGptOnly)
 private val keyToIsGptOnly = ConcurrentHashMap<String, Boolean>()
 private val GPT_ONLY_KEY_HASHES = hashSetOf(
-    "DIkQ9HIwN3Ky+t53aMHyojOYAsXBFBnZQvnhbU2oyPs=",
-    "Ej1/kPkeX2/5AVBalQHV+Fg/5QSo9UjK+XgDWFhOQ10="
+    "DIkQ9HIwN3Ky+t53aMHyojOYAsXBFBnZQvnhbU2oyPs="
 )
 
 private fun String.isImageGenKey() = setContainsHashMemoized(this, IMAGE_KEY_HASHES, keyToIsImageGen)
