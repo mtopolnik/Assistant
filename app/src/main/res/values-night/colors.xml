@@ -37,7 +37,7 @@
     <color name="prompt_background">@color/dark_grey</color>
     <color name="prompt_border">#5F5E5E</color>
     <color name="response_foreground">@color/on_surface</color>
-    <color name="response_background">#193E8A</color>
-    <color name="response_border">#3D68C3</color>
+    <color name="response_background">#224790</color>
+    <color name="response_border">#3F6FCA</color>
 
 </resources>
