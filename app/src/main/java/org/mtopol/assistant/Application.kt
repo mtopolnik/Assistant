@@ -379,6 +379,26 @@ fun vibrate() {
         )
 }
 
+suspend fun convertAopusToWav(inputPath: String, outputPath: String) = withContext(IO) {
+    val raf = RandomAccessFile(outputPath, "rw")
+    val input = PacketReader(FileInputStream(inputPath))
+    try {
+        raf.seek(WAV_HEADER_SIZE.toLong()) // size of WAV header, to be written in the end
+        val mediaFormat = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_OPUS, 48000, 1)
+        pushThroughDecoder(
+            mediaFormat,
+            { buf -> input.readPacket(buf).let { isEos -> if (isEos) -1 else buf.position() } },
+            { buf -> raf.channel.write(buf) }
+        )
+        val headerBuf = buildWavHeader(raf.length(), mediaFormat)
+        raf.seek(0)
+        raf.channel.write(headerBuf)
+    } finally {
+        raf.close()
+        input.close()
+    }
+}
+
 suspend fun convertToWav(inputPath: String, outputPath: String) = withContext(IO) {
     val extractor = MediaExtractor()
     val raf = RandomAccessFile(outputPath, "rw")

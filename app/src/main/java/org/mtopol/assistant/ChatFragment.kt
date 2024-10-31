@@ -34,6 +34,7 @@ import android.media.MediaCodec
 import android.media.MediaCodec.CONFIGURE_FLAG_ENCODE
 import android.media.MediaCodec.createEncoderByType
 import android.media.MediaFormat.KEY_BIT_RATE
+import android.media.MediaFormat.KEY_MAX_INPUT_SIZE
 import android.media.MediaFormat.MIMETYPE_AUDIO_OPUS
 import android.media.MediaFormat.createAudioFormat
 import android.media.MediaPlayer
@@ -150,8 +151,9 @@ import kotlinx.parcelize.Parcelize
 import org.mtopol.assistant.MessageType.PROMPT
 import org.mtopol.assistant.MessageType.RESPONSE
 import org.mtopol.assistant.databinding.FragmentChatBinding
-import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -1679,21 +1681,52 @@ class ChatFragment : Fragment(), MenuProvider {
             val encoder = createEncoderByType(MIMETYPE_AUDIO_OPUS).apply {
                 configure(createAudioFormat(MIMETYPE_AUDIO_OPUS, audioRecord.sampleRate, 1).apply {
                     setInteger(KEY_BIT_RATE, 16000)
+                    setInteger(KEY_MAX_INPUT_SIZE, 2 * audioRecord.sampleRate)
                 }, null, null, CONFIGURE_FLAG_ENCODE)
                 start()
             }
             val bufInfo = MediaCodec.BufferInfo()
-            val bos = ByteArrayOutputStream()
+            val audioFile = File(appContext.externalCacheDir, "prompt.aopus")
+            val opusWriter = PacketWriter(FileOutputStream(audioFile))
+            var fosDone = false
 
-            fun drainToBos() {
-                while (true) {
-                    val bufIndex = encoder.dequeueOutputBuffer(bufInfo, 100)
-                    if (bufIndex < 0) {
-                        break
-                    }
-                    val outputBuf = encoder.getOutputBuffer(bufIndex)!!
-                    bos.write(outputBuf.array(), outputBuf.position(), outputBuf.remaining())
+            fun dequeueInputBuf(): Int {
+                val bufTimeoutMicros = 1000L
+                val bufIndex = encoder.dequeueInputBuffer(bufTimeoutMicros)
+                if (bufIndex < 0) {
+                    throw IOException("Failed to obtain an input buffer from encoder within $bufTimeoutMicros µs")
                 }
+                return bufIndex
+            }
+
+            fun drainToFile(): Boolean {
+                if (fosDone) {
+                    return false
+                }
+                val bufIndex = encoder.dequeueOutputBuffer(bufInfo, 100)
+                if (bufIndex < 0) {
+                    return true
+                }
+                val outBuf = encoder.getOutputBuffer(bufIndex)!!
+                val isEndOfStream = (bufInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0
+                opusWriter.writePacket(outBuf, isEndOfStream)
+                encoder.releaseOutputBuffer(bufIndex, false)
+                if (isEndOfStream) {
+                    opusWriter.close()
+                    val audioPathname = File(appContext.externalCacheDir, "prompt.aopus").path
+                    val wavPathname = File(appContext.externalCacheDir, "prompt.wav").path
+                    Log.i("audio", "Converting recorded OGG to WAV")
+                    try {
+                        runBlocking { convertAopusToWav(audioPathname, wavPathname) }
+                        val wavFile = File(wavPathname)
+                        Log.i("audio", "WAV saved: ${wavFile.length()} bytes in $wavPathname")
+                    } catch (e: Exception) {
+                        Log.e("audio", "Conversion failed", e)
+                    }
+                    fosDone = true
+                    return false
+                }
+                return true
             }
 
             try {
@@ -1706,15 +1739,17 @@ class ChatFragment : Fragment(), MenuProvider {
                 var lastRecordingVolume: Float
                 while (true) {
                     val frameTime = awaitFrame()
+                    drainToFile()
                     val readSize = audioRecord.read(readBuf, 0, readBuf.size, AudioRecord.READ_NON_BLOCKING)
                     var readBufPos = 0
-                    while (true) {
-                        drainToBos()
-                        val bufTimeoutMicros = 1000L
-                        val bufIndex = encoder.dequeueInputBuffer(bufTimeoutMicros)
-                        if (bufIndex < 0) {
-                            throw IOException("Failed to obtain an input buffer from encoder in $bufTimeoutMicros µs")
-                        }
+                    if (readSize < 0 || readSize == 0 && audioRecord.recordingState != RECORDSTATE_RECORDING) {
+                        encoder.queueInputBuffer(dequeueInputBuf(), 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                        while (drainToFile()) { /**/ }
+                        break
+                    }
+                    while (readSize > 0) {
+                        drainToFile()
+                        val bufIndex = dequeueInputBuf()
                         val encByteBuf = encoder.getInputBuffer(bufIndex)!!
                         val encBuf = encByteBuf.asShortBuffer()
                         val putSize = (readSize - readBufPos).coerceAtMost(encBuf.remaining())
@@ -1752,9 +1787,9 @@ class ChatFragment : Fragment(), MenuProvider {
                 }
             } finally {
                 cleanupRecordingGlowJob()
+                opusWriter.close()
                 vmodel.withFragment { (it.activity as MainActivity?)?.unlockOrientation() }
-                drainToBos()
-                vmodel.chatContent.last().promptAudio = bos.toByteArray()
+                vmodel.chatContent.last().promptAudio = FileInputStream(audioFile).use { it.readBytes() }
             }
         }
     }
