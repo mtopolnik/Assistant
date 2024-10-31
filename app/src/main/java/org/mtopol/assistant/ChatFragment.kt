@@ -1766,7 +1766,6 @@ class ChatFragment : Fragment(), MenuProvider {
             }
             stop()
         }
-        vmodel.recordingGlowJob?.cancel()
     }
 
     private fun sendRecordedPrompt() {
