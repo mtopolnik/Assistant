@@ -739,8 +739,8 @@ class ChatFragment : Fragment(), MenuProvider {
             isEnabled = hasContent
         }
         menu.findItem(R.id.action_toggle_sound).apply {
-            isChecked = isMuted
             isEnabled = !realtimeMode
+            isChecked = isMuted && isEnabled
             setIcon(if (isChecked) R.drawable.baseline_volume_off_24 else R.drawable.baseline_volume_up_24)
         }
         menu.findItem(R.id.action_speak_again).isEnabled = !isMuted && !responding && hasContent && !realtimeMode
