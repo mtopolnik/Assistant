@@ -2168,9 +2168,9 @@ sealed class PromptPart : Parcelable {
 }
 
 @Parcelize
-data class Exchange(
+class Exchange(
     val promptParts: MutableList<PromptPart> = mutableListOf(),
-    var promptAudio: ByteArray? = null,
+    var realtimePromptAudio: ByteArray? = null,
     var replyMarkdown: CharSequence = "",
     var replyImageUris: List<Uri> = listOf(),
     var replyText: CharSequence = "",

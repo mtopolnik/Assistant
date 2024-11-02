@@ -76,7 +76,6 @@ import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Dispatchers.Default
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Dispatchers.Main
@@ -527,7 +526,6 @@ class OpenAI {
                             "user" -> {
                                 val promptAudio = promptAudioChannel.receive()
                                 launch(IO) {
-                                    Log.i("speech", "Converting ${promptAudio.size} Opus bytes to WAV")
                                     try {
                                         val wavFile = File(appContext.externalCacheDir, "prompt.wav")
                                         convertAopusToWav(promptAudio, wavFile)
@@ -540,7 +538,7 @@ class OpenAI {
                                     Log.i("speech", "Create new exchange")
                                     val exchange = fragment.prepareNewExchange(
                                         fragment.requireContext(), PromptPart.Text("<recorded audio>"))
-                                    exchange.promptAudio = promptAudio
+                                    exchange.realtimePromptAudio = promptAudio
                                     currentExchange = exchange
                                     currentPromptView = fragment.lastMessageContainer().children.first() as TextView
                                 }
@@ -653,7 +651,7 @@ class OpenAI {
         )
     }
 
-    private suspend fun PromptPart.toContentPart() = withContext(Dispatchers.IO) {
+    private suspend fun PromptPart.toContentPart() = withContext(IO) {
 
         fun readBase64(uri: Uri): String {
             val bytes = uri.inputStream().use { input ->
@@ -675,7 +673,7 @@ class OpenAI {
         }
     }
 
-    private suspend fun downloadToCache(imageUrls: List<String>): List<Uri> = withContext(Dispatchers.IO) {
+    private suspend fun downloadToCache(imageUrls: List<String>): List<Uri> = withContext(IO) {
         imageUrls.map { imageUrl ->
             val imageFile = File.createTempFile("dalle-", ".jpg", imageCache)
             FileOutputStream(imageFile).use { fos ->
