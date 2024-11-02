@@ -30,13 +30,7 @@ import android.graphics.PointF
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.AudioRecord.RECORDSTATE_RECORDING
-import android.media.MediaCodec
-import android.media.MediaCodec.CONFIGURE_FLAG_ENCODE
-import android.media.MediaCodec.createEncoderByType
-import android.media.MediaFormat.KEY_BIT_RATE
-import android.media.MediaFormat.KEY_MAX_INPUT_SIZE
-import android.media.MediaFormat.MIMETYPE_AUDIO_OPUS
-import android.media.MediaFormat.createAudioFormat
+import android.media.AudioRecord.RECORDSTATE_STOPPED
 import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.media.audiofx.LoudnessEnhancer
@@ -152,46 +146,20 @@ import org.mtopol.assistant.MessageType.PROMPT
 import org.mtopol.assistant.MessageType.RESPONSE
 import org.mtopol.assistant.databinding.FragmentChatBinding
 import java.io.File
-import java.io.FileInputStream
-import java.io.FileOutputStream
-import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicReference
-import kotlin.Boolean
-import kotlin.CharSequence
-import kotlin.Deprecated
-import kotlin.Exception
-import kotlin.Float
-import kotlin.Int
-import kotlin.IntArray
-import kotlin.Long
 import kotlin.OptIn
-import kotlin.Pair
-import kotlin.ReplaceWith
 import kotlin.Result.Companion.failure
 import kotlin.Result.Companion.success
-import kotlin.ShortArray
-import kotlin.String
-import kotlin.Suppress
-import kotlin.Throwable
-import kotlin.Unit
-import kotlin.also
-import kotlin.apply
-import kotlin.arrayOf
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
-import kotlin.getValue
-import kotlin.let
+import kotlin.math.abs
 import kotlin.math.log2
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToLong
-import kotlin.run
-import kotlin.synchronized
-import kotlin.takeIf
-import kotlin.toString
 import androidx.annotation.OptIn as OptInAndroid
 
 const val REALTIME_RECORD_SAMPLE_RATE = 24_000
@@ -1428,7 +1396,6 @@ class ChatFragment : Fragment(), MenuProvider {
                 vmodel.isConnectionLive = true
                 openAi.realtime(sendBuf, audioRecord, exoPlayer, vmodel)
             } finally {
-                stopRealtimeRecording()
                 _audioRecord = null
                 _sendBuf = null
                 audioRecord.apply { stop(); release() }
@@ -1678,56 +1645,6 @@ class ChatFragment : Fragment(), MenuProvider {
                 (it.activity as MainActivity?)?.lockOrientation()
                 it.binding.showRecordingGlow()
             }
-            val encoder = createEncoderByType(MIMETYPE_AUDIO_OPUS).apply {
-                configure(createAudioFormat(MIMETYPE_AUDIO_OPUS, audioRecord.sampleRate, 1).apply {
-                    setInteger(KEY_BIT_RATE, 16000)
-                    setInteger(KEY_MAX_INPUT_SIZE, 2 * audioRecord.sampleRate)
-                }, null, null, CONFIGURE_FLAG_ENCODE)
-                start()
-            }
-            val bufInfo = MediaCodec.BufferInfo()
-            val audioFile = File(appContext.externalCacheDir, "prompt.aopus")
-            val opusWriter = PacketWriter(FileOutputStream(audioFile))
-            var fosDone = false
-
-            fun dequeueInputBuf(): Int {
-                val bufTimeoutMicros = 1000L
-                val bufIndex = encoder.dequeueInputBuffer(bufTimeoutMicros)
-                if (bufIndex < 0) {
-                    throw IOException("Failed to obtain an input buffer from encoder within $bufTimeoutMicros µs")
-                }
-                return bufIndex
-            }
-
-            fun drainToFile(): Boolean {
-                if (fosDone) {
-                    return false
-                }
-                val bufIndex = encoder.dequeueOutputBuffer(bufInfo, 100)
-                if (bufIndex < 0) {
-                    return true
-                }
-                val outBuf = encoder.getOutputBuffer(bufIndex)!!
-                val isEndOfStream = (bufInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0
-                opusWriter.writePacket(outBuf, isEndOfStream)
-                encoder.releaseOutputBuffer(bufIndex, false)
-                if (isEndOfStream) {
-                    opusWriter.close()
-                    val audioPathname = File(appContext.externalCacheDir, "prompt.aopus").path
-                    val wavPathname = File(appContext.externalCacheDir, "prompt.wav").path
-                    Log.i("audio", "Converting recorded OGG to WAV")
-                    try {
-                        runBlocking { convertAopusToWav(audioPathname, wavPathname) }
-                        val wavFile = File(wavPathname)
-                        Log.i("audio", "WAV saved: ${wavFile.length()} bytes in $wavPathname")
-                    } catch (e: Exception) {
-                        Log.e("audio", "Conversion failed", e)
-                    }
-                    fosDone = true
-                    return false
-                }
-                return true
-            }
 
             try {
                 val readBuf = run {
@@ -1739,30 +1656,17 @@ class ChatFragment : Fragment(), MenuProvider {
                 var lastRecordingVolume: Float
                 while (true) {
                     val frameTime = awaitFrame()
-                    drainToFile()
                     val readSize = audioRecord.read(readBuf, 0, readBuf.size, AudioRecord.READ_NON_BLOCKING)
-                    var readBufPos = 0
-                    if (readSize < 0 || readSize == 0 && audioRecord.recordingState != RECORDSTATE_RECORDING) {
-                        encoder.queueInputBuffer(dequeueInputBuf(), 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
-                        while (drainToFile()) { /**/ }
-                        break
-                    }
-                    while (readSize > 0) {
-                        drainToFile()
-                        val bufIndex = dequeueInputBuf()
-                        val encByteBuf = encoder.getInputBuffer(bufIndex)!!
-                        val encBuf = encByteBuf.asShortBuffer()
-                        val putSize = (readSize - readBufPos).coerceAtMost(encBuf.remaining())
-                        encBuf.put(readBuf, readBufPos, putSize)
-                        encByteBuf.position(2 * encBuf.position())
-                        encoder.queueInputBuffer(bufIndex, 0, 2 * putSize, 0, 0)
-                        readBufPos += putSize
-                        if (readBufPos == readSize) {
+                    if (readSize < 0) {
+                        throw Exception("audioRecord.read() returned $readSize")
+                    } else if (readSize == 0) {
+                        if (audioRecord.recordingState == RECORDSTATE_STOPPED) {
                             break
                         }
+                        continue
                     }
                     val thisPeak = (0 ..< readSize)
-                        .fold(0) { acc, i -> max(acc, Math.abs(readBuf[i].toInt())) }
+                        .fold(0) { acc, i -> max(acc, abs(readBuf[i].toInt())) }
                         .toDouble()
                         .let { log2(it) / 15 }
                         .coerceAtLeast(0.0)
@@ -1777,19 +1681,17 @@ class ChatFragment : Fragment(), MenuProvider {
                     }
                     vmodel.withFragment { it.binding.recordingGlow.setVolume(lastRecordingVolume) }
                     synchronized (sendBuf) {
-                        val putSizeInShorts = sendBuf.asShortBuffer().run {
-                            readSize.coerceAtMost(remaining()).also { putSize ->
-                                put(readBuf, 0, putSize)
-                            }
+                        sendBuf.asShortBuffer().also { sendShortBuf ->
+                            val putSizeInShorts = readSize.coerceAtMost(sendShortBuf.remaining())
+                            sendShortBuf.put(readBuf, 0, putSizeInShorts)
+                            sendBuf.position(sendBuf.position() + 2 * putSizeInShorts)
                         }
-                        sendBuf.position(sendBuf.position() + 2 * putSizeInShorts)
                     }
                 }
             } finally {
+                Log.i("speech", "cleanupRecordingGlowJob")
                 cleanupRecordingGlowJob()
-                opusWriter.close()
                 vmodel.withFragment { (it.activity as MainActivity?)?.unlockOrientation() }
-                vmodel.chatContent.last().promptAudio = FileInputStream(audioFile).use { it.readBytes() }
             }
         }
     }

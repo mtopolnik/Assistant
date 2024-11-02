@@ -18,7 +18,14 @@
 package org.mtopol.assistant
 
 import android.media.AudioRecord
-import android.media.AudioRecord.RECORDSTATE_RECORDING
+import android.media.AudioRecord.RECORDSTATE_STOPPED
+import android.media.MediaCodec
+import android.media.MediaCodec.BUFFER_FLAG_END_OF_STREAM
+import android.media.MediaCodec.CONFIGURE_FLAG_ENCODE
+import android.media.MediaFormat.KEY_BIT_RATE
+import android.media.MediaFormat.KEY_MAX_INPUT_SIZE
+import android.media.MediaFormat.MIMETYPE_AUDIO_OPUS
+import android.media.MediaFormat.createAudioFormat
 import android.net.Uri
 import android.text.Editable
 import android.util.Base64
@@ -71,7 +78,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Dispatchers.Default
+import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Dispatchers.Main
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.Channel.Factory.UNLIMITED
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
@@ -95,19 +105,22 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.io.IOException
 import java.io.InputStream
 import java.nio.ByteBuffer
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import io.ktor.websocket.send as wsend
 
 val openAi get() = openAiLazy.value
 
-private const val OPENAI_URL = "https://api.openai.com/v1/"
-
 const val MODEL_ID_GPT_4O_MINI = "gpt-4o-mini"
 const val MODEL_ID_GPT_4O = "gpt-4o"
 const val MODEL_ID_GPT_4O_AUDIO = "gpt-4o-audio-preview"
 const val MODEL_ID_GPT_4O_REALTIME = "gpt-4o-realtime-preview"
+
+private const val OPENAI_URL = "https://api.openai.com/v1/"
+private val AUDIORECORD_STOP_GRACE_PERIOD_NS = TimeUnit.MILLISECONDS.toNanos(100L)
 
 private lateinit var openAiLazy: Lazy<OpenAI>
 
@@ -320,26 +333,111 @@ class OpenAI {
             """.trimIndent()
             )
             val bytesFor50ms = REALTIME_RECORD_SAMPLE_RATE / 10
+            val bytesFor100ms = 2 * bytesFor50ms
             val responseId = AtomicReference<String>(null)
+            val promptAudioChannel = Channel<ByteArray>(UNLIMITED)
             launch {
-                try {
-                    var promptInProgress = false
+                val bufInfo = MediaCodec.BufferInfo()
+                val opusWriter = PacketWriter()
+                var encoder = MediaCodec.createEncoderByType(MIMETYPE_AUDIO_OPUS)
+                var encoderDone = false
+
+                fun startEncoder() {
+                    encoder.configure(createAudioFormat(MIMETYPE_AUDIO_OPUS, audioRecord.sampleRate, 1).apply {
+                        setInteger(KEY_BIT_RATE, 16000)
+                        setInteger(KEY_MAX_INPUT_SIZE, 2 * audioRecord.sampleRate)
+                    }, null, null, CONFIGURE_FLAG_ENCODE)
+                    encoder.start()
+                    encoderDone = false
+                }
+
+                fun restartEncoder() {
+                    encoder.apply { stop(); release() }
+                    encoder = MediaCodec.createEncoderByType(MIMETYPE_AUDIO_OPUS)
+                    startEncoder()
+                }
+
+                fun dequeueInputBuf(): Int {
+                    val bufIndex = encoder.dequeueInputBuffer(1000)
+                    if (bufIndex < 0) {
+                        throw IOException("Failed to obtain an input buffer from encoder")
+                    }
+                    return bufIndex
+                }
+
+                suspend fun drainEncoder(drainFully: Boolean) {
+                    if (encoderDone) {
+                        return
+                    }
                     while (true) {
+                        val bufIndex = encoder.dequeueOutputBuffer(bufInfo, 0)
+                        if (bufIndex < 0) {
+                            if (drainFully) {
+                                delay(1)
+                                continue
+                            } else {
+                                return
+                            }
+                        }
+                        val outBuf = encoder.getOutputBuffer(bufIndex)!!
+                        opusWriter.writePacket(outBuf)
+                        encoder.releaseOutputBuffer(bufIndex, false)
+                        if ((bufInfo.flags and BUFFER_FLAG_END_OF_STREAM) != 0) {
+                            encoderDone = true
+                            return
+                        }
+                    }
+                }
+
+                try {
+                    startEncoder()
+                    var promptInProgress = false
+                    var bytesSent = 0
+                    var lastTimeAudioSeen = 0L
+                    while (true) {
+                        drainEncoder(false)
+                        val recordingStopped = audioRecord.recordingState == RECORDSTATE_STOPPED
+                        val noAudioForAWhile = System.nanoTime() - lastTimeAudioSeen > AUDIORECORD_STOP_GRACE_PERIOD_NS
                         val audioBase64 = synchronized(sendBuf) {
                             val bytesAvailable = sendBuf.position()
-                            if (bytesAvailable >= bytesFor50ms) {
+                            if (bytesAvailable >= bytesFor50ms ||
+                                recordingStopped && noAudioForAWhile && bytesAvailable > 0
+                            ) {
+                                lastTimeAudioSeen = System.nanoTime()
+                                sendBuf.flip()
+                                while (sendBuf.remaining() > 0) {
+                                    val bufIndex = dequeueInputBuf()
+                                    val encBuf = encoder.getInputBuffer(bufIndex)!!
+                                    sendBuf.limit().also { limitBackup ->
+                                        sendBuf.limit(sendBuf.position() + sendBuf.remaining().coerceAtMost(encBuf.remaining()))
+                                        encBuf.put(sendBuf)
+                                        sendBuf.limit(limitBackup)
+                                    }
+                                    encoder.queueInputBuffer(bufIndex, 0, encBuf.position(), 0, 0)
+                                }
                                 Base64.encodeToString(sendBuf.array(), 0, bytesAvailable, Base64.NO_WRAP).also {
                                     sendBuf.clear()
+                                    bytesSent += bytesAvailable
                                 }
                             } else {
                                 ""
                             }
                         }
                         if (audioBase64.isEmpty()) {
-                            if (promptInProgress && audioRecord.recordingState != RECORDSTATE_RECORDING) {
+                            if (promptInProgress && recordingStopped && noAudioForAWhile) {
                                 promptInProgress = false
-                                sendWs("""{ "type": "input_audio_buffer.commit" }""".trimIndent())
-                                sendWs("""{ "type": "response.create" }""".trimIndent())
+                                encoder.queueInputBuffer(dequeueInputBuf(), 0, 0, 0, BUFFER_FLAG_END_OF_STREAM)
+                                if (bytesSent >= bytesFor100ms) {
+                                    sendWs("""{ "type": "input_audio_buffer.commit" }""")
+                                    sendWs("""{ "type": "response.create" }""")
+                                } else {
+                                    sendWs("""{ "type": "input_audio_buffer.clear" } """)
+                                    Log.i("speech", "Short prompt discarded")
+                                }
+                                bytesSent = 0
+                                drainEncoder(true)
+                                promptAudioChannel.send(opusWriter.consumeContent())
+                                restartEncoder()
                             } else {
                                 delay(20)
                             }
@@ -363,8 +461,8 @@ class OpenAI {
                                 currentPosition
                             }
                             responseId.get()?.also { itemId ->
-                                Log.i("speech", "Cancel Response, truncate to $responseDuration ms")
                                 if (responseDuration >= 0) {
+                                    Log.i("speech", "Cancel Response, truncate to $responseDuration ms")
                                     sendWs(
                                         RealtimeEvent.ConversationItemTruncate(
                                             item_id = itemId,
@@ -372,13 +470,12 @@ class OpenAI {
                                             audio_end_ms = responseDuration
                                         )
                                     )
+                                    sendWs("""{ "type": "response.cancel" }""")
                                 }
-                                sendWs("""{ "type": "response.cancel" }""")
                                 responseId.set(null)
                             }
                         }
                         sendWs(RealtimeEvent.AudioBufferAppend(audioBase64))
-
                     }
                 } catch (e: CancellationException) {
                     throw e
@@ -428,10 +525,23 @@ class OpenAI {
                         }
                         when (event.item.role) {
                             "user" -> {
+                                val promptAudio = promptAudioChannel.receive()
+                                launch(IO) {
+                                    Log.i("speech", "Converting ${promptAudio.size} Opus bytes to WAV")
+                                    try {
+                                        val wavFile = File(appContext.externalCacheDir, "prompt.wav")
+                                        convertAopusToWav(promptAudio, wavFile)
+                                        Log.i("speech", "WAV saved: ${wavFile.length()} bytes in ${wavFile.path}")
+                                    } catch (e: Exception) {
+                                        Log.e("speech", "Conversion failed", e)
+                                    }
+                                }
                                 withFragmentSync { fragment ->
-                                    Log.i("speech", "Setting current exchange")
-                                    currentExchange =
-                                        fragment.prepareNewExchange(fragment.requireContext(), PromptPart.Text("..."))
+                                    Log.i("speech", "Create new exchange")
+                                    val exchange = fragment.prepareNewExchange(
+                                        fragment.requireContext(), PromptPart.Text("<recorded audio>"))
+                                    exchange.promptAudio = promptAudio
+                                    currentExchange = exchange
                                     currentPromptView = fragment.lastMessageContainer().children.first() as TextView
                                 }
                             }
@@ -805,6 +915,10 @@ class OpenAI {
         @Serializable
         @SerialName("input_audio_buffer.committed")
         data class AudioBufferCommitted(val previous_item_id: String?) : RealtimeEvent()
+
+        @Serializable
+        @SerialName("input_audio_buffer.cleared")
+        data class AudioBufferCleared(val event_id: String?) : RealtimeEvent()
 
         @Serializable
         @SerialName("conversation.item.created")

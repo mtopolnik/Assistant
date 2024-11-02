@@ -17,64 +17,95 @@
 
 package org.mtopol.assistant
 
-import java.io.FileInputStream
-import java.io.FileOutputStream
+import android.util.Log
+import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.io.OutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder.LITTLE_ENDIAN
 
-private val goodField = "Good".toByteArray()
-private val peteField = "Pete".toByteArray()
-private val headerBuf = ByteBuffer.allocate(6).order(LITTLE_ENDIAN)
+private const val MAX_FRAG_SIZE = 0xFF
+private val magic = "GoodPete".toByteArray()
 
-class PacketWriter(
-    private val outputStream: FileOutputStream
-) : AutoCloseable {
+class PacketWriter {
+    private val outputStream = ByteArrayOutputStream()
+    private var magicWritten = false
 
-    fun writePacket(buf: ByteBuffer, isLast: Boolean) {
-        headerBuf.apply {
-            clear()
-            put(if (isLast) goodField else peteField)
-            putShort(buf.remaining().toShort())
-            flip()
+    fun writePacket(packetBuf: ByteBuffer) {
+        if (packetBuf.remaining() == 0) {
+            throw IllegalArgumentException("No bytes in packet")
         }
-        outputStream.channel.apply {
-            write(headerBuf)
-            write(buf)
+        if (!magicWritten) {
+            outputStream.write(magic)
+            magicWritten = true
+        }
+        outputStream.apply {
+            var remainingSize = packetBuf.remaining()
+            do {
+                val fragSize = remainingSize.coerceAtMost(MAX_FRAG_SIZE)
+                remainingSize -= fragSize
+                write(fragSize)
+            } while (fragSize == MAX_FRAG_SIZE)
+            while (packetBuf.remaining() > 0) {
+                write(packetBuf.get().toInt())
+            }
         }
     }
 
-    override fun close() {
-        outputStream.close()
+    fun consumeContent(): ByteArray = outputStream.toByteArray().also {
+        outputStream.reset()
+        magicWritten = false
     }
 }
 
-class PacketReader(
-    private val inputStream: FileInputStream
-) : AutoCloseable {
-    private val headerBuf = ByteArray(6)
-    private val headerByteBuf = ByteBuffer.wrap(headerBuf).order(LITTLE_ENDIAN)
+class PacketReader(inputBytes: ByteArray) {
+    private val inputByteBuf = ByteBuffer.wrap(inputBytes)
+    private var magicRead = false
 
     /**
-     * Returns true if it read the final packet.
+     * Returns true if the input buffer is exhausted.
      */
-    fun readPacket(buf: ByteBuffer): Boolean {
-        val bytesRead = inputStream.read(headerBuf)
-        if (bytesRead < headerBuf.size) {
-            buf.clear()
-            return true
+    fun readPacket(packetBuf: ByteBuffer) {
+        if (!magicRead) {
+            if (inputByteBuf.remaining() < magic.size) {
+                throw IOException("Input byte stream is shorter than the magic header")
+            }
+            magic.indices.forEach { i ->
+                if (inputByteBuf.get() != magic[i]) {
+                    throw IOException("Corrupt input byte stream: magic header not present")
+                }
+            }
+            magicRead = true
         }
-        val size = headerByteBuf.getShort(4).toInt()
-        buf.limit(size)
-        inputStream.channel.read(buf)
-        return (headerBuf[0] == 'G'.code.toByte())
-    }
-
-    override fun close() {
-        inputStream.close()
+        if (inputByteBuf.remaining() == 0) {
+            return
+        }
+        var packetSize = 0
+        do {
+            val fragSize = inputByteBuf.get().toUByte().toInt()
+            packetSize += fragSize
+        } while (fragSize == MAX_FRAG_SIZE)
+        if (packetSize == 0) {
+            throw IOException("Corrupt input byte stream: read packet size == 0")
+        }
+        if (packetSize > inputByteBuf.remaining()) {
+            throw IOException("Corrupt input byte stream: read packet size == $packetSize, " +
+                    "but only ${inputByteBuf.remaining()} bytes left to read")
+        }
+        if (packetSize > packetBuf.remaining()) {
+            throw IOException("Not enough room in packetBuf. size == $packetSize, " +
+                    "packetBuf.remaining() == ${packetBuf.remaining()}")
+        }
+        inputByteBuf.limit().also { limitBackup ->
+            inputByteBuf.limit(inputByteBuf.position() + packetSize)
+            packetBuf.put(inputByteBuf)
+            inputByteBuf.limit(limitBackup)
+        }
     }
 }
 
+private fun ByteArray.startsWith(prefix: ByteArray) =
+    this.size >= prefix.size && prefix.indices.all { this[it] == prefix[it] }
 
 // CRC lookup table for Ogg checksum calculation
 private val CRC_TABLE = IntArray(256).apply {
@@ -100,7 +131,7 @@ private fun ByteBuffer.crc(): Int {
     return crc
 }
 
-class OpusWriter(
+class OpusOggWriter(
     private val outputStream: OutputStream,
 ) : AutoCloseable {
     private val serialNumber = 0x65746550 // spells out Pete in little-endian

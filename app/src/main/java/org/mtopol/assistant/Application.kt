@@ -379,23 +379,20 @@ fun vibrate() {
         )
 }
 
-suspend fun convertAopusToWav(inputPath: String, outputPath: String) = withContext(IO) {
-    val raf = RandomAccessFile(outputPath, "rw")
-    val input = PacketReader(FileInputStream(inputPath))
-    try {
+suspend fun convertAopusToWav(inputBytes: ByteArray, outputFile: File) = withContext(IO) {
+    val input = PacketReader(inputBytes)
+    RandomAccessFile(outputFile, "rw").use { raf ->
+        raf.setLength(0)
         raf.seek(WAV_HEADER_SIZE.toLong()) // size of WAV header, to be written in the end
         val mediaFormat = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_OPUS, 48000, 1)
         pushThroughDecoder(
             mediaFormat,
-            { buf -> input.readPacket(buf).let { isEos -> if (isEos) -1 else buf.position() } },
+            { buf -> input.readPacket(buf).let { if (buf.position() > 0) buf.position() else -1 } },
             { buf -> raf.channel.write(buf) }
         )
         val headerBuf = buildWavHeader(raf.length(), mediaFormat)
         raf.seek(0)
         raf.channel.write(headerBuf)
-    } finally {
-        raf.close()
-        input.close()
     }
 }
 
@@ -403,6 +400,7 @@ suspend fun convertToWav(inputPath: String, outputPath: String) = withContext(IO
     val extractor = MediaExtractor()
     val raf = RandomAccessFile(outputPath, "rw")
     try {
+        raf.setLength(0)
         raf.seek(WAV_HEADER_SIZE.toLong()) // size of WAV header, to be written in the end
         extractor.setDataSource(inputPath)
         val trackIndex = (0..< extractor.trackCount).first {
@@ -436,13 +434,13 @@ suspend fun pushThroughDecoder(
     val samplesPerSec = format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
     val channelCount = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
     val microsPerByte = (1_000_000.0 / bytesPerSample / samplesPerSec / channelCount).toLong()
-    Log.i("speech", "create codec for $mimeType")
-    val codec = MediaCodec.createDecoderByType(mimeType)
+    Log.i("speech", "Create decoder for $mimeType")
     val bufferInfo = MediaCodec.BufferInfo()
+    val codec = MediaCodec.createDecoderByType(mimeType)
     try {
-        Log.i("speech", "configure codec with $format")
         codec.configure(format, null, null, 0)
         codec.start()
+        Log.i("speech", "Configure decoder with $format")
         var sawInputEOS = false
         while (true) {
             if (!sawInputEOS) {
@@ -469,8 +467,10 @@ suspend fun pushThroughDecoder(
                 }
             }
         }
-    } finally {
         codec.stop()
+    } catch (e: Exception) {
+        Log.e("speech", "Error while pushing through decoder", e)
+    } finally {
         codec.release()
     }
 }
