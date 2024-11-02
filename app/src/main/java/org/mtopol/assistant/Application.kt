@@ -70,13 +70,14 @@ import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStream
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
-import java.nio.ByteOrder
+import java.nio.ByteOrder.LITTLE_ENDIAN
 import java.util.Locale
 import kotlin.math.min
 
@@ -379,18 +380,63 @@ fun vibrate() {
         )
 }
 
+
+fun downsample(input: ByteBuffer, output: ByteBuffer) : ByteBuffer {
+    val neededCapacity = input.remaining() / 2
+    val downsampledBuf =
+        if (output.capacity() >= neededCapacity) output
+        else ByteBuffer.allocate(neededCapacity)
+    downsampledBuf.clear()
+    val shortBuf = input.asShortBuffer()
+    val downsampledShortBuf = downsampledBuf.asShortBuffer()
+    while (shortBuf.remaining() >= 2) {
+        val sample1 = shortBuf.get()
+        val sample2 = shortBuf.get()
+        downsampledShortBuf.put(((sample1 + sample2) / 2).toShort())
+    }
+    if (shortBuf.remaining() > 0) {
+        downsampledShortBuf.put(shortBuf.get())
+    }
+    downsampledBuf.limit(2 * downsampledShortBuf.position())
+    return downsampledBuf
+}
+
+suspend fun convertAopusToPcm(inputBytes: ByteArray): ByteArray = withContext(IO) {
+    var outputBuf = ByteBuffer.allocate(32768).order(LITTLE_ENDIAN)
+    val input = PacketReader(inputBytes)
+    val output = ByteArrayOutputStream()
+    pushThroughDecoder(
+        MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_OPUS, 48000, 1),
+        { buf -> input.readPacket(buf).let { if (buf.position() > 0) buf.position() else -1 } },
+        { buf ->
+            downsample(buf, outputBuf).let {
+                outputBuf = it
+                output.write(it.array(), it.position(), it.remaining())
+            }
+        }
+    )
+
+    output.toByteArray()
+}
+
 suspend fun convertAopusToWav(inputBytes: ByteArray, outputFile: File) = withContext(IO) {
     val input = PacketReader(inputBytes)
+    var outputBuf = ByteBuffer.allocate(32768).order(LITTLE_ENDIAN)
     RandomAccessFile(outputFile, "rw").use { raf ->
         raf.setLength(0)
         raf.seek(WAV_HEADER_SIZE.toLong()) // size of WAV header, to be written in the end
-        val mediaFormat = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_OPUS, 48000, 1)
         pushThroughDecoder(
-            mediaFormat,
+            MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_OPUS, 48000, 1),
             { buf -> input.readPacket(buf).let { if (buf.position() > 0) buf.position() else -1 } },
-            { buf -> raf.channel.write(buf) }
+            { buf ->
+                downsample(buf, outputBuf).let {
+                    outputBuf = it
+                    raf.channel.write(it)
+                }
+            }
         )
-        val headerBuf = buildWavHeader(raf.length(), mediaFormat)
+        val headerBuf = buildWavHeader(raf.length(),
+            MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_RAW, 24000, 1))
         raf.seek(0)
         raf.channel.write(headerBuf)
     }
@@ -489,7 +535,7 @@ private fun buildWavHeader(fileSize: Long, mediaFormat: MediaFormat): ByteBuffer
     val bitsPerSample = (8 * bytesPerSample).toShort()
     val subChunk2Size = (fileSize - WAV_HEADER_SIZE).toInt()
 
-    return ByteBuffer.allocate(WAV_HEADER_SIZE).order(ByteOrder.LITTLE_ENDIAN).apply {
+    return ByteBuffer.allocate(WAV_HEADER_SIZE).order(LITTLE_ENDIAN).apply {
         put("RIFF".toByteArray())
         putInt(riffChunkSize)
         put("WAVEfmt ".toByteArray()) // RIFF chunk, type WAVE; WAVE subchunk 1, type fmt

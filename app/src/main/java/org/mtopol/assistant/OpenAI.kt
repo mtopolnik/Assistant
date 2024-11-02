@@ -29,6 +29,7 @@ import android.media.MediaFormat.createAudioFormat
 import android.net.Uri
 import android.text.Editable
 import android.util.Base64
+import android.util.Base64.NO_WRAP
 import android.util.Log
 import android.widget.TextView
 import android.widget.Toast
@@ -329,8 +330,35 @@ class OpenAI {
                         "instructions": "${appContext.getString(R.string.realtime_instructions)}"
                     }
                 }
-            """.trimIndent()
+                """.trimIndent()
             )
+            for (exchange in vmodel.chatContent) {
+                sendWs(
+                    RealtimeEvent.ConversationItemCreate(
+                        RealtimeEvent.ClientConversationItem(
+                            type = "message",
+                            role = "user",
+                            content = listOf(
+                                RealtimeEvent.ContentPart.InputAudio(
+                                    audio = exchange.realtimePromptAudio?.let { bytes ->
+                                        Base64.encodeToString(convertAopusToPcm(bytes), NO_WRAP)
+                                    } ?: "",
+                                    transcript = exchange.promptText()?.toString() ?: ""
+                                )
+                            )
+                        )
+                    )
+                )
+                sendWs(
+                    RealtimeEvent.ConversationItemCreate(
+                        RealtimeEvent.ClientConversationItem(
+                            type = "message",
+                            role = "assistant",
+                            content = listOf(RealtimeEvent.ContentPart.Text(exchange.replyMarkdown.toString()))
+                        )
+                    )
+                )
+            }
             val bytesFor50ms = REALTIME_RECORD_SAMPLE_RATE / 10
             val bytesFor100ms = 2 * bytesFor50ms
             val responseId = AtomicReference<String>(null)
