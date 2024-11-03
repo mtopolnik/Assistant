@@ -54,7 +54,6 @@ import io.ktor.client.plugins.logging.ANDROID
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
-import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.client.request.HttpRequestBuilder
@@ -386,7 +385,7 @@ class OpenAI {
 
                 fun startEncoder() {
                     encoder.configure(createAudioFormat(MIMETYPE_AUDIO_OPUS, audioRecord.sampleRate, 1).apply {
-                        setInteger(KEY_BIT_RATE, 16000)
+                        setInteger(KEY_BIT_RATE, 12000)
                         setInteger(KEY_MAX_INPUT_SIZE, 2 * audioRecord.sampleRate)
                     }, null, null, CONFIGURE_FLAG_ENCODE)
                     encoder.start()
@@ -435,17 +434,16 @@ class OpenAI {
                     startEncoder()
                     var promptInProgress = false
                     var bytesSent = 0
-                    var lastTimeAudioSeen = 0L
+                    var stopTimestamp = Long.MAX_VALUE
                     while (true) {
                         drainEncoder(false)
-                        val recordingStopped = audioRecord.recordingState == RECORDSTATE_STOPPED
-                        val noAudioForAWhile = System.nanoTime() - lastTimeAudioSeen > AUDIORECORD_STOP_GRACE_PERIOD_NS
+                        if (audioRecord.recordingState == RECORDSTATE_STOPPED && stopTimestamp == Long.MAX_VALUE) {
+                            stopTimestamp = System.nanoTime()
+                        }
+                        val allAudioReceived = System.nanoTime() - stopTimestamp > AUDIORECORD_STOP_GRACE_PERIOD_NS
                         val audioBase64 = synchronized(sendBuf) {
                             val bytesAvailable = sendBuf.position()
-                            if (bytesAvailable >= bytesFor50ms ||
-                                recordingStopped && noAudioForAWhile && bytesAvailable > 0
-                            ) {
-                                lastTimeAudioSeen = System.nanoTime()
+                            if (bytesAvailable >= bytesFor50ms || allAudioReceived && bytesAvailable > 0) {
                                 sendBuf.flip()
                                 while (sendBuf.remaining() > 0) {
                                     val bufIndex = dequeueInputBuf()
@@ -466,8 +464,9 @@ class OpenAI {
                             }
                         }
                         if (audioBase64.isEmpty()) {
-                            if (promptInProgress && recordingStopped && noAudioForAWhile) {
+                            if (promptInProgress && allAudioReceived) {
                                 promptInProgress = false
+                                stopTimestamp = Long.MAX_VALUE
                                 encoder.queueInputBuffer(dequeueInputBuf(), 0, 0, 0, BUFFER_FLAG_END_OF_STREAM)
                                 if (bytesSent >= bytesFor100ms) {
                                     sendWs("""{ "type": "input_audio_buffer.commit" }""")
