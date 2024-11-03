@@ -473,12 +473,7 @@ private suspend fun pushThroughDecoder(
     fillInputBuf: suspend (ByteBuffer) -> Int,
     drainOutputBuf: suspend (ByteBuffer) -> Unit
 ) {
-    val bytesPerSample = Short.SIZE_BYTES // assuming 16 bits per sample
-
     val mimeType = format.getString(MediaFormat.KEY_MIME)!!
-    val samplesPerSec = format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
-    val channelCount = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
-    val microsPerByte = (1_000_000.0 / bytesPerSample / samplesPerSec / channelCount).toLong()
     Log.i("speech", "Create decoder for $mimeType")
     val bufferInfo = MediaCodec.BufferInfo()
     val codec = MediaCodec.createDecoderByType(mimeType)
@@ -486,7 +481,6 @@ private suspend fun pushThroughDecoder(
         Log.i("speech", "Configure decoder with $format")
         val outcome = CompletableDeferred<Exception?>()
         codec.setCallback(object : MediaCodec.Callback() {
-            private var totalBytesRead = 0
             private var sawInputEos = false
             private val pendingBufferCount = AtomicInteger()
 
@@ -498,12 +492,11 @@ private suspend fun pushThroughDecoder(
                 val bytesRead = runBlocking { fillInputBuf(inputBuffer) }
                 pendingBufferCount.incrementAndGet()
                 if (bytesRead >= 0) {
-                    codec.queueInputBuffer(index, 0, bytesRead, totalBytesRead * microsPerByte, 0)
+                    codec.queueInputBuffer(index, 0, bytesRead, 0, 0)
                 } else {
                     codec.queueInputBuffer(index, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
                     sawInputEos = true
                 }
-                totalBytesRead += bytesRead
             }
 
             override fun onOutputBufferAvailable(codec: MediaCodec, index: Int, info: MediaCodec.BufferInfo) {
