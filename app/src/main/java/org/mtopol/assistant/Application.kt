@@ -473,64 +473,6 @@ private suspend fun pushThroughDecoder(
     fillInputBuf: suspend (ByteBuffer) -> Int,
     drainOutputBuf: suspend (ByteBuffer) -> Unit
 ) {
-    val mimeType = format.getString(MediaFormat.KEY_MIME)!!
-    Log.i("speech", "Create decoder for $mimeType")
-    val bufferInfo = MediaCodec.BufferInfo()
-    val codec = MediaCodec.createDecoderByType(mimeType)
-    try {
-        Log.i("speech", "Configure decoder with $format")
-        val outcome = CompletableDeferred<Exception?>()
-        codec.setCallback(object : MediaCodec.Callback() {
-            private var sawInputEos = false
-            private val pendingBufferCount = AtomicInteger()
-
-            override fun onInputBufferAvailable(codec: MediaCodec, index: Int) {
-                if (sawInputEos) {
-                    return
-                }
-                val inputBuffer = codec.getInputBuffer(index)!!
-                val bytesRead = runBlocking { fillInputBuf(inputBuffer) }
-                pendingBufferCount.incrementAndGet()
-                if (bytesRead >= 0) {
-                    codec.queueInputBuffer(index, 0, bytesRead, 0, 0)
-                } else {
-                    codec.queueInputBuffer(index, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
-                    sawInputEos = true
-                }
-            }
-
-            override fun onOutputBufferAvailable(codec: MediaCodec, index: Int, info: MediaCodec.BufferInfo) {
-                val isEos = (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0
-                val pendingBuffers = pendingBufferCount.decrementAndGet()
-                runBlocking { drainOutputBuf(codec.getOutputBuffer(index)!!) }
-                codec.releaseOutputBuffer(index, false)
-                if (isEos || sawInputEos && pendingBuffers == 0) {
-                    outcome.complete(null)
-                }
-            }
-
-            override fun onError(codec: MediaCodec, e: MediaCodec.CodecException) {
-                outcome.complete(e)
-            }
-
-            override fun onOutputFormatChanged(codec: MediaCodec, format: MediaFormat) {}
-        })
-        codec.configure(format, null, null, 0)
-        codec.start()
-        outcome.await()?.also { throw it }
-        codec.stop()
-    } catch (e: Exception) {
-        Log.e("speech", "Error while pushing through decoder", e)
-    } finally {
-        codec.release()
-    }
-}
-
-private suspend fun pushThroughDecoderSync(
-    format: MediaFormat,
-    fillInputBuf: suspend (ByteBuffer) -> Int,
-    drainOutputBuf: suspend (ByteBuffer) -> Unit
-) {
     val bufTimeoutMicros = 10_000L
     val bytesPerSample = Short.SIZE_BYTES // assuming 16 bits per sample
 
