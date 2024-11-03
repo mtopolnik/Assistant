@@ -21,6 +21,8 @@ import android.content.Context
 import android.os.Parcel
 import android.os.Parcelable
 import android.util.Log
+import kotlin.collections.removeFirst as removeFirstKt
+import kotlin.collections.removeLast as removeLastKt
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
@@ -88,7 +90,7 @@ private val chatHandles: MutableList<ChatHandle> = appContext
     .apply {
         sortByDescending { it.chatId }
         while (size > MAX_SAVED_CHATS) {
-            val oldestId = removeLast().chatId
+            val oldestId = removeLastKt().chatId
             deleteChatFiles(oldestId)
         }
         reverse()
@@ -157,7 +159,7 @@ fun saveChatContent(chatId: Int, history: List<Exchange>) {
     }
     Log.i("chats", "Saved chat #$chatId")
     while (chatHandles.size > MAX_SAVED_CHATS) {
-        val oldestId = chatHandles.removeFirst().chatId
+        val oldestId = chatHandles.removeFirstKt().chatId
         deleteChatFiles(oldestId)
     }
 }
@@ -171,7 +173,7 @@ fun moveChatToTop(chatId: Int): Int {
         return chatId
     }
     chatHandles.remove(chatHandleToMove)
-    val lastChatHandle = chatHandles.removeLast()
+    val lastChatHandle = chatHandles.removeLastKt()
     chatHandleToMove.chatId = lastChatHandle.chatId
     lastChatHandle.chatId++
     chatHandles.add(chatHandleToMove)
