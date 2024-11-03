@@ -39,8 +39,8 @@ private const val MAX_SAVED_CHATS = 20
 private val chatFileRegex = """^chat-(\d+)\.parcel$""".toRegex()
 private val emptyTitle: Deferred<String> = CompletableDeferred("")
 
-private fun chatFilename(chatId: Int): String = "chat-%d.parcel".format(chatId)
-private fun chatTitleFilename(chatId: Int): String = "chat-title-%d.txt".format(chatId)
+private fun chatFilename(chatId: Int): String = "chat-$chatId.parcel"
+private fun chatTitleFilename(chatId: Int): String = "chat-title-$chatId.txt"
 
 class ChatHandle(
     var chatId: Int,
