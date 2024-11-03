@@ -355,9 +355,9 @@ class OpenAI {
                             role = "user",
                             content = listOf(
                                 RealtimeEvent.ContentPart.InputAudio(
-                                    audio = exchange.realtimePromptAudio?.let { bytes ->
-                                        Base64.encodeToString(convertAopusToPcm(bytes), NO_WRAP)
-                                    } ?: "",
+                                    audio =
+//                                    exchange.realtimePromptAudio?.let { bytes -> Base64.encodeToString(convertAopusToPcm(bytes), NO_WRAP) } ?:
+                                    "",
                                     transcript = exchange.promptText()?.toString() ?: ""
                                 )
                             )
