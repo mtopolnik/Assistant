@@ -687,7 +687,7 @@ class OpenAI {
     private suspend fun PromptPart.toContentPart() = withContext(IO) {
 
         fun readBase64(uri: Uri): String {
-            val bytes = uri.inputStream().use { input ->
+            val bytes = uri.inputStream()!!.use { input ->
                 ByteArrayOutputStream().also { input.copyTo(it) }.toByteArray()
             }
             return Base64.encodeToString(bytes, NO_WRAP)

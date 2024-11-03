@@ -74,6 +74,7 @@ import kotlinx.coroutines.yield
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileInputStream
+import java.io.FileNotFoundException
 import java.io.FileOutputStream
 import java.io.InputStream
 import java.io.RandomAccessFile
@@ -288,10 +289,10 @@ operator fun RectF.component2() = top
 operator fun RectF.component3() = right
 operator fun RectF.component4() = bottom
 
-fun Uri.inputStream(): InputStream =
+fun Uri.inputStream(): InputStream? =
     when (scheme) {
-        "file" -> FileInputStream(toFile())
-        "content" -> appContext.contentResolver.openInputStream(this)!!
+        "file" -> try { FileInputStream(toFile()) } catch (e: FileNotFoundException) { null }
+        "content" -> appContext.contentResolver.openInputStream(this)
         else -> throw IllegalArgumentException("URI scheme $scheme not supported")
     }
 

@@ -106,7 +106,7 @@ class Anthropic {
         when (this@toContentPart) {
             is PromptPart.Text -> ContentPart.Text(text.toString())
             is PromptPart.Image -> try {
-                val bytes = uri.inputStream().use { input ->
+                val bytes = uri.inputStream()!!.use { input ->
                     ByteArrayOutputStream().also { input.copyTo(it) }.toByteArray()
                 }
                 ContentPart.Image("image/${uri.toFile().extension}", Base64.encodeToString(bytes, Base64.NO_WRAP))
