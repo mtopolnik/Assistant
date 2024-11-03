@@ -479,8 +479,10 @@ class OpenAI {
                                 drainEncoder(true)
                                 promptAudioChannel.send(opusWriter.consumeContent())
                                 restartEncoder()
-                            } else {
+                            } else if (promptInProgress) {
                                 delay(20)
+                            } else {
+                                delay(100)
                             }
                             continue
                         }
