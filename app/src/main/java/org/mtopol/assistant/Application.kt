@@ -533,59 +533,6 @@ private suspend fun pushThroughDecoder(
     }
 }
 
-private suspend fun pushThroughDecoderSync(
-    format: MediaFormat,
-    fillInputBuf: suspend (ByteBuffer) -> Int,
-    drainOutputBuf: suspend (ByteBuffer) -> Unit
-) {
-    val bufTimeoutMicros = 10_000L
-    val bytesPerSample = Short.SIZE_BYTES // assuming 16 bits per sample
-
-    val mimeType = format.getString(MediaFormat.KEY_MIME)!!
-    val samplesPerSec = format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
-    val channelCount = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
-    val microsPerByte = (1_000_000.0 / bytesPerSample / samplesPerSec / channelCount).toLong()
-    Log.i("speech", "Create decoder for $mimeType")
-    val bufferInfo = MediaCodec.BufferInfo()
-    val codec = MediaCodec.createDecoderByType(mimeType)
-    try {
-        codec.configure(format, null, null, 0)
-        codec.start()
-        Log.i("speech", "Configure decoder with $format")
-        var sawInputEOS = false
-        while (true) {
-            if (!sawInputEOS) {
-                yield()
-                val inputBufferIndex = codec.dequeueInputBuffer(bufTimeoutMicros)
-                if (inputBufferIndex >= 0) {
-                    val inputBuffer = codec.getInputBuffer(inputBufferIndex)!!
-                    val bytesRead = fillInputBuf(inputBuffer)
-                    if (bytesRead >= 0) {
-                        codec.queueInputBuffer(inputBufferIndex, 0, bytesRead, bytesRead * microsPerByte, 0)
-                    } else {
-                        codec.queueInputBuffer(inputBufferIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
-                        sawInputEOS = true
-                    }
-                }
-            }
-            yield()
-            val outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, bufTimeoutMicros)
-            if (outputBufferIndex >= 0) {
-                drainOutputBuf(codec.getOutputBuffer(outputBufferIndex)!!)
-                codec.releaseOutputBuffer(outputBufferIndex, false)
-                if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
-                    break
-                }
-            }
-        }
-        codec.stop()
-    } catch (e: Exception) {
-        Log.e("speech", "Error while pushing through decoder", e)
-    } finally {
-        codec.release()
-    }
-}
-
 private fun buildWavHeader(fileSize: Long, mediaFormat: MediaFormat): ByteBuffer {
     val riffHeaderSize = 8
     val bytesPerSample = 2
