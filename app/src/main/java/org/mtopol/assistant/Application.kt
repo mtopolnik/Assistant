@@ -65,6 +65,7 @@ import androidx.media3.extractor.SeekPoint
 import androidx.media3.extractor.TrackOutput
 import androidx.preference.PreferenceManager
 import io.ktor.utils.io.ByteReadChannel
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.runBlocking
@@ -79,6 +80,7 @@ import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder.LITTLE_ENDIAN
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.min
 
 const val FILE_PROVIDER_AUTHORITY = "org.mtopol.assistant.fileprovider"
@@ -380,27 +382,6 @@ fun vibrate() {
         )
 }
 
-
-fun downsample(input: ByteBuffer, output: ByteBuffer) : ByteBuffer {
-    val neededCapacity = input.remaining() / 2
-    val downsampledBuf =
-        if (output.capacity() >= neededCapacity) output
-        else ByteBuffer.allocate(neededCapacity)
-    downsampledBuf.clear()
-    val shortBuf = input.asShortBuffer()
-    val downsampledShortBuf = downsampledBuf.asShortBuffer()
-    while (shortBuf.remaining() >= 2) {
-        val sample1 = shortBuf.get()
-        val sample2 = shortBuf.get()
-        downsampledShortBuf.put(((sample1 + sample2) / 2).toShort())
-    }
-    if (shortBuf.remaining() > 0) {
-        downsampledShortBuf.put(shortBuf.get())
-    }
-    downsampledBuf.limit(2 * downsampledShortBuf.position())
-    return downsampledBuf
-}
-
 suspend fun convertAopusToPcm(inputBytes: ByteArray): ByteArray = withContext(IO) {
     val input = PacketReader(inputBytes)
     val outputStream = ByteArrayOutputStream()
@@ -441,6 +422,26 @@ suspend fun convertAopusToWav(inputBytes: ByteArray, outputFile: File) = withCon
     }
 }
 
+private fun downsample(input: ByteBuffer, output: ByteBuffer) : ByteBuffer {
+    val neededCapacity = input.remaining() / 2
+    val downsampledBuf =
+        if (output.capacity() >= neededCapacity) output
+        else ByteBuffer.allocate(neededCapacity)
+    downsampledBuf.clear()
+    val shortBuf = input.asShortBuffer()
+    val downsampledShortBuf = downsampledBuf.asShortBuffer()
+    while (shortBuf.remaining() >= 2) {
+        val sample1 = shortBuf.get()
+        val sample2 = shortBuf.get()
+        downsampledShortBuf.put(((sample1 + sample2) / 2).toShort())
+    }
+    if (shortBuf.remaining() > 0) {
+        downsampledShortBuf.put(shortBuf.get())
+    }
+    downsampledBuf.limit(2 * downsampledShortBuf.position())
+    return downsampledBuf
+}
+
 suspend fun convertToWav(inputPath: String, outputPath: String) = withContext(IO) {
     val extractor = MediaExtractor()
     val raf = RandomAccessFile(outputPath, "rw")
@@ -467,7 +468,72 @@ suspend fun convertToWav(inputPath: String, outputPath: String) = withContext(IO
     }
 }
 
-suspend fun pushThroughDecoder(
+private suspend fun pushThroughDecoder(
+    format: MediaFormat,
+    fillInputBuf: suspend (ByteBuffer) -> Int,
+    drainOutputBuf: suspend (ByteBuffer) -> Unit
+) {
+    val bytesPerSample = Short.SIZE_BYTES // assuming 16 bits per sample
+
+    val mimeType = format.getString(MediaFormat.KEY_MIME)!!
+    val samplesPerSec = format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+    val channelCount = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+    val microsPerByte = (1_000_000.0 / bytesPerSample / samplesPerSec / channelCount).toLong()
+    Log.i("speech", "Create decoder for $mimeType")
+    val bufferInfo = MediaCodec.BufferInfo()
+    val codec = MediaCodec.createDecoderByType(mimeType)
+    try {
+        Log.i("speech", "Configure decoder with $format")
+        val outcome = CompletableDeferred<Exception?>()
+        codec.setCallback(object : MediaCodec.Callback() {
+            private var totalBytesRead = 0
+            private var sawInputEos = false
+            private val pendingBufferCount = AtomicInteger()
+
+            override fun onInputBufferAvailable(codec: MediaCodec, index: Int) {
+                if (sawInputEos) {
+                    return
+                }
+                val inputBuffer = codec.getInputBuffer(index)!!
+                val bytesRead = runBlocking { fillInputBuf(inputBuffer) }
+                pendingBufferCount.incrementAndGet()
+                if (bytesRead >= 0) {
+                    codec.queueInputBuffer(index, 0, bytesRead, totalBytesRead * microsPerByte, 0)
+                } else {
+                    codec.queueInputBuffer(index, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                    sawInputEos = true
+                }
+                totalBytesRead += bytesRead
+            }
+
+            override fun onOutputBufferAvailable(codec: MediaCodec, index: Int, info: MediaCodec.BufferInfo) {
+                val isEos = (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0
+                val pendingBuffers = pendingBufferCount.decrementAndGet()
+                runBlocking { drainOutputBuf(codec.getOutputBuffer(index)!!) }
+                codec.releaseOutputBuffer(index, false)
+                if (isEos || sawInputEos && pendingBuffers == 0) {
+                    outcome.complete(null)
+                }
+            }
+
+            override fun onError(codec: MediaCodec, e: MediaCodec.CodecException) {
+                outcome.complete(e)
+            }
+
+            override fun onOutputFormatChanged(codec: MediaCodec, format: MediaFormat) {}
+        })
+        codec.configure(format, null, null, 0)
+        codec.start()
+        outcome.await()?.also { throw it }
+        codec.stop()
+    } catch (e: Exception) {
+        Log.e("speech", "Error while pushing through decoder", e)
+    } finally {
+        codec.release()
+    }
+}
+
+private suspend fun pushThroughDecoderSync(
     format: MediaFormat,
     fillInputBuf: suspend (ByteBuffer) -> Int,
     drainOutputBuf: suspend (ByteBuffer) -> Unit
