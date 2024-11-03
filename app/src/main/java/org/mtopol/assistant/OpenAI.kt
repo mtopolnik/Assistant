@@ -270,7 +270,7 @@ class OpenAI {
             setBody(jsonCodec.encodeToJsonElement(request))
         }
 
-        HttpStatement(builder, apiClient).execute() { httpResponse ->
+        HttpStatement(builder, apiClient).execute { httpResponse ->
             val channel = httpResponse.body<ByteReadChannel>()
             exoPlayer.addMediaSource(
                 ProgressiveMediaSource.Factory(SpeakDsFactory(channel))
@@ -301,7 +301,7 @@ class OpenAI {
                 val logEvent =
                     if (msg.contains("input_audio_buffer.append")) msg.substring(0, 50.coerceAtMost(msg.length))
                     else msg
-                Log.i("speech", "Send ${logEvent}")
+                Log.i("speech", "Send $logEvent")
             }
 
             suspend fun sendWs(event: RealtimeEvent) {
@@ -457,7 +457,7 @@ class OpenAI {
                                     }
                                     encoder.queueInputBuffer(bufIndex, 0, encBuf.position(), 0, 0)
                                 }
-                                Base64.encodeToString(sendBuf.array(), 0, bytesAvailable, Base64.NO_WRAP).also {
+                                Base64.encodeToString(sendBuf.array(), 0, bytesAvailable, NO_WRAP).also {
                                     sendBuf.clear()
                                     bytesSent += bytesAvailable
                                 }
@@ -691,7 +691,7 @@ class OpenAI {
             val bytes = uri.inputStream().use { input ->
                 ByteArrayOutputStream().also { input.copyTo(it) }.toByteArray()
             }
-            return Base64.encodeToString(bytes, Base64.NO_WRAP)
+            return Base64.encodeToString(bytes, NO_WRAP)
         }
 
         when (this@toContentPart) {
