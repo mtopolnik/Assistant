@@ -21,8 +21,6 @@ import android.content.Context
 import android.os.Parcel
 import android.os.Parcelable
 import android.util.Log
-import kotlin.collections.removeFirst as removeFirstKt
-import kotlin.collections.removeLast as removeLastKt
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
@@ -34,6 +32,10 @@ import java.io.OutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import kotlin.io.path.deleteIfExists
+import kotlin.collections.removeFirst as removeFirstKt
+import kotlin.collections.removeLast as removeLastKt
 
 private const val MAX_SAVED_CHATS = 20
 private val chatFileRegex = """^chat-(\d+)\.parcel$""".toRegex()
@@ -41,6 +43,7 @@ private val emptyTitle: Deferred<String> = CompletableDeferred("")
 
 private fun chatFilename(chatId: Int): String = "chat-$chatId.parcel"
 private fun chatTitleFilename(chatId: Int): String = "chat-title-$chatId.txt"
+fun promptAudioFilename(chatId: Int, promptId: Int): String = "chat-${chatId}_prompt-$promptId.aopus"
 
 class ChatHandle(
     var chatId: Int,
@@ -130,6 +133,9 @@ fun deleteChat(chatId: Int) {
 private fun deleteChatFiles(chatId: Int) {
     appContext.deleteFile(chatFilename(chatId))
     appContext.deleteFile(chatTitleFilename(chatId))
+    Files.newDirectoryStream(appContext.filesDir!!.toPath(), "chat-${chatId}_prompt-*.aopus")
+        .use { dirStream -> dirStream.forEach { path -> path.deleteIfExists() }
+    }
 }
 
 fun saveChatTitle(chatId: Int, title: String) {

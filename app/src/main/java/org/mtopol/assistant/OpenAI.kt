@@ -35,6 +35,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.annotation.OptIn
 import androidx.core.net.toFile
+import androidx.core.net.toUri
 import androidx.core.view.children
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
@@ -346,7 +347,9 @@ class OpenAI {
                 """.trimIndent()
             )
             for (exchange in vmodel.chatContent) {
-//                exchange.realtimePromptAudio?.also { saveDiagnosticWav(it) }
+//                exchange.audioPrompt()
+//                    ?.let { it.uri.inputStream()?.use { it.readBytes() } }
+//                    ?.also { opusBytes -> saveDiagnosticWav(opusBytes) }
                 sendWs(
                     RealtimeEvent.ConversationItemCreate(
                         RealtimeEvent.ClientConversationItem(
@@ -355,8 +358,11 @@ class OpenAI {
                             content = listOf(
                                 RealtimeEvent.ContentPart.InputAudio(
                                     audio =
-//                                    exchange.realtimePromptAudio?.let { bytes -> Base64.encodeToString(convertAopusToPcm(bytes), NO_WRAP) } ?:
-                                    "",
+//                                    exchange.audioPrompt()
+//                                        ?.let { it.uri.inputStream()?.use { it.readBytes() } }
+//                                        ?.let { opusBytes -> Base64.encodeToString(convertAopusToPcm(opusBytes), NO_WRAP) }
+//                                        ?:
+                                        "",
                                     transcript = exchange.promptText()?.toString() ?: ""
                                 )
                             )
@@ -571,9 +577,22 @@ class OpenAI {
                                 val promptAudio = promptAudioChannel.receive()
                                 withFragmentSync { fragment ->
                                     Log.i("speech", "Create new exchange")
+                                    val chatId = vmodel.chatId
+                                    val chatContent = vmodel.chatContent
+                                    val promptId = chatContent.size
+                                    val audioUri =
+                                        File(appContext.filesDir, promptAudioFilename(chatId, promptId))
+                                        .also { audioFile ->
+                                            audioFile.outputStream().use { it.write(promptAudio) }
+                                            Log.i("speech", "created audio file $audioFile")
+                                        }
+                                        .toUri()
                                     val exchange = fragment.prepareNewExchange(
                                         fragment.requireContext(), PromptPart.Text("<recorded audio>"))
-                                    exchange.realtimePromptAudio = promptAudio
+                                    exchange.promptParts.add(PromptPart.Audio(audioUri))
+                                    if (promptId == 0) {
+                                        saveChatContent(chatId, chatContent)
+                                    }
                                     currentExchange = exchange
                                     currentPromptView = fragment.lastMessageContainer().children.first() as TextView
                                 }

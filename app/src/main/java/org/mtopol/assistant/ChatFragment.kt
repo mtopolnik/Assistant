@@ -2165,7 +2165,6 @@ sealed class PromptPart : Parcelable {
 @Parcelize
 class Exchange(
     val promptParts: MutableList<PromptPart> = mutableListOf(),
-    var realtimePromptAudio: ByteArray? = null,
     var replyMarkdown: CharSequence = "",
     var replyImageUris: List<Uri> = listOf(),
     var replyText: CharSequence = "",
@@ -2181,6 +2180,7 @@ class Exchange(
         }
     }
     fun hasAudioPrompt() = promptParts.find { it is PromptPart.Audio } != null
+    fun audioPrompt() = promptParts.find { it is PromptPart.Audio } as PromptPart.Audio?
 }
 
 fun Exchange(part: PromptPart) = Exchange().apply { promptParts.add(part) }
