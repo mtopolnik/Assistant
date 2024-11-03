@@ -402,21 +402,20 @@ fun downsample(input: ByteBuffer, output: ByteBuffer) : ByteBuffer {
 }
 
 suspend fun convertAopusToPcm(inputBytes: ByteArray): ByteArray = withContext(IO) {
-    var outputBuf = ByteBuffer.allocate(32768).order(LITTLE_ENDIAN)
     val input = PacketReader(inputBytes)
-    val output = ByteArrayOutputStream()
+    val outputStream = ByteArrayOutputStream()
+    var outputBuf = ByteBuffer.allocate(32768).order(LITTLE_ENDIAN)
     pushThroughDecoder(
         MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_OPUS, 48000, 1),
         { buf -> input.readPacket(buf).let { if (buf.position() > 0) buf.position() else -1 } },
         { buf ->
-            downsample(buf, outputBuf).let {
-                outputBuf = it
-                output.write(it.array(), it.position(), it.remaining())
+            downsample(buf, outputBuf).let { newOutputBuf ->
+                outputBuf = newOutputBuf
+                newOutputBuf.apply { outputStream.write(array(), position(), remaining()) }
             }
         }
     )
-
-    output.toByteArray()
+    outputStream.toByteArray()
 }
 
 suspend fun convertAopusToWav(inputBytes: ByteArray, outputFile: File) = withContext(IO) {
@@ -429,9 +428,9 @@ suspend fun convertAopusToWav(inputBytes: ByteArray, outputFile: File) = withCon
             MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_OPUS, 48000, 1),
             { buf -> input.readPacket(buf).let { if (buf.position() > 0) buf.position() else -1 } },
             { buf ->
-                downsample(buf, outputBuf).let {
-                    outputBuf = it
-                    raf.channel.write(it)
+                downsample(buf, outputBuf).let { newOutputBuf ->
+                    outputBuf = newOutputBuf
+                    raf.channel.write(newOutputBuf)
                 }
             }
         )

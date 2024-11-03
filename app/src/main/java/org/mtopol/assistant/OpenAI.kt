@@ -54,6 +54,7 @@ import io.ktor.client.plugins.logging.ANDROID
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
+import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.client.request.HttpRequestBuilder
@@ -314,6 +315,19 @@ class OpenAI {
             fun addMediaSource() {
                 exoPlayer.addMediaSource(mediaFactory.createMediaSource(MediaItem.fromUri(Uri.EMPTY)))
             }
+
+            fun saveDiagnosticWav(promptAudio: ByteArray) {
+                launch(IO) {
+                    try {
+                        val wavFile = File(appContext.externalCacheDir, "prompt.wav")
+                        convertAopusToWav(promptAudio, wavFile)
+                        Log.i("speech", "Diagnostic WAV saved: ${wavFile.length()} bytes in ${wavFile.path}")
+                    } catch (e: Exception) {
+                        Log.e("speech", "Decoding Aopus bytes failed", e)
+                    }
+                }
+            }
+
             sendWs(
                 """
                 {
@@ -333,6 +347,7 @@ class OpenAI {
                 """.trimIndent()
             )
             for (exchange in vmodel.chatContent) {
+//                exchange.realtimePromptAudio?.also { saveDiagnosticWav(it) }
                 sendWs(
                     RealtimeEvent.ConversationItemCreate(
                         RealtimeEvent.ClientConversationItem(
@@ -553,15 +568,6 @@ class OpenAI {
                         when (event.item.role) {
                             "user" -> {
                                 val promptAudio = promptAudioChannel.receive()
-                                launch(IO) {
-                                    try {
-                                        val wavFile = File(appContext.externalCacheDir, "prompt.wav")
-                                        convertAopusToWav(promptAudio, wavFile)
-                                        Log.i("speech", "WAV saved: ${wavFile.length()} bytes in ${wavFile.path}")
-                                    } catch (e: Exception) {
-                                        Log.e("speech", "Conversion failed", e)
-                                    }
-                                }
                                 withFragmentSync { fragment ->
                                     Log.i("speech", "Create new exchange")
                                     val exchange = fragment.prepareNewExchange(
