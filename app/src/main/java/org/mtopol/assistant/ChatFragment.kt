@@ -1014,7 +1014,7 @@ class ChatFragment : Fragment(), MenuProvider {
         }
         // Clear the prompt and response text from the chat history entry
         lastEntry.apply {
-            removePromptText()
+            removeTextPrompt()
             replyMarkdown = ""
         }
     }
@@ -2169,18 +2169,20 @@ class Exchange(
     var replyImageUris: List<Uri> = listOf(),
     var replyText: CharSequence = "",
 ) : Parcelable {
+    fun textPrompt(): PromptPart.Text? = promptParts.find { it is PromptPart.Text } as PromptPart.Text?
+    fun promptText(): CharSequence? = textPrompt()?.text
+    fun audioPrompt() = promptParts.find { it is PromptPart.Audio } as PromptPart.Audio?
+    fun hasAudioPrompt() = audioPrompt() != null
+
     fun hasFinalPromptPart() = when (promptParts.lastOrNull()) {
         null, is PromptPart.Image -> false
         is PromptPart.Audio, is PromptPart.Text -> true
     }
-    fun promptText(): CharSequence? = (promptParts.lastOrNull() as? PromptPart.Text)?.text
-    fun removePromptText() {
+    fun removeTextPrompt() {
         if (promptParts.lastOrNull() is PromptPart.Text) {
             promptParts.removeLastItem()
         }
     }
-    fun hasAudioPrompt() = promptParts.find { it is PromptPart.Audio } != null
-    fun audioPrompt() = promptParts.find { it is PromptPart.Audio } as PromptPart.Audio?
 }
 
 fun Exchange(part: PromptPart) = Exchange().apply { promptParts.add(part) }
