@@ -604,9 +604,11 @@ class OpenAI {
                     }
                     is RealtimeEvent.InputTranscriptionCompleted -> {
                         val prompt = event.transcript.trim()
-                        withContext(Main) {
-                            (currentExchange!!.promptParts[0] as PromptPart.Text).text = prompt
-                            currentPromptView!!.text = prompt
+                        if (prompt.isNotBlank()) {
+                            withContext(Main) {
+                                currentExchange!!.textPrompt()!!.text = prompt
+                                currentPromptView!!.text = prompt
+                            }
                         }
                     }
                     is RealtimeEvent.ResponseCreated -> {
