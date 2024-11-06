@@ -26,6 +26,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import java.io.File
 import java.io.FileNotFoundException
 import java.io.InputStream
 import java.io.OutputStream
@@ -33,12 +34,17 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
+import java.nio.file.Paths
 import kotlin.io.path.deleteIfExists
+import kotlin.io.path.moveTo
+import kotlin.io.path.name
+import kotlin.io.path.pathString
 import kotlin.collections.removeFirst as removeFirstKt
 import kotlin.collections.removeLast as removeLastKt
 
 private const val MAX_SAVED_CHATS = 20
 private val chatFileRegex = """^chat-(\d+)\.parcel$""".toRegex()
+private val promptAudioFileRegex = """^chat-(\d+)_prompt-(\d+)\.aopus$""".toRegex()
 private val emptyTitle: Deferred<String> = CompletableDeferred("")
 
 private fun chatFilename(chatId: Int): String = "chat-$chatId.parcel"
@@ -197,6 +203,12 @@ fun moveChatToTop(chatId: Int): Int {
 
     renameFile(::chatFilename)
     renameFile(::chatTitleFilename)
+    Files.newDirectoryStream(appContext.filesDir!!.toPath(), "chat-${chatId}_prompt-*.aopus")
+        .use { dirStream -> dirStream.forEach { path ->
+            val promptId = promptAudioFileRegex.find(path.name)?.groups?.get(2)?.value
+            path.moveTo(path.resolveSibling("chat-${chatIdAfterMove}_prompt-$promptId.aopus"))
+        } }
+
     Log.i("chats", "Renamed chat #$chatId to #$chatIdAfterMove")
     return chatIdAfterMove
 }
