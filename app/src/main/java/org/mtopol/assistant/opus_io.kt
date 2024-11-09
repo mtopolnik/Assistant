@@ -17,20 +17,25 @@
 
 package org.mtopol.assistant
 
+import android.util.Log
 import java.io.ByteArrayOutputStream
 import java.io.IOException
-import java.io.OutputStream
+import java.io.InputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder.LITTLE_ENDIAN
+import kotlin.experimental.and
 
 private const val MAX_FRAG_SIZE = 0xFF
 private val magic = "GoodPete".toByteArray()
 
+fun presentationTimeUsToGranulePos(presentationTimeUs: Long) = presentationTimeUs * 48 / 1_000
+
 class PacketWriter {
     private val outputStream = ByteArrayOutputStream()
+    private val granulePosBuf = ByteBuffer.allocate(4).order(LITTLE_ENDIAN)
     private var magicWritten = false
 
-    fun writePacket(packetBuf: ByteBuffer) {
+    fun writePacket(packetBuf: ByteBuffer, granulePosition: Long) {
         if (packetBuf.remaining() == 0) {
             throw IllegalArgumentException("No bytes in packet")
         }
@@ -38,7 +43,9 @@ class PacketWriter {
             outputStream.write(magic)
             magicWritten = true
         }
+        granulePosBuf.putInt(0, granulePosition.toInt())
         outputStream.apply {
+            write(granulePosBuf.array())
             var remainingSize = packetBuf.remaining()
             do {
                 val fragSize = remainingSize.coerceAtMost(MAX_FRAG_SIZE)
@@ -58,8 +65,9 @@ class PacketWriter {
 }
 
 class PacketReader(inputBytes: ByteArray) {
-    private val inputByteBuf = ByteBuffer.wrap(inputBytes)
+    private val inputByteBuf = ByteBuffer.wrap(inputBytes).order(LITTLE_ENDIAN)
     private var magicRead = false
+    var granulePosition = 0L
 
     /**
      * Returns true if the input buffer is exhausted.
@@ -79,6 +87,7 @@ class PacketReader(inputBytes: ByteArray) {
         if (inputByteBuf.remaining() == 0) {
             return
         }
+        granulePosition = inputByteBuf.getInt().toLong()
         var packetSize = 0
         do {
             val fragSize = inputByteBuf.get().toUByte().toInt()
@@ -106,7 +115,7 @@ class PacketReader(inputBytes: ByteArray) {
 private fun ByteArray.startsWith(prefix: ByteArray) =
     this.size >= prefix.size && prefix.indices.all { this[it] == prefix[it] }
 
-// CRC lookup table for Ogg checksum calculation
+
 private val CRC_TABLE = IntArray(256).apply {
     for (i in 0..255) {
         var r = i shl 24
@@ -130,48 +139,55 @@ private fun ByteBuffer.crc(): Int {
     return crc
 }
 
-class OpusOggWriter(
-    private val outputStream: OutputStream,
-) : AutoCloseable {
-    private val serialNumber = 0x65746550 // spells out Pete in little-endian
-    private var packetCount = 0
-    private var pageSequenceNumber = 0
+private const val FLAG_BOS: Byte = 2
+private val oggCapturePattern = "OggS".toByteArray()
+private val opusHead = "OpusHead".toByteArray()
+private val opusTags = "OpusTags".toByteArray()
 
-    fun writeHeadersFromMediaCodecFirstPacket(buf: ByteBuffer) {
+class OpusOggWriter {
+    private val outputStream = ByteArrayOutputStream()
+    private val serialNumber = 0x65746550 // spells out Pete in little-endian
+    private var pageSequenceNumber = 0
+    private var firstPacketDone = false
+
+    fun writePacket(audioBuf: ByteBuffer, granulePosition: Long) {
+        if (!firstPacketDone) {
+            firstPacketDone = true
+            writeHeadersFromMediaCodecFirstPacket(audioBuf)
+        } else {
+            writeOggPage(audioBuf, false, granulePosition)
+        }
+    }
+
+    fun consumeContent(): ByteArray = outputStream.toByteArray().also {
+        outputStream.reset()
+        firstPacketDone = false
+    }
+
+    private fun writeHeadersFromMediaCodecFirstPacket(buf: ByteBuffer) {
         buf.position(buf.position() + 16)
         buf.limit(buf.position() + 19)
-        writeOggPage(buf, 0, 0, true)
+        writeOggPage(buf, true, 0)
         writeOpusCommentHeader()
     }
 
-    fun writeAudioData(audioBuf: ByteBuffer, granulePosition: Long) {
-        writeOggPage(audioBuf, 0, granulePosition)
-        packetCount++
-    }
-
-    override fun close() {
-        outputStream.close()
-    }
-
     private fun writeOpusCommentHeader() {
-        val opusTagsBytes = "OpusTags".toByteArray()
         val vendorBytes = "Good Guy Pete".toByteArray()
-        val size = opusTagsBytes.size + 4 + vendorBytes.size + 4
+        val size = opusTags.size + 4 + vendorBytes.size + 4
         val commentData = ByteBuffer.allocate(size).order(LITTLE_ENDIAN).apply {
-            put(opusTagsBytes)
+            put(opusTags)
             putInt(vendorBytes.size)
             put(vendorBytes)
             putInt(0)  // No user comments
             flip()
         }
-        writeOggPage(commentData, 0, 0, true)
+        writeOggPage(commentData, false, 0)
     }
 
     private fun writeOggPage(
         dataBuf: ByteBuffer,
-        headerType: Int,
-        granulePos: Long,
-        isHeader: Boolean = false
+        isBos: Boolean,
+        granulePos: Long
     ) {
         val dataSize = dataBuf.remaining()
         val numSegments = (dataSize + 255) / 255
@@ -188,9 +204,9 @@ class OpusOggWriter(
         // N bytes - Segment table
         val headerSize = 27 + numSegments
         val page = ByteBuffer.allocate(headerSize + dataSize).order(LITTLE_ENDIAN).apply {
-            put("OggS".toByteArray())
+            put(oggCapturePattern)
             put(0)  // Stream structure version
-            put((headerType or (if (isHeader) 2 else 0)).toByte())
+            put(if (isBos) FLAG_BOS else 0)
             putLong(granulePos)
             putInt(serialNumber)
             putInt(pageSequenceNumber++)
@@ -200,7 +216,7 @@ class OpusOggWriter(
 
             // Write segment table
             var remaining = dataSize
-            for (i in 0 until numSegments) {
+            repeat(numSegments) {
                 put(minOf(remaining, 255).toByte())
                 remaining -= 255
             }
@@ -208,5 +224,90 @@ class OpusOggWriter(
             putInt(crcPos, crc())
         }
         outputStream.write(page.array())
+    }
+}
+
+fun analyzeOgg(input: InputStream) {
+    var opusIdentificationHeaderDone = false
+    var opusCommentHeaderDone = false
+    while (true) {
+        val numSegments: Int
+        val headBuf = ByteBuffer.allocate(27).order(LITTLE_ENDIAN)
+        val bytesRead = input.read(headBuf.array())
+        if (bytesRead < headBuf.array().size) {
+            break
+        }
+        if (!headBuf.array().startsWith(oggCapturePattern)) {
+            Log.e("ogg", "OggS magic not present at page start: ${headBuf.array().contentToString()}")
+            break
+        }
+        headBuf.position(oggCapturePattern.size)
+        val streamStructureVersion = headBuf.get()
+        val headerType = headBuf.get()
+        val granulePos = headBuf.getLong()
+        val streamSerialNumber = headBuf.getInt()
+        val pageSequenceNumber = headBuf.getInt()
+        val crc = headBuf.getInt()
+        numSegments = headBuf.get().toInt()
+        var dataSize = 0
+        repeat(numSegments) {
+            dataSize += input.read()
+        }
+        Log.i("ogg", "Ogg Packet version $streamStructureVersion headerType $headerType granulePos $granulePos" +
+                " streamSerialNumber $streamSerialNumber pageSequenceNumber $pageSequenceNumber crc $crc dataSize $dataSize")
+        val isBos = headerType and FLAG_BOS != 0.toByte()
+        if (isBos == opusIdentificationHeaderDone) {
+            Log.e("ogg", "Invalid BOS flag in header. BOS flag = $isBos, is first packet? ${!opusIdentificationHeaderDone}")
+        }
+        if (!opusIdentificationHeaderDone) {
+            opusIdentificationHeaderDone = true
+            val dataBuf = ByteBuffer.allocate(dataSize).order(LITTLE_ENDIAN)
+            input.read(dataBuf.array())
+            if (!dataBuf.array().startsWith(opusHead)) {
+                Log.e("ogg", "OpusHead magic not present in Opus Identification header")
+                break
+            }
+            dataBuf.position(opusHead.size)
+            val version = dataBuf.get()
+            val channelCount = dataBuf.get()
+            val preSkip = dataBuf.getShort()
+            val inputSampleRate = dataBuf.getInt()
+            val outputGain = dataBuf.getShort()
+            val channelMappingFamily = dataBuf.get()
+            Log.i(
+                "ogg", "OpusHead version $version channelCount $channelCount preSkip $preSkip" +
+                        " inputSampleRate $inputSampleRate outputGain $outputGain channelMappingFamily $channelMappingFamily"
+            )
+            if (channelMappingFamily.toInt() == 0 && dataBuf.remaining() != 0) {
+                Log.e("ogg", "Channel mapping family 0, but data still left in Opus Identification header")
+                break
+            }
+        } else if (!opusCommentHeaderDone) {
+            opusCommentHeaderDone = true
+            val dataBuf = ByteBuffer.allocate(dataSize).order(LITTLE_ENDIAN)
+            input.read(dataBuf.array())
+            if (!dataBuf.array().startsWith(opusTags)) {
+                Log.e("ogg", "OpusTags magic not present in Opus Comments header")
+                break
+            }
+            dataBuf.position(opusTags.size)
+            val vendorStringLen = dataBuf.getInt()
+            if (vendorStringLen > 100) {
+                Log.e("ogg", "Vendor string length > 100: $vendorStringLen")
+                break
+            }
+            val vendorString = String(dataBuf.array(), dataBuf.position(), vendorStringLen)
+            dataBuf.position(dataBuf.position() + vendorStringLen)
+            val userCommentListLen = dataBuf.getInt()
+            if (userCommentListLen > 100) {
+                Log.e("ogg", "User comment list length > 100: $userCommentListLen")
+                break
+            }
+            Log.i("ogg", "Vendor string $vendorString userCommentListLen $userCommentListLen")
+        } else {
+            repeat(dataSize) {
+                input.read()
+            }
+        }
     }
 }

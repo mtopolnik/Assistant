@@ -427,7 +427,7 @@ class OpenAI {
                             }
                         }
                         val outBuf = encoder.getOutputBuffer(bufIndex)!!
-                        opusWriter.writePacket(outBuf)
+                        opusWriter.writePacket(outBuf, presentationTimeUsToGranulePos(bufInfo.presentationTimeUs))
                         encoder.releaseOutputBuffer(bufIndex, false)
                         if ((bufInfo.flags and BUFFER_FLAG_END_OF_STREAM) != 0) {
                             encoderDone = true
