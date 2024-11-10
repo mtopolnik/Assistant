@@ -66,14 +66,11 @@ class PacketWriter {
 
 class PacketReader(inputBytes: ByteArray) {
     private val inputByteBuf = ByteBuffer.wrap(inputBytes).order(LITTLE_ENDIAN)
-    private var magicRead = false
+    private var gotMagic = false
     var granulePosition = 0L
 
-    /**
-     * Returns true if the input buffer is exhausted.
-     */
     fun readPacket(packetBuf: ByteBuffer) {
-        if (!magicRead) {
+        if (!gotMagic) {
             if (inputByteBuf.remaining() < magic.size) {
                 throw IOException("Input byte stream is shorter than the magic header")
             }
@@ -82,7 +79,7 @@ class PacketReader(inputBytes: ByteArray) {
                     throw IOException("Corrupt input byte stream: magic header not present")
                 }
             }
-            magicRead = true
+            gotMagic = true
         }
         if (inputByteBuf.remaining() == 0) {
             return
