@@ -357,13 +357,11 @@ class OpenAI {
                             role = "user",
                             content = listOf(
                                 RealtimeEvent.ContentPart.InputAudio(
-                                    audio =
+                                    transcript = exchange.promptText()?.toString() ?: "",
+//                                    audio =
 //                                    exchange.audioPrompt()
 //                                        ?.let { it.uri.inputStream()?.use { it.readBytes() } }
 //                                        ?.let { opusBytes -> Base64.encodeToString(convertAopusToPcm(opusBytes), NO_WRAP) }
-//                                        ?:
-                                        "",
-                                    transcript = exchange.promptText()?.toString() ?: ""
                                 )
                             )
                         )
@@ -879,8 +877,8 @@ class OpenAI {
             @Serializable
             @SerialName("input_audio")
             data class InputAudio(
-                val audio: String? = null,
-                val transcript: String? = null
+                val transcript: String? = null,
+                val audio: String? = null
             ) : ContentPart()
 
             @Serializable
