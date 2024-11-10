@@ -578,7 +578,7 @@ class OpenAI {
                                     Log.i("speech", "Create new exchange")
                                     val chatId = vmodel.chatId
                                     val chatContent = vmodel.chatContent
-                                    val promptId = chatContent.size
+                                    val promptId = chatContent.size + 1
                                     val audioUri =
                                         File(appContext.filesDir, promptAudioFilename(chatId, promptId))
                                         .also { audioFile ->
@@ -589,7 +589,7 @@ class OpenAI {
                                     val exchange = fragment.prepareNewExchange(
                                         fragment.requireContext(), PromptPart.Text("<recorded audio>"))
                                     exchange.promptParts.add(PromptPart.Audio(audioUri))
-                                    if (promptId == 0) {
+                                    if (promptId == 1) {
                                         saveChatContent(chatId, chatContent)
                                     }
                                     currentExchange = exchange
