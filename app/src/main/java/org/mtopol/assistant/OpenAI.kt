@@ -469,6 +469,7 @@ class OpenAI {
                         }
                         if (audioBase64.isEmpty()) {
                             if (promptInProgress && allAudioReceived) {
+                                Log.i("speech", "promptInProgress = false")
                                 promptInProgress = false
                                 stopTimestamp = Long.MAX_VALUE
                                 encoder.queueInputBuffer(dequeueInputBuf(), 0, 0, 0, BUFFER_FLAG_END_OF_STREAM)
@@ -492,7 +493,7 @@ class OpenAI {
                         }
                         if (!promptInProgress) {
                             promptInProgress = true
-                            Log.i("speech", "Prompt now in progress, reset ExoPlayer")
+                            Log.i("speech", "promptInProgress = true")
                             val responseDuration = withContext(Main) {
                                 val currentPosition = exoPlayer.run {
                                     if (isPlaying) currentPosition
