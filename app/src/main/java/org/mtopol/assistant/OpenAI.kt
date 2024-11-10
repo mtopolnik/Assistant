@@ -316,12 +316,12 @@ class OpenAI {
                 exoPlayer.addMediaSource(mediaFactory.createMediaSource(MediaItem.fromUri(Uri.EMPTY)))
             }
 
-            fun saveDiagnosticWav(promptAudio: ByteArray) {
+            fun saveDiagnosticOgg(promptAudio: ByteArray, i: Int) {
                 launch(IO) {
                     try {
-                        val wavFile = File(appContext.externalCacheDir, "prompt.wav")
-                        convertAopusToWav(promptAudio, wavFile)
-                        Log.i("speech", "Diagnostic WAV saved: ${wavFile.length()} bytes in ${wavFile.path}")
+                        val oggFile = File(appContext.externalCacheDir, "realtime-$i.ogg")
+                        convertAopusToOgg(promptAudio, oggFile)
+                        Log.i("speech", "Diagnostic Ogg saved: ${oggFile.length()} bytes in ${oggFile.path}")
                     } catch (e: Exception) {
                         Log.e("speech", "Decoding Aopus bytes failed", e)
                     }
@@ -349,7 +349,7 @@ class OpenAI {
             for (exchange in vmodel.chatContent) {
 //                exchange.audioPrompt()
 //                    ?.let { it.uri.inputStream()?.use { it.readBytes() } }
-//                    ?.also { opusBytes -> saveDiagnosticWav(opusBytes) }
+//                    ?.also { opusBytes -> saveDiagnosticOgg(opusBytes, i++) }
                 sendWs(
                     RealtimeEvent.ConversationItemCreate(
                         RealtimeEvent.ClientConversationItem(

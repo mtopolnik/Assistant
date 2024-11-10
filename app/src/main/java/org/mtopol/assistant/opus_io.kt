@@ -141,7 +141,7 @@ private val oggCapturePattern = "OggS".toByteArray()
 private val opusHead = "OpusHead".toByteArray()
 private val opusTags = "OpusTags".toByteArray()
 
-class OpusOggWriter {
+class OggOpusWriter {
     private val outputStream = ByteArrayOutputStream()
     private val serialNumber = 0x65746550 // spells out Pete in little-endian
     private var pageSequenceNumber = 0

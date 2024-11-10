@@ -65,7 +65,6 @@ import androidx.media3.extractor.SeekPoint
 import androidx.media3.extractor.TrackOutput
 import androidx.preference.PreferenceManager
 import io.ktor.utils.io.ByteReadChannel
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.runBlocking
@@ -81,7 +80,6 @@ import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder.LITTLE_ENDIAN
 import java.util.Locale
-import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.min
 
 const val FILE_PROVIDER_AUTHORITY = "org.mtopol.assistant.fileprovider"
@@ -421,6 +419,20 @@ suspend fun convertAopusToWav(inputBytes: ByteArray, outputFile: File) = withCon
         raf.seek(0)
         raf.channel.write(headerBuf)
     }
+}
+
+fun convertAopusToOgg(inputBytes: ByteArray, outputFile: File) {
+    val reader = PacketReader(inputBytes)
+    val writer = OggOpusWriter()
+    val buf = ByteBuffer.allocate(512).order(LITTLE_ENDIAN)
+    while (true) {
+        buf.clear()
+        reader.readPacket(buf)
+        buf.flip()
+        if (buf.remaining() == 0) break
+        writer.writePacket(buf, reader.granulePosition)
+    }
+    outputFile.outputStream().use { it.write(writer.consumeContent()) }
 }
 
 private fun downsample(input: ByteBuffer, output: ByteBuffer) : ByteBuffer {
