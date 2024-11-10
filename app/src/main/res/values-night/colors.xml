@@ -34,7 +34,7 @@
     <color name="keyboard_button">#858585</color>
     <color name="on_keyboard_button">#F3F3F3</color>
     <color name="prompt_foreground">@color/on_surface</color>
-    <color name="prompt_background">@color/dark_grey</color>
+    <color name="prompt_background">#3F3F50</color>
     <color name="prompt_border">#5F5E5E</color>
     <color name="response_foreground">@color/on_surface</color>
     <color name="response_background">#224790</color>
