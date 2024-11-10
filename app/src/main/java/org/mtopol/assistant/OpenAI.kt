@@ -443,7 +443,7 @@ class OpenAI {
                     var stopTimestamp = Long.MAX_VALUE
                     while (true) {
                         drainEncoder(false)
-                        if (audioRecord.recordingState == RECORDSTATE_STOPPED && stopTimestamp == Long.MAX_VALUE) {
+                        if (promptInProgress && audioRecord.recordingState == RECORDSTATE_STOPPED && stopTimestamp == Long.MAX_VALUE) {
                             stopTimestamp = System.nanoTime()
                         }
                         val allAudioReceived = System.nanoTime() - stopTimestamp > AUDIORECORD_STOP_GRACE_PERIOD_NS
@@ -477,13 +477,13 @@ class OpenAI {
                                 if (bytesSent >= bytesFor100ms) {
                                     sendWs("""{ "type": "input_audio_buffer.commit" }""")
                                     sendWs("""{ "type": "response.create" }""")
+                                    drainEncoder(true)
+                                    promptAudioChannel.send(opusWriter.consumeContent())
                                 } else {
                                     sendWs("""{ "type": "input_audio_buffer.clear" } """)
                                     Log.i("speech", "Short prompt discarded")
                                 }
                                 bytesSent = 0
-                                drainEncoder(true)
-                                promptAudioChannel.send(opusWriter.consumeContent())
                                 restartEncoder()
                             } else if (promptInProgress) {
                                 delay(20)
