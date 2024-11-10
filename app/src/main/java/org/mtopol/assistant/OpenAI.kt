@@ -121,7 +121,7 @@ const val MODEL_ID_GPT_4O_AUDIO = "gpt-4o-audio-preview"
 const val MODEL_ID_GPT_4O_REALTIME = "gpt-4o-realtime-preview"
 
 private const val OPENAI_URL = "https://api.openai.com/v1/"
-private val AUDIORECORD_STOP_GRACE_PERIOD_NS = TimeUnit.MILLISECONDS.toNanos(100L)
+private val AUDIORECORD_STOP_GRACE_PERIOD_NS = TimeUnit.MILLISECONDS.toNanos(80L)
 
 private lateinit var openAiLazy: Lazy<OpenAI>
 
