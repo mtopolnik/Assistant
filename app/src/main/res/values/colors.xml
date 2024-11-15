@@ -62,7 +62,7 @@
     <color name="on_app_bar">@color/on_primary</color>
     <color name="keyboard_button">#A5A5A5</color>
     <color name="on_keyboard_button">#ffffff</color>
-    <color name="recording_glow">#D1518F</color>
+    <color name="recording_glow">#D01F6C</color>
     <color name="chat_background">@color/solarized_base2</color>
     <color name="prompt_foreground">@color/solarized_base02</color>
     <color name="prompt_background">#BEE8FF</color>
