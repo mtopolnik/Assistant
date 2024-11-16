@@ -115,11 +115,9 @@ import io.noties.markwon.core.CorePlugin
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers.Default
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Dispatchers.Main
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.cancel
@@ -150,7 +148,6 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicReference
-import kotlin.OptIn
 import kotlin.Result.Companion.failure
 import kotlin.Result.Companion.success
 import kotlin.coroutines.Continuation
@@ -275,7 +272,6 @@ class ChatFragment : Fragment(), MenuProvider {
         Log.i("lifecycle", "onDestroy ChatFragment")
     }
 
-    @OptIn(DelicateCoroutinesApi::class)
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -283,7 +279,7 @@ class ChatFragment : Fragment(), MenuProvider {
         Log.i("lifecycle", "onCreateView ChatFragment")
 
         // Trigger lazy loading of the API clients
-        GlobalScope.launch(IO) { openAi; anthropic }
+        vmodel.viewModelScope.launch(IO) { openAi; anthropic }
 
         binding = FragmentChatBinding.inflate(inflater, container, false)
         binding.root.addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
