@@ -39,6 +39,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsCompat.Type.ime
+import androidx.core.view.WindowInsetsCompat.Type.systemBars
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.navigation.NavOptions
@@ -60,11 +62,10 @@ class MainActivity : AppCompatActivity() {
         WindowCompat.getInsetsController(window, window.decorView).apply {
             isAppearanceLightStatusBars = resources.configuration.uiMode and UI_MODE_NIGHT_MASK == UI_MODE_NIGHT_NO
         }
-
         val root = ActivityMainBinding.inflate(layoutInflater).root
         ViewCompat.setOnApplyWindowInsetsListener(root) { v, windowInsets ->
-            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(0, insets.top, 0, insets.bottom)
+            val insets = windowInsets.getInsets(systemBars() or ime())
+            v.setPadding(insets.left, insets.top, insets.right, insets.bottom)
             windowInsets
         }
         setContentView(root)
