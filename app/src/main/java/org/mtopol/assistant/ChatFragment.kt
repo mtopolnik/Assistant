@@ -617,10 +617,13 @@ class ChatFragment : Fragment(), MenuProvider {
                 if (isRtVoiceMode) promptSectionLayoutParams_voice else promptSectionLayoutParams_chat
 
             val buttParams = (if (isRtVoiceMode) recordButtonLayoutParams_voice else recordButtonLayoutParams_chat)
-            buttonRecord.layoutParams = buttParams
-            buttonRecord.post {
-                val buttHeight = buttonRecord.height
-                (buttonRecord as MaterialButton).iconSize = if (isRtVoiceMode) buttHeight / 3 else buttHeight * 3 / 5
+            (buttonRecord as MaterialButton).apply {
+                layoutParams = buttParams
+                iconSize = 0
+                post {
+                    val buttHeight = height
+                    iconSize = if (isRtVoiceMode) buttHeight / 3 else buttHeight * 3 / 5
+                }
             }
 
             scrollviewChat.visibility = if (isRtVoiceMode) GONE else VISIBLE
