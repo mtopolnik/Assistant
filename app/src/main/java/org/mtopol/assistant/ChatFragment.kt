@@ -597,6 +597,7 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun updateSelectedModel(model: AiModel) {
+        vibrate()
         appContext.mainPrefs.applyUpdate { setSelectedModel(model) }
         hideKeyboard()
         switchToVoice()
