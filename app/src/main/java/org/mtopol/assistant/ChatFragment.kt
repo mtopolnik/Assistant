@@ -74,6 +74,7 @@ import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.PopupMenu
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.content.ContextCompat.checkSelfPermission
 import androidx.core.content.FileProvider
@@ -155,7 +156,6 @@ import kotlin.coroutines.resume
 import kotlin.math.abs
 import kotlin.math.log2
 import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.roundToLong
 import androidx.annotation.OptIn as OptInAndroid
 
@@ -282,16 +282,22 @@ class ChatFragment : Fragment(), MenuProvider {
         vmodel.viewModelScope.launch(IO) { openAi; anthropic }
 
         binding = FragmentChatBinding.inflate(inflater, container, false)
-        binding.root.addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
-            if (bottom - top == oldBottom - oldTop && right - left == oldRight - oldLeft) {
-                return@addOnLayoutChangeListener
-            }
-            updateLayoutParams(bottom, top, right, left)
-        }
         vmodel.withFragmentLiveData.observe(viewLifecycleOwner) { it.invoke(this) }
         vmodel.timedCancelRealtimeJob?.cancel()
         recordButtonLayoutParams_chat = binding.buttonRecord.layoutParams as ConstraintLayout.LayoutParams
         promptSectionLayoutParams_chat = binding.promptSection.layoutParams as LinearLayout.LayoutParams
+        recordButtonLayoutParams_voice = ConstraintLayout.LayoutParams(recordButtonLayoutParams_chat).apply {
+            dimensionRatio = "1:1"
+            height = 0; width = 0
+            topToTop = PARENT_ID; bottomToBottom = PARENT_ID; startToStart = PARENT_ID; endToEnd = PARENT_ID
+        }
+        promptSectionLayoutParams_voice = LinearLayout.LayoutParams(promptSectionLayoutParams_chat).apply {
+            height = 0
+            weight = 1f
+        }
+        binding.root.post {
+            configureUi()
+        }
         updateLanguageButton()
         sharedImageViewModel.imgUriLiveData.observe(viewLifecycleOwner) { imgUris ->
             // We need this hack to prevent duplicate event observation:
@@ -599,23 +605,6 @@ class ChatFragment : Fragment(), MenuProvider {
         setupVoiceMenu()
     }
 
-    private fun updateLayoutParams(bottom: Int, top: Int, right: Int, left: Int) {
-        val padding = 16.dp
-        val availableHeight = bottom - top - binding.appbarLayout.height - padding
-        val availableWidth = right - left - padding
-        val buttonDiameter = min(availableWidth, availableHeight)
-        recordButtonLayoutParams_voice = ConstraintLayout.LayoutParams(recordButtonLayoutParams_chat).apply {
-            height = buttonDiameter
-            width = buttonDiameter
-            bottomMargin = (availableHeight - buttonDiameter) / 2
-        }
-        promptSectionLayoutParams_voice = LinearLayout.LayoutParams(promptSectionLayoutParams_chat).apply {
-            height = 0
-            weight = 1f
-        }
-        configureUi()
-    }
-
     private fun configureUi() {
         Log.i("lifecycle", "configureUi")
         binding.apply {
@@ -628,8 +617,10 @@ class ChatFragment : Fragment(), MenuProvider {
 
             val buttParams = (if (isRtVoiceMode) recordButtonLayoutParams_voice else recordButtonLayoutParams_chat)
             buttonRecord.layoutParams = buttParams
-            val buttHeight = buttParams.height
-            (buttonRecord as MaterialButton).iconSize = if (isRtVoiceMode) buttHeight / 3 else buttHeight * 3 / 5
+            buttonRecord.post {
+                val buttHeight = buttonRecord.height
+                (buttonRecord as MaterialButton).iconSize = if (isRtVoiceMode) buttHeight / 3 else buttHeight * 3 / 5
+            }
 
             scrollviewChat.visibility = if (isRtVoiceMode) GONE else VISIBLE
             buttonKeyboard.visibility = when {
