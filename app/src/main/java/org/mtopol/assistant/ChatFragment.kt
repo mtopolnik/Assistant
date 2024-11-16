@@ -1748,7 +1748,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 return@launch
             }
             val wavPathname = audioPathname.replaceAfterLast('.', "wav")
-            Log.i("audio", "Converting recorded OGG to WAV")
+            Log.i("audio", "Decoding recorded prompt to WAV")
             try {
                 convertToWav(audioPathname, wavPathname)
                 val wavFile = File(wavPathname)
