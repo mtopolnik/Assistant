@@ -22,21 +22,16 @@
     <color name="on_primary">#F3F3F3</color>
     <color name="secondary">#8083C5</color>
     <color name="on_secondary">@color/white</color>
-    <color name="background">#03001B</color>
-    <color name="on_background">#cde5ff</color>
-    <color name="surface">#141137</color>
-    <color name="on_surface">#FBFBFB</color>
-
-    <color name="app_bar">@color/surface</color>
-    <color name="on_app_bar">@color/on_surface</color>
+    <color name="background">#0F0C28</color>
+    <color name="foreground">#FBFBFB</color>
 
     <color name="chat_background">@color/background</color>
     <color name="keyboard_button">#858585</color>
     <color name="on_keyboard_button">#F3F3F3</color>
-    <color name="prompt_foreground">@color/on_surface</color>
+    <color name="prompt_foreground">@color/foreground</color>
     <color name="prompt_background">#311A4D</color>
     <color name="prompt_border">#502E87</color>
-    <color name="response_foreground">@color/on_surface</color>
+    <color name="response_foreground">@color/foreground</color>
     <color name="response_background">#2A4A92</color>
     <color name="response_border">#3F6FCA</color>
 

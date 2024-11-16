@@ -52,22 +52,18 @@
     <color name="on_primary">#ffffff</color>
     <color name="secondary">#8389EB</color>
     <color name="on_secondary">@color/white</color>
-    <color name="background">#fdfbff</color>
-    <color name="on_background">#001b3d</color>
-    <color name="surface">@color/background</color>
-    <color name="on_surface">@color/on_background</color>
+    <color name="background">#FDF4F0</color>
+    <color name="foreground">#001b3d</color>
 
     <!-- Custom -->
-    <color name="app_bar">@color/primary</color>
-    <color name="on_app_bar">@color/on_primary</color>
     <color name="keyboard_button">#A5A5A5</color>
     <color name="on_keyboard_button">#ffffff</color>
     <color name="recording_glow">#D01F6C</color>
-    <color name="chat_background">@color/solarized_base2</color>
+    <color name="chat_background">@color/background</color>
     <color name="prompt_foreground">@color/solarized_base02</color>
     <color name="prompt_background">#BEE8FF</color>
     <color name="prompt_border">#bbbbbb</color>
-    <color name="response_foreground">@color/on_surface</color>
+    <color name="response_foreground">@color/foreground</color>
     <color name="response_background">@color/white</color>
     <color name="response_border">#bbbbbb</color>
 </resources>

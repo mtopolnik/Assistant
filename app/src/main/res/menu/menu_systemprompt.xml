@@ -23,14 +23,14 @@
             android:id="@+id/action_undo"
             android:title="@string/action_undo"
             android:icon="@drawable/baseline_undo_24"
-            app:iconTint="@color/on_app_bar"
+            app:iconTint="@color/foreground"
             app:showAsAction="always" />
 
     <item
             android:id="@+id/action_reset"
             android:title="@string/action_reset"
             android:icon="@drawable/baseline_change_circle_24"
-            app:iconTint="@color/on_app_bar"
+            app:iconTint="@color/foreground"
             app:showAsAction="always" />
 
 </menu>

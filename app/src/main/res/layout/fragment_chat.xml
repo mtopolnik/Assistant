@@ -33,8 +33,7 @@
                     android:id="@+id/chat_layout"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:orientation="vertical"
-                    android:background="@color/chat_background">
+                    android:orientation="vertical">
 
                 <com.google.android.material.appbar.AppBarLayout
                         android:id="@+id/appbar_layout"

@@ -22,24 +22,23 @@
         <item name="colorOnPrimary">@color/on_primary</item>
         <item name="colorSecondary">@color/secondary</item>
         <item name="colorOnSecondary">@color/on_secondary</item>
-        <item name="colorSurface">@color/surface</item>
-        <item name="colorOnSurface">@color/on_surface</item>
+        <item name="colorSurface">@color/background</item>
+        <item name="colorOnSurface">@color/foreground</item>
         <item name="android:colorBackground">@color/background</item>
-        <item name="colorOnBackground">@color/on_background</item>
-        <item name="android:statusBarColor">@color/app_bar</item>
+        <item name="colorOnBackground">@color/foreground</item>
 
     </style>
     <!-- Referenced from the app bar in layout files -->
     <style name="ActionBar" parent="AppTheme">
-        <item name="android:background">@color/app_bar</item>
+        <item name="android:background">@color/background</item>
         <item name="textAppearanceTitleLarge">@style/ActionBarTitle</item>
         <!-- Color of the overflow icon (three dots) -->
-        <item name="android:textColorSecondary">@color/on_app_bar</item>
+        <item name="android:textColorSecondary">@color/foreground</item>
     </style>
 
     <style name="ActionBarTitle" parent="TextAppearance.Widget.AppCompat.Toolbar.Title">
         <item name="android:textSize">20sp</item>
-        <item name="android:textColor">@color/on_app_bar</item>
+        <item name="android:textColor">@color/foreground</item>
     </style>
 
     <!-- Fixes a bug where the overflow menu item background is different from its container -->

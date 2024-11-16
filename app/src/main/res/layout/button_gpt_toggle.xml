@@ -27,11 +27,11 @@
             android:layout_height="wrap_content"
             android:paddingStart="8dp"
             android:paddingEnd="8dp"
-            android:textColor="@color/on_app_bar"
+            android:textColor="@color/foreground"
             android:textSize="18dp" tools:ignore="SpUsage"
             android:fontFamily="monospace"
             android:textStyle="bold"
             android:textAlignment="center"
-            android:backgroundTint="@color/app_bar"
+            android:backgroundTint="@color/background"
             />
 </RelativeLayout>
