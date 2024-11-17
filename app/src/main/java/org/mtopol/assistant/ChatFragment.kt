@@ -348,13 +348,6 @@ class ChatFragment : Fragment(), MenuProvider {
         }
         syncChatView()
         syncChatsMenu()
-        // Reduce the size of the scrollview when soft keyboard shown
-        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, windowInsets ->
-            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.ime())
-            v.setPadding(v.paddingLeft, v.paddingTop, v.paddingRight, insets.bottom)
-            windowInsets
-        }
-
         languageIdentifier = LanguageIdentification.getClient(
             LanguageIdentificationOptions.Builder().setConfidenceThreshold(0.2f).build()
         )
