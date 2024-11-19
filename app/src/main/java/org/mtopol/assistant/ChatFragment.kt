@@ -440,7 +440,9 @@ class ChatFragment : Fragment(), MenuProvider {
             private fun showRecordingHint() {
                 vmodel.recordingGlowJob?.cancel()
                 vmodel.viewModelScope.launch {
+                    binding.buttonRecord.isEnabled = false
                     stopRecordingPrompt()
+                    binding.buttonRecord.isEnabled = true
                 }
                 if (hintWindow.isShowing) {
                     return
