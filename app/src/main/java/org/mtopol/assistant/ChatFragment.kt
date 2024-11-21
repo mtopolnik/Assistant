@@ -57,7 +57,6 @@ import android.view.View.MeasureSpec
 import android.view.View.OnTouchListener
 import android.view.View.VISIBLE
 import android.view.ViewGroup
-import android.view.ViewTreeObserver.OnGlobalLayoutListener
 import android.view.animation.LinearInterpolator
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
@@ -81,8 +80,6 @@ import androidx.core.content.FileProvider
 import androidx.core.net.toFile
 import androidx.core.view.GravityCompat
 import androidx.core.view.MenuProvider
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.children
 import androidx.core.view.doOnLayout
 import androidx.core.view.isVisible
@@ -326,6 +323,7 @@ class ChatFragment : Fragment(), MenuProvider {
                         .map { Uri.fromFile(it) }
                 }
                 addImagesToView(promptContainer, savedImgUris)
+                binding.scrollviewChat.doOnLayout { scrollToBottom() }
                 val typedUris = savedImgUris.map { PromptPart.Image(it) }
                 getChatHandle(vmodel.chatId)!!.isDirty = true
                 if (isStartOfExchange) {
@@ -1093,7 +1091,7 @@ class ChatFragment : Fragment(), MenuProvider {
                             .let { markwon.parse(it) }
                             .let { markwon.render(it) }
                     }.let { markwon.setParsedMarkdown(vmodel.replyTextView!!, it) }
-                    onLayoutScrollToBottom()
+                    binding.scrollviewChat.doOnLayout { scrollToBottom() }
                 }
 
                 val sentenceFlow: Flow<String> = channelFlow {
@@ -1729,7 +1727,7 @@ class ChatFragment : Fragment(), MenuProvider {
                             addTextResponseToView(fragment.requireContext(), exchange)
                         }
                         vmodel.isConnectionLive = false
-                        onLayoutScrollToBottom()
+                        binding.scrollviewChat.doOnLayout { scrollToBottom() }
                     }
                 }
             } finally {
@@ -1973,17 +1971,6 @@ class ChatFragment : Fragment(), MenuProvider {
             if (scrollY < scrollTarget) {
                 smoothScrollTo(0, scrollTarget)
             }
-        }
-    }
-
-    fun onLayoutScrollToBottom() {
-        binding.scrollviewChat.viewTreeObserver.also { observer ->
-            observer.addOnGlobalLayoutListener(object : OnGlobalLayoutListener {
-                override fun onGlobalLayout() {
-                    observer.removeOnGlobalLayoutListener(this)
-                    scrollToBottom()
-                }
-            })
         }
     }
 

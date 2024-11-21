@@ -37,6 +37,7 @@ import androidx.annotation.OptIn
 import androidx.core.net.toFile
 import androidx.core.net.toUri
 import androidx.core.view.children
+import androidx.core.view.doOnLayout
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -552,7 +553,9 @@ class OpenAI {
                     text.let { markwon.parse(it) }
                         .let { markwon.render(it) }
                 }.let { markwon.setParsedMarkdown(vmodel.replyTextView!!, it) }
-                withFragmentSync { it.onLayoutScrollToBottom() }
+                withFragmentSync {
+                    it.binding.scrollviewChat.doOnLayout { it.scrollToBottom() }
+                }
             }
 
             suspend fun handleEvent(event: RealtimeEvent) {
@@ -614,7 +617,7 @@ class OpenAI {
                         withFragmentSync { fragment ->
                             vmodel.replyTextView =
                                 fragment.addTextResponseToView(fragment.requireContext(), currentExchange!!)
-                            fragment.onLayoutScrollToBottom()
+                            fragment.binding.scrollviewChat.doOnLayout { fragment.scrollToBottom() }
                         }
                     }
                     is RealtimeEvent.ResponseTextDone -> {
