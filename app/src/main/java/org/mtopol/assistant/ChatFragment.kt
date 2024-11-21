@@ -1043,6 +1043,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 }
                 exchange.replyImageUris = imageUris
                 addImagesToView(responseContainer, exchange.replyImageUris)
+                saveOrDeleteCurrentChat()
                 binding.scrollviewChat.post { scrollToBottom(false) }
             } catch (e: CancellationException) {
                 throw e
@@ -1163,6 +1164,7 @@ class ChatFragment : Fragment(), MenuProvider {
                             if (appContext.mainPrefs.isMuted) {
                                 vmodel.handleResponseJob?.cancel()
                             }
+                            saveOrDeleteCurrentChat()
                         }
                         .launchIn(this)
                 }
