@@ -323,7 +323,7 @@ class ChatFragment : Fragment(), MenuProvider {
                         .map { Uri.fromFile(it) }
                 }
                 addImagesToView(promptContainer, savedImgUris)
-                binding.scrollviewChat.doOnLayout { scrollToBottom() }
+                onLayoutScrollToBottom()
                 val typedUris = savedImgUris.map { PromptPart.Image(it) }
                 getChatHandle(vmodel.chatId)!!.isDirty = true
                 if (isStartOfExchange) {
@@ -1092,7 +1092,7 @@ class ChatFragment : Fragment(), MenuProvider {
                             .let { markwon.parse(it) }
                             .let { markwon.render(it) }
                     }.let { markwon.setParsedMarkdown(vmodel.replyTextView!!, it) }
-                    binding.scrollviewChat.doOnLayout { scrollToBottom() }
+                    onLayoutScrollToBottom()
                 }
 
                 val sentenceFlow: Flow<String> = channelFlow {
@@ -1729,7 +1729,7 @@ class ChatFragment : Fragment(), MenuProvider {
                             addTextResponseToView(fragment.requireContext(), exchange)
                         }
                         vmodel.isConnectionLive = false
-                        binding.scrollviewChat.doOnLayout { scrollToBottom() }
+                        onLayoutScrollToBottom()
                     }
                 }
             } finally {
@@ -1961,6 +1961,10 @@ class ChatFragment : Fragment(), MenuProvider {
         activity?.invalidateOptionsMenu()
         binding.viewChat.removeAllViews()
         Log.i("chats", "newChat done, chatId ${vmodel.chatId} chatIds ${chatHandles()}")
+    }
+
+    fun onLayoutScrollToBottom() {
+        binding.scrollviewChat.doOnLayout { scrollToBottom() }
     }
 
     private fun scrollToBottom(stopAtTopOfResponse: Boolean = true) {

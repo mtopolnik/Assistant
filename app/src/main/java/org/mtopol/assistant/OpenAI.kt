@@ -553,9 +553,7 @@ class OpenAI {
                     text.let { markwon.parse(it) }
                         .let { markwon.render(it) }
                 }.let { markwon.setParsedMarkdown(vmodel.replyTextView!!, it) }
-                withFragmentSync {
-                    it.binding.scrollviewChat.doOnLayout { it.scrollToBottom() }
-                }
+                withFragmentSync { it.onLayoutScrollToBottom() }
             }
 
             suspend fun handleEvent(event: RealtimeEvent) {
@@ -617,7 +615,7 @@ class OpenAI {
                         withFragmentSync { fragment ->
                             vmodel.replyTextView =
                                 fragment.addTextResponseToView(fragment.requireContext(), currentExchange!!)
-                            fragment.binding.scrollviewChat.doOnLayout { fragment.scrollToBottom() }
+                            fragment.onLayoutScrollToBottom()
                         }
                     }
                     is RealtimeEvent.ResponseTextDone -> {
