@@ -1542,6 +1542,7 @@ class ChatFragment : Fragment(), MenuProvider {
     private fun FragmentChatBinding.showRecordingGlow() {
         recordingGlow.apply {
             alignWithButton(buttonRecord as MaterialButton)
+            setVolume(0f)
             visibility = VISIBLE
         }
     }
