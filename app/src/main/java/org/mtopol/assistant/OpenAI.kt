@@ -120,6 +120,7 @@ const val MODEL_ID_GPT_4O_MINI = "gpt-4o-mini"
 const val MODEL_ID_GPT_4O = "gpt-4o"
 const val MODEL_ID_GPT_4O_AUDIO = "gpt-4o-audio-preview"
 const val MODEL_ID_GPT_4O_REALTIME = "gpt-4o-realtime-preview"
+const val MODEL_ID_GPT_4O_MINI_REALTIME = "gpt-4o-mini-realtime-preview"
 
 private const val OPENAI_URL = "https://api.openai.com/v1/"
 private val AUDIORECORD_STOP_GRACE_PERIOD_NS = TimeUnit.MILLISECONDS.toNanos(80L)

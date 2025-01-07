@@ -2084,7 +2084,9 @@ class ChatFragment : Fragment(), MenuProvider {
 
     }
 
-    private fun isRealtimeModelSelected() = appContext.mainPrefs.selectedModel == AiModel.GPT_4O_REALTIME
+    private fun isRealtimeModelSelected() = appContext.mainPrefs.selectedModel.let {
+        it == AiModel.GPT_4O_REALTIME || it == AiModel.GPT_4O_MINI_REALTIME
+    }
 
     private fun wordCount(text: String) = text.trim().split(whitespaceRegex).size
 

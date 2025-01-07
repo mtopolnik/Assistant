@@ -60,6 +60,7 @@ enum class AiModel(
     GROK(l(MODEL_ID_GROK), l("Grok")),
     GPT_4O(l(MODEL_ID_GPT_4O), l("GPT-4o")),
     GPT_4O_REALTIME(l(MODEL_ID_GPT_4O_REALTIME), l("4o RT")),
+    GPT_4O_MINI_REALTIME(l(MODEL_ID_GPT_4O_MINI_REALTIME), l("min RT")),
     ARTIST_3(lazy { "${ARTIST_LAZY.value.lowercase()}-3" }, ARTIST_LAZY);
 
     val apiId: String get() = apiIdLazy.value
@@ -93,7 +94,10 @@ class ApiKeyWallet(prefs: SharedPreferences) {
             if (hasAnthropicKey()) models.add(AiModel.CLAUDE_3_5_SONNET)
             if (hasXaiKey()) models.add(AiModel.GROK)
             if (openaiKey.allowsArtist()) models.add(AiModel.ARTIST_3)
-            if (openaiKey.allowsRealtime()) models.add(AiModel.GPT_4O_REALTIME)
+            if (openaiKey.allowsRealtime()) {
+                models.add(AiModel.GPT_4O_REALTIME)
+                models.add(AiModel.GPT_4O_MINI_REALTIME)
+            }
         }
     }
 
