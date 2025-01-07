@@ -399,7 +399,7 @@ class ChatFragment : Fragment(), MenuProvider {
                             return true
                         }
                         if (!vmodel.isConnectionLive) {
-                            startRealtimeSession()
+                            startRealtimeSession(appContext.mainPrefs.selectedModel)
                         } else {
                             startRealtimeRecording()
                         }
@@ -1342,7 +1342,7 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun startRealtimeSession() {
+    private fun startRealtimeSession(model: AiModel) {
         val activity = requireActivity() as MainActivity
         if (!checkAndRequestRecordPermission(activity)) {
             return
@@ -1375,7 +1375,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 }
                 startRealtimeRecording()
                 vmodel.isConnectionLive = true
-                openAi.realtime(sendBuf, audioRecord, exoPlayer, vmodel)
+                openAi.realtime(model, sendBuf, audioRecord, exoPlayer, vmodel)
             } finally {
                 _audioRecord = null
                 _sendBuf = null

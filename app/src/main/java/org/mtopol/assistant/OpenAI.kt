@@ -37,7 +37,6 @@ import androidx.annotation.OptIn
 import androidx.core.net.toFile
 import androidx.core.net.toUri
 import androidx.core.view.children
-import androidx.core.view.doOnLayout
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -287,6 +286,7 @@ class OpenAI {
 
     @OptIn(UnstableApi::class)
     suspend fun realtime(
+        model: AiModel,
         sendBuf: ByteBuffer,
         audioRecord: AudioRecord,
         exoPlayer: ExoPlayer,
@@ -294,7 +294,7 @@ class OpenAI {
     ) {
         apiClient.webSocket({
             method = HttpMethod.Get
-            url(scheme = "wss", host = "api.openai.com", path = "v1/realtime?model=${AiModel.GPT_4O_REALTIME.apiId}")
+            url(scheme = "wss", host = "api.openai.com", path = "v1/realtime?model=${model.apiId}")
             header("OpenAI-Beta", "realtime=v1")
         }) {
 
