@@ -42,7 +42,7 @@ import kotlin.io.path.pathString
 import kotlin.collections.removeFirst as removeFirstKt
 import kotlin.collections.removeLast as removeLastKt
 
-private const val MAX_SAVED_CHATS = 20
+private const val MAX_SAVED_CHATS = 50
 private val chatFileRegex = """^chat-(\d+)\.parcel$""".toRegex()
 private val promptAudioFileRegex = """^chat-(\d+)_prompt-(\d+)\.aopus$""".toRegex()
 private val emptyTitle: Deferred<String> = CompletableDeferred("")
