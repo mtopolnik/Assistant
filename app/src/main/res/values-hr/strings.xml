@@ -70,6 +70,7 @@
     <string name="action_delete_anthropic_key">Poništi Anthropic ključ</string>
     <string name="action_delete_openai_key">Poništi OpenAI ključ</string>
     <string name="action_delete_xai_key">Poništi xAI ključ</string>
+    <string name="action_delete_deepseek_key">Poništi DeepSeek ključ</string>
     <string name="action_enter_api_key">Unesi API ključ</string>
     <string name="action_toggle_send_audio_prompt">GPT-4o audio prompt (probno)</string>
     <string name="api_key_hint">Vaš API ključ</string>

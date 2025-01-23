@@ -180,7 +180,6 @@ fun moveChatToTop(chatId: Int): Int {
     val chatHandleToMove = getChatHandle(chatId) ?: return chatId
     val lastHandle = lastChatHandle()
     val lastNonEmpty: ChatHandle? = chatHandles.takeIf { it.size > 1 } ?.run { get(size - 2) }
-    Log.i("chats", "chatHandleToMove $chatHandleToMove lastHandle $lastHandle lastNonEmpty $lastNonEmpty")
     if (chatHandleToMove == lastHandle || lastNonEmpty == null || chatHandleToMove == lastNonEmpty) {
         return chatId
     }

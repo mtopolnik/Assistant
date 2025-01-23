@@ -44,6 +44,7 @@ class ApiKeyFragment : Fragment() {
                     when {
                         apiKey.looksLikeAnthropicKey() -> setAnthropicApiKey(apiKey)
                         apiKey.looksLikeXaiKey() -> setXaiApiKey(apiKey)
+                        apiKey.looksLikeDeepSeekKey() -> setDeepSeekApiKey(apiKey)
                         else -> setOpenaiApiKey(apiKey)
                     }
                 }

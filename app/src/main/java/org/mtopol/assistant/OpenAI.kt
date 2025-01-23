@@ -120,8 +120,9 @@ const val MODEL_ID_GPT_4O = "gpt-4o"
 const val MODEL_ID_GPT_4O_AUDIO = "gpt-4o-audio-preview"
 const val MODEL_ID_GPT_4O_REALTIME = "gpt-4o-realtime-preview"
 const val MODEL_ID_GPT_4O_MINI_REALTIME = "gpt-4o-mini-realtime-preview"
+const val MODEL_ID_DEEPSEEK_CHAT = "deepseek-chat"
+const val MODEL_ID_DEEPSEEK_REASONER = "deepseek-reasoner"
 
-private const val OPENAI_URL = "https://api.openai.com/v1/"
 private val AUDIORECORD_STOP_GRACE_PERIOD_NS = TimeUnit.MILLISECONDS.toNanos(80L)
 
 private lateinit var openAiLazy: Lazy<OpenAI>
@@ -134,7 +135,8 @@ fun resetOpenAi(): Lazy<OpenAI> {
 }
 
 class OpenAI {
-    private val apiClient = createOpenAiClient(appContext.mainPrefs.openaiApiKey)
+    private val openAiClient = createOpenAiClient(AiVendor.OPENAI)
+    private val deepSeekClient = createOpenAiClient(AiVendor.DEEPSEEK)
     private val blobClient = createBlobClient()
 
     private val demoMode = appContext.mainPrefs.openaiApiKey.isDemoKey()
@@ -146,33 +148,38 @@ class OpenAI {
         if (demoMode) {
             return mockResponse.toCharArray().asList().chunked(4).asFlow().map { delay(120); it.joinToString("") }
         }
+        val client = when (model.vendor) {
+            AiVendor.OPENAI -> openAiClient
+            AiVendor.DEEPSEEK -> deepSeekClient
+            else -> throw RuntimeException("OpenAI.chatCompletions called with unsupported vendor: ${model.vendor}")
+        }
         val modelId =
             if (model == AiModel.GPT_4O && history.find { it.hasAudioPrompt() } != null) MODEL_ID_GPT_4O_AUDIO
             else model.apiId
 
         Log.i("client", "Model: $modelId")
         return chatCompletions(
-            ChatCompletionRequest(
+            client, ChatCompletionRequest(
                 model = modelId,
                 messages = systemPrompt() + history.toDto().dropLast(1),
             )
         )
     }
 
-    fun translation(targetLanguage: String, text: String, model: AiModel): Flow<String> {
+    fun translation(targetLanguage: String, text: String, vendor: AiVendor): Flow<String> {
         if (demoMode) {
             return flowOf("Demo mode is on. You asked to translate this:\n$text")
         }
         val systemPrompt = "You are a translator." +
                 " The user will write in a language of their choice, and you will translate it to $targetLanguage."
         val chatCompletionRequest = ChatCompletionRequest(
-            model = model.apiId,
+            model = vendor.chatModel.apiId,
             messages = listOf(
-                ChatMessage("system", systemPrompt),
-                ChatMessage("user", text)
+                ChatMessage.Simple("system", systemPrompt),
+                ChatMessage.Simple("user", text)
             )
         )
-        return chatCompletions(chatCompletionRequest)
+        return chatCompletions(openAiClient, chatCompletionRequest)
     }
 
     suspend fun summarizing(chat: List<Exchange>): String {
@@ -180,36 +187,36 @@ class OpenAI {
                 " Your prompt will be the entire conversation, and you will respond with a title that summarizes" +
                 " it, up to 30 characters in length. Do not add any other text except the title itself."
 
-        val text = chat.map { exchange ->
+        val text = chat.joinToString("\n\n") { exchange ->
             "User:\n\n${exchange.promptText()}\n\nAssistant:\n\n${exchange.replyMarkdown}"
-        }.joinToString("\n\n")
+        }
 
         val chatCompletionRequest = ChatCompletionRequest(
             model = MODEL_ID_GPT_4O_MINI,
             messages = listOf(
-                ChatMessage("system", systemPrompt),
-                ChatMessage("user", text)
+                ChatMessage.Simple("system", systemPrompt),
+                ChatMessage.Simple("user", text)
             ),
             max_tokens = 40,
             stream = false
         )
         return try {
-            HttpStatement(chatCompletionsHttpRequestBuilder(chatCompletionRequest), apiClient)
+            HttpStatement(chatCompletionsHttpRequestBuilder(chatCompletionRequest), openAiClient)
                 .execute { response ->
                     response.body<ChatCompletionResponse>().choices[0].message.content
-                    .also {
-                        Log.i("chats", "full chat: $text")
-                        Log.i("chats", "chat summary: $it")
-                    }.trim().removeSurrounding("\"")
+                        .also {
+                            Log.i("chats", "full chat: $text")
+                            Log.i("chats", "chat summary: $it")
+                        }.trim().removeSurrounding("\"")
                 }
         } catch (e: Exception) {
             ""
         }
     }
 
-    private fun chatCompletions(request: ChatCompletionRequest): Flow<String> {
+    private fun chatCompletions(client: HttpClient, request: ChatCompletionRequest): Flow<String> {
         return flow<ChatCompletionChunk> {
-            HttpStatement(chatCompletionsHttpRequestBuilder(request), apiClient).execute { emitStreamingResponse(it) }
+            HttpStatement(chatCompletionsHttpRequestBuilder(request), client).execute { emitStreamingResponse(it) }
         }
             .map { chunk -> chunk.choices[0].delta.content }
             .filterNotNull()
@@ -234,7 +241,7 @@ class OpenAI {
             Toast.makeText(appContext, "Your OpenAI key is missing", Toast.LENGTH_LONG).show()
             return ""
         }
-        val response = apiClient.submitFormWithBinaryData(
+        val response = openAiClient.submitFormWithBinaryData(
             url = "audio/transcriptions",
             formData = formData {
                 append("model", "whisper-1")
@@ -271,7 +278,7 @@ class OpenAI {
             setBody(jsonCodec.encodeToJsonElement(request))
         }
 
-        HttpStatement(builder, apiClient).execute { httpResponse ->
+        HttpStatement(builder, openAiClient).execute { httpResponse ->
             val channel = httpResponse.body<ByteReadChannel>()
             exoPlayer.addMediaSource(
                 ProgressiveMediaSource.Factory(SpeakDsFactory(channel))
@@ -292,7 +299,7 @@ class OpenAI {
         exoPlayer: ExoPlayer,
         vmodel: ChatFragmentModel
     ) {
-        apiClient.webSocket({
+        openAiClient.webSocket({
             method = HttpMethod.Get
             url(scheme = "wss", host = "api.openai.com", path = "v1/realtime?model=${model.apiId}")
             header("OpenAI-Beta", "realtime=v1")
@@ -455,7 +462,9 @@ class OpenAI {
                                     val bufIndex = dequeueInputBuf()
                                     val encBuf = encoder.getInputBuffer(bufIndex)!!
                                     sendBuf.limit().also { limitBackup ->
-                                        sendBuf.limit(sendBuf.position() + sendBuf.remaining().coerceAtMost(encBuf.remaining()))
+                                        sendBuf.limit(
+                                            sendBuf.position() + sendBuf.remaining().coerceAtMost(encBuf.remaining())
+                                        )
                                         encBuf.put(sendBuf)
                                         sendBuf.limit(limitBackup)
                                     }
@@ -583,13 +592,14 @@ class OpenAI {
                                     val promptId = chatContent.size + 1
                                     val audioUri =
                                         File(appContext.filesDir, promptAudioFilename(chatId, promptId))
-                                        .also { audioFile ->
-                                            audioFile.outputStream().use { it.write(promptAudio) }
-                                            Log.i("speech", "created audio file $audioFile")
-                                        }
-                                        .toUri()
+                                            .also { audioFile ->
+                                                audioFile.outputStream().use { it.write(promptAudio) }
+                                                Log.i("speech", "created audio file $audioFile")
+                                            }
+                                            .toUri()
                                     val exchange = fragment.prepareNewExchange(
-                                        fragment.requireContext(), PromptPart.Text("<recorded audio>"))
+                                        fragment.requireContext(), PromptPart.Text("<recorded audio>")
+                                    )
                                     exchange.promptParts.add(PromptPart.Audio(audioUri))
                                     if (promptId == 1) {
                                         saveChatContent(chatId, chatContent)
@@ -677,7 +687,7 @@ class OpenAI {
         }
         console.append("$artist is handling your prompt...\n")
         return try {
-            val imageObjects = HttpStatement(builder, apiClient).execute().body<ImageGenerationResponse>().data
+            val imageObjects = HttpStatement(builder, openAiClient).execute().body<ImageGenerationResponse>().data
             console.clear()
             imageObjects.firstOrNull()?.revised_prompt?.takeIf { it.isNotBlank() }?.also { revisedPrompt ->
                 console.append("$artist revised your prompt to:\n\n$revisedPrompt\n")
@@ -690,21 +700,21 @@ class OpenAI {
     }
 
     fun close() {
-        apiClient.close()
+        openAiClient.close()
         blobClient.close()
     }
 
     private fun systemPrompt(): List<ChatMessage> {
         return appContext.mainPrefs.systemPrompt
             .takeIf { it.isNotBlank() }
-            ?.let { listOf(ChatMessage("system", it)) }
+            ?.let { listOf(ChatMessage.Simple("system", it)) }
             ?: emptyList()
     }
 
     private suspend fun List<Exchange>.toDto() = flatMap { exchange ->
         listOf(
-            ChatMessage("user", exchange.promptParts.map { it.toContentPart() }),
-            ChatMessage("assistant", exchange.replyMarkdown.toString()),
+            ChatMessage.Full("user", exchange.promptParts.map { it.toContentPart() }),
+            ChatMessage.Simple("assistant", exchange.replyMarkdown.toString()),
         )
     }
 
@@ -720,12 +730,18 @@ class OpenAI {
         when (this@toContentPart) {
             is PromptPart.Text -> ContentPart.Text(text.toString())
             is PromptPart.Image -> ContentPart.Image(
-                try { "data:image/${uri.toFile().extension};base64," + readBase64(uri) }
-                catch (e: Exception) { "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" }
+                try {
+                    "data:image/${uri.toFile().extension};base64," + readBase64(uri)
+                } catch (e: Exception) {
+                    "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=="
+                }
             )
             is PromptPart.Audio -> ContentPart.Audio(
-                try { InputAudio(readBase64(uri), uri.toFile().extension) }
-                catch (e: Exception) { InputAudio("UklGRvj///9XQVZFZm10IBAAAAABAAEAwF0AAIC7AAACABAAZGF0YdT///8=", "wav") }
+                try {
+                    InputAudio(readBase64(uri), uri.toFile().extension)
+                } catch (e: Exception) {
+                    InputAudio("UklGRvj///9XQVZFZm10IBAAAAABAAEAwF0AAIC7AAACABAAZGF0YdT///8=", "wav")
+                }
             )
         }
     }
@@ -753,15 +769,25 @@ class OpenAI {
             model,
             messages,
             max_tokens = if (model == MODEL_ID_GPT_4O_MINI) 8192 else 4096,
-            stream = true)
+            stream = true
+        )
 
     @Serializable
-    class ChatMessage(
-        val role: String,
-        val content: List<ContentPart> = listOf()
-    )
+    sealed class ChatMessage {
+        @Serializable
+        @SerialName("simple")
+        class Simple(
+            val role: String,
+            val content: String
+        ) : ChatMessage()
 
-    private fun ChatMessage(role: String, content: String): ChatMessage = ChatMessage(role, listOf(ContentPart.Text(content)))
+        @Serializable
+        @SerialName("full")
+        class Full(
+            val role: String,
+            val content: List<ContentPart> = listOf()
+        ) : ChatMessage()
+    }
 
     @Serializable
     sealed class ContentPart {
@@ -1052,14 +1078,14 @@ class OpenAI {
     }
 }
 
-private fun createOpenAiClient(apiKey: OpenAiKey) = HttpClient(OkHttp) {
+private fun createOpenAiClient(vendor: AiVendor) = HttpClient(OkHttp) {
     defaultRequest {
-        url(OPENAI_URL)
+        url(vendor.baseUrl)
     }
     install(Auth) {
         bearer {
             loadTokens {
-                BearerTokens(accessToken = apiKey.text, refreshToken = "")
+                BearerTokens(accessToken = appContext.mainPrefs.apiKey(vendor), refreshToken = "")
             }
         }
     }

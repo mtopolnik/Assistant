@@ -51,22 +51,43 @@ val ARTIST_LAZY = lazy {
 
 private fun l(value: String) = lazy { value }
 
+enum class AiVendor(
+    val baseUrl: String,
+    private val chatModelLazy: Lazy<AiModel>
+) {
+    DEMO("demo", lazy { AiModel.DEMO }),
+    ANTHROPIC("https://api.anthropic.com/v1/", lazy { AiModel.CLAUDE_3_5_SONNET }),
+    DEEPSEEK("https://api.deepseek.com/", lazy { AiModel.DEEPSEEK_CHAT }),
+    XAI("https://api.x.ai/v1/", lazy { AiModel.GROK }),
+    OPENAI("https://api.openai.com/v1/", lazy { AiModel.GPT_4O });
+
+    val chatModel get() = chatModelLazy.value
+    val apiKeyPref = name.lowercase() + "_api_key"
+}
+
 enum class AiModel(
     private val apiIdLazy: Lazy<String>,
-    private val uiIdLazy: Lazy<String>
+    private val acronymLazy: Lazy<String>,
+    private val nameLazy: Lazy<String>,
+    val vendor: AiVendor
 ) {
-    DEMO(l("demo"), l("Demo")),
-    CLAUDE_3_5_SONNET(l(MODEL_ID_SONNET_3_5), l("Sonnet")),
-    GROK(l(MODEL_ID_GROK), l("Grok")),
-    GPT_4O(l(MODEL_ID_GPT_4O), l("GPT-4o")),
-    GPT_4O_REALTIME(l(MODEL_ID_GPT_4O_REALTIME), l("4o RT")),
-    GPT_4O_MINI_REALTIME(l(MODEL_ID_GPT_4O_MINI_REALTIME), l("min RT")),
-    ARTIST_3(lazy { "${ARTIST_LAZY.value.lowercase()}-3" }, ARTIST_LAZY);
+    DEMO(l("demo"), l("Demo"), l("Demo"), AiVendor.DEMO),
+    CLAUDE_3_5_SONNET(l(MODEL_ID_SONNET_3_5), l("Sonnet"), l("Claude Sonnet 3.5"), AiVendor.ANTHROPIC),
+    DEEPSEEK_CHAT(l(MODEL_ID_DEEPSEEK_CHAT), l("DS Chat"), l("DeepSeek Chat"), AiVendor.DEEPSEEK),
+    DEEPSEEK_REASONER(l(MODEL_ID_DEEPSEEK_REASONER), l("DS Reason"), l("DeepSeek Reasoner"), AiVendor.DEEPSEEK),
+    GROK(l(MODEL_ID_GROK), l("Grok"), l("Grok 2"), AiVendor.XAI),
+    GPT_4O(l(MODEL_ID_GPT_4O), l("GPT-4o"), l("GPT-4o"), AiVendor.OPENAI),
+    GPT_4O_REALTIME(l(MODEL_ID_GPT_4O_REALTIME), l("4o RT"), l("GPT-4o Realtime"), AiVendor.OPENAI),
+    GPT_4O_MINI_REALTIME(l(MODEL_ID_GPT_4O_MINI_REALTIME), l("min RT"), l("GPT-4o Mini Realtime"), AiVendor.OPENAI),
+    ARTIST_3(lazy { "${ARTIST_LAZY.value.lowercase()}-3" }, ARTIST_LAZY, ARTIST_LAZY, AiVendor.OPENAI);
 
     val apiId: String get() = apiIdLazy.value
-    val uiId: String get() = uiIdLazy.value
+    val acronym: String get() = acronymLazy.value
+    val fullName: String get() = nameLazy.value
 
     fun isChatModel() = this != ARTIST_3
+    fun isAnthropicApi() = this == CLAUDE_3_5_SONNET || this == GROK
+
 }
 
 class OpenAiKey(val text: String) {
@@ -83,37 +104,45 @@ class OpenAiKey(val text: String) {
 
 class ApiKeyWallet(prefs: SharedPreferences) {
     val supportedModels: List<AiModel>
-    private val anthropicKey: String = prefs.anthropicApiKey
-    private val openaiKey: OpenAiKey = prefs.openaiApiKey
-    private val xaiKey: String = prefs.xaiApiKey
+    private val anthropicKey: String = prefs.apiKey(AiVendor.ANTHROPIC)
+    private val xaiKey: String = prefs.apiKey(AiVendor.XAI)
+    private val deepSeekKey: String = prefs.apiKey(AiVendor.DEEPSEEK)
+    private val openaiKey: OpenAiKey = OpenAiKey(prefs.apiKey(AiVendor.OPENAI))
 
     init {
         supportedModels = mutableListOf<AiModel>().also { models ->
             if (isDemo()) models.add(AiModel.DEMO)
-            if (openaiKey.allowsGpt4()) models.add(AiModel.GPT_4O)
             if (hasAnthropicKey()) models.add(AiModel.CLAUDE_3_5_SONNET)
             if (hasXaiKey()) models.add(AiModel.GROK)
-            if (openaiKey.allowsArtist()) models.add(AiModel.ARTIST_3)
+            if (hasDeepSeekKey()) {
+                models.add(AiModel.DEEPSEEK_CHAT)
+                models.add(AiModel.DEEPSEEK_REASONER)
+            }
+            if (openaiKey.allowsGpt4()) models.add(AiModel.GPT_4O)
             if (openaiKey.allowsRealtime()) {
                 models.add(AiModel.GPT_4O_REALTIME)
                 models.add(AiModel.GPT_4O_MINI_REALTIME)
             }
+            if (openaiKey.allowsArtist()) models.add(AiModel.ARTIST_3)
         }
     }
 
     fun hasAnthropicKey() = anthropicKey.isNotBlank()
     fun hasOpenaiKey() = openaiKey.isNotBlank()
     fun hasXaiKey() = xaiKey.isNotBlank()
-    fun isNotEmpty() = hasXaiKey() || hasAnthropicKey() || hasOpenaiKey()
+    fun hasDeepSeekKey() = deepSeekKey.isNotBlank()
+    fun isNotEmpty() = hasXaiKey() || hasAnthropicKey() || hasOpenaiKey() || hasDeepSeekKey()
     fun isEmpty() = !isNotEmpty()
     fun allowsTts() = openaiKey.allowsTts()
     fun isDemo() = openaiKey.isDemoKey()
 }
 
 fun String.isDemoKey() = this.trim().lowercase() == DEMO_API_KEY
-fun String.looksLikeApiKey() = isDemoKey() || looksLikeAnthropicKey() || looksLikeXaiKey() || looksLikeOpenAiKey()
+fun String.looksLikeApiKey() = isDemoKey() || looksLikeAnthropicKey() || looksLikeXaiKey()
+        || looksLikeOpenAiKey() || looksLikeDeepSeekKey()
 fun String.looksLikeAnthropicKey() = length == 108 && startsWith("sk-ant-")
 fun String.looksLikeXaiKey() = length == 84 && startsWith("xai-")
+fun String.looksLikeDeepSeekKey() = length == 35 && startsWith("sk-")
 fun String.looksLikeOpenAiKey() = length >= 51 && startsWith("sk-")
 
 private fun String.isGptOnlyKey() = setContainsHashMemoized(this, GPT_ONLY_KEY_HASHES, keyToIsGptOnly)
@@ -172,7 +201,7 @@ fun HttpClientConfig<OkHttpConfig>.commonApiClientSetup() {
     }
     install(ContentEncoding)
     install(Logging) {
-        level = LogLevel.HEADERS
+        level = LogLevel.ALL
         logger = Logger.ANDROID
     }
     expectSuccess = true

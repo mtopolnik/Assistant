@@ -553,7 +553,7 @@ class ChatFragment : Fragment(), MenuProvider {
         val mainPrefs = appContext.mainPrefs
 
         fun TextView.updateText() {
-            text = mainPrefs.selectedModel.uiId
+            text = mainPrefs.selectedModel.acronym
         }
 
         ApiKeyWallet(mainPrefs).also { wallet ->
@@ -572,6 +572,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 findItem(R.id.action_delete_anthropic_key).setVisible(wallet.hasAnthropicKey())
                 findItem(R.id.action_delete_openai_key).setVisible(wallet.hasOpenaiKey())
                 findItem(R.id.action_delete_xai_key).setVisible(wallet.hasXaiKey())
+                findItem(R.id.action_delete_deepseek_key).setVisible(wallet.hasDeepSeekKey())
             }
 
             mainMenu.findItem(R.id.action_model_toggle).actionView!!
@@ -582,7 +583,7 @@ class ChatFragment : Fragment(), MenuProvider {
                         val models = wallet.supportedModels
                         PopupMenu(requireContext(), view).apply {
                             models.forEachIndexed { i, model ->
-                                menu.add(Menu.NONE, i, Menu.NONE, model.uiId)
+                                menu.add(Menu.NONE, i, Menu.NONE, model.fullName)
                             }
                             setOnMenuItemClickListener { item ->
                                 updateSelectedModel(models[item.itemId])
@@ -1105,10 +1106,9 @@ class ChatFragment : Fragment(), MenuProvider {
 
                 val sentenceFlow: Flow<String> = channelFlow {
                     val selectedModel = appContext.mainPrefs.selectedModel
-                    val responseFlow = when (selectedModel) {
-                        AiModel.CLAUDE_3_5_SONNET, AiModel.GROK -> anthropic.messages(vmodel.chatContent, selectedModel)
-                        else -> openAi.chatCompletions(vmodel.chatContent, selectedModel)
-                    }
+                    val responseFlow = if (selectedModel.isAnthropicApi())
+                        anthropic.messages(vmodel.chatContent, selectedModel)
+                    else openAi.chatCompletions(vmodel.chatContent, selectedModel)
 
                     var replyTextUpdateTime = 0L
                     responseFlow
@@ -2163,6 +2163,7 @@ class Exchange(
     fun promptText(): CharSequence? = textPrompt()?.text
     fun audioPrompt() = promptParts.find { it is PromptPart.Audio } as PromptPart.Audio?
     fun hasAudioPrompt() = audioPrompt() != null
+    fun hasImagePrompt() = promptParts.find { it is PromptPart.Image } != null
 
     fun hasFinalPromptPart() = when (promptParts.lastOrNull()) {
         null, is PromptPart.Image -> false

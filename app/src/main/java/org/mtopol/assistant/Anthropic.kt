@@ -49,12 +49,11 @@ import kotlinx.serialization.json.encodeToJsonElement
 import java.io.ByteArrayOutputStream
 
 const val MODEL_ID_SONNET_3_5 = "claude-3-5-sonnet-latest"
-const val MODEL_ID_GROK = "grok-beta"
+const val MODEL_ID_GROK = "grok-2-latest"
+const val MODEL_ID_GROK_VISION = "grok-2-vision-latest"
 
 val anthropic get() = anthropicLazy.value
 
-private const val ANTHROPIC_URL = "https://api.anthropic.com/v1/"
-private const val XAI_URL = "https://api.x.ai/v1/"
 private const val ANTHROPIC_VERSION = "2023-06-01"
 
 private lateinit var anthropicLazy: Lazy<Anthropic>
@@ -67,14 +66,18 @@ fun resetAnthropic(): Lazy<Anthropic> {
 }
 
 class Anthropic {
-    private val anthropicClient = createAnthropicClient(ANTHROPIC_URL, appContext.mainPrefs.anthropicApiKey)
-    private val xaiClient = createAnthropicClient(XAI_URL, appContext.mainPrefs.xaiApiKey)
+    private val anthropicClient = createAnthropicClient(AiVendor.ANTHROPIC)
+    private val xaiClient = createAnthropicClient(AiVendor.XAI)
 
     suspend fun messages(history: List<Exchange>, model: AiModel): Flow<String> {
         Log.i("client", "Model: ${model.apiId}")
         val client = if (model == AiModel.CLAUDE_3_5_SONNET) anthropicClient else xaiClient
+        val modelId =
+            if (model == AiModel.GROK && history.find { it.hasImagePrompt() } != null) MODEL_ID_GROK_VISION
+            else model.apiId
+
         val request = MessageRequest(
-            model = model.apiId,
+            model = modelId,
             system = appContext.mainPrefs.systemPrompt,
             messages = history.toDto().dropLast(1),
         )
@@ -178,11 +181,11 @@ class Anthropic {
     )
 }
 
-private fun createAnthropicClient(baseUrl: String, apiKey: String) = HttpClient(OkHttp) {
+private fun createAnthropicClient(vendor: AiVendor) = HttpClient(OkHttp) {
     defaultRequest {
-        url(baseUrl)
+        url(vendor.baseUrl)
         headers {
-            append("x-api-key", apiKey)
+            append("x-api-key", appContext.mainPrefs.apiKey(vendor))
             append("anthropic-version", ANTHROPIC_VERSION)
         }
     }
