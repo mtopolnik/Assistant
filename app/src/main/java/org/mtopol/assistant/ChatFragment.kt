@@ -574,16 +574,24 @@ class ChatFragment : Fragment(), MenuProvider {
                 findItem(R.id.action_delete_xai_key).setVisible(wallet.hasXaiKey())
             }
 
-            mainMenu.findItem(R.id.action_model_toggle)
-                .actionView!!
-                .findViewById<TextView>(R.id.textview_model_selector).apply {
+            mainMenu.findItem(R.id.action_model_toggle).actionView!!
+                .findViewById<TextView>(R.id.textview_model_selector)
+                .apply {
                     updateText()
-                    setOnClickListener {
-                        val currIndex = wallet.supportedModels.indexOf(mainPrefs.selectedModel)
-                        val nextIndex = (currIndex + 1) % wallet.supportedModels.size
-                        updateSelectedModel(wallet.supportedModels[nextIndex])
-                        updateText()
-                        stopRealtimeSession()
+                    setOnClickListener { view ->
+                        val models = wallet.supportedModels
+                        PopupMenu(requireContext(), view).apply {
+                            models.forEachIndexed { i, model ->
+                                menu.add(Menu.NONE, i, Menu.NONE, model.uiId)
+                            }
+                            setOnMenuItemClickListener { item ->
+                                updateSelectedModel(models[item.itemId])
+                                updateText()
+                                stopRealtimeSession()
+                                true
+                            }
+                            show()
+                        }
                     }
                 }
         }
