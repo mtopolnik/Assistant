@@ -44,8 +44,8 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.7'
     implementation 'androidx.fragment:fragment-ktx:1.8.5'
     implementation 'androidx.preference:preference-ktx:1.2.1'
-    implementation 'androidx.navigation:navigation-fragment-ktx:2.8.3'
-    implementation 'androidx.navigation:navigation-ui-ktx:2.8.3'
+    implementation 'androidx.navigation:navigation-fragment-ktx:2.8.5'
+    implementation 'androidx.navigation:navigation-ui-ktx:2.8.5'
 
     implementation 'com.google.mlkit:language-id:17.0.6'
     implementation platform('io.ktor:ktor-bom:2.3.8')
@@ -62,7 +62,7 @@ dependencies {
 
     implementation 'io.noties.markwon:core:4.6.2'
 
-    implementation 'androidx.media3:media3-common:1.4.1'
-    implementation 'androidx.media3:media3-datasource:1.4.1'
-    implementation 'androidx.media3:media3-exoplayer:1.4.1'
+    implementation 'androidx.media3:media3-common:1.5.1'
+    implementation 'androidx.media3:media3-datasource:1.5.1'
+    implementation 'androidx.media3:media3-exoplayer:1.5.1'
 }
