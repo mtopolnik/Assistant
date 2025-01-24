@@ -215,11 +215,31 @@ class OpenAI {
     }
 
     private fun chatCompletions(client: HttpClient, request: ChatCompletionRequest): Flow<String> {
+        var reasoningStarted = false
+        var reasoningComplete = false
         return flow<ChatCompletionChunk> {
             HttpStatement(chatCompletionsHttpRequestBuilder(request), client).execute { emitStreamingResponse(it) }
         }
-            .map { chunk -> chunk.choices[0].delta.content }
-            .filterNotNull()
+            .map { chunk -> chunk.choices[0].delta.let { delta ->
+                val output = StringBuilder()
+                val reasoningContent = delta.reasoning_content
+                val content = delta.content
+                if (reasoningContent != null) {
+                    if (!reasoningStarted) {
+                        reasoningStarted = true
+                        output.append("# Reasoning\n\n")
+                    }
+                    output.append(reasoningContent)
+                }
+                if (content != null) {
+                    if (reasoningStarted && !reasoningComplete) {
+                        reasoningComplete = true
+                        output.append("\n\n # Response\n\n")
+                    }
+                    output.append(content)
+                }
+                output.toString()
+            } }
     }
 
     private fun chatCompletionsHttpRequestBuilder(request: ChatCompletionRequest) =
@@ -833,7 +853,8 @@ class OpenAI {
 
     @Serializable
     class ChatDelta(
-        val content: String? = null
+        val content: String? = null,
+        val reasoning_content: String? = null
     )
 
     @Serializable
