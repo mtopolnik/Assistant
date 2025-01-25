@@ -194,7 +194,7 @@ class ChatFragmentModel(
     val markwon = Markwon.builder(appContext)
         .usePlugin(CorePlugin.create())
         .usePlugin(SoftBreakAddsNewLinePlugin.create())
-        .build();
+        .build()
 
     var recordingGlowJob: Job? = null
     var transcriptionJob: Job? = null
@@ -206,6 +206,7 @@ class ChatFragmentModel(
 
     @SuppressLint("StaticFieldLeak")
     var replyTextView: TextView? = null
+    var reasoningTextHeight: Int = 0
     var muteToggledCallback: (() -> Unit)? = null
 
     override fun onCleared() {
@@ -1085,19 +1086,23 @@ class ChatFragment : Fragment(), MenuProvider {
     private fun sendPromptAndReceiveTextResponse(finalPart: PromptPart) {
         var lastSpokenPos = 0
         val previousResponseJob = vmodel.handleResponseJob?.apply { cancel() }
+
         vmodel.handleResponseJob = vmodel.viewModelScope.launch {
             try {
                 previousResponseJob?.join()
                 val context = awaitContext()
                 val exchange = prepareNewExchange(context, finalPart)
                 val replyMarkdown = StringBuilder()
+                val reasoningMarkdown = StringBuilder()
                 exchange.replyMarkdown = replyMarkdown
+                exchange.reasoningMarkdown = reasoningMarkdown
                 vmodel.replyTextView = addTextResponseToView(context, exchange)
+                vmodel.reasoningTextHeight = 0
 
-                suspend fun updateReplyTextView(replyMarkdown: CharSequence) {
+                suspend fun updateReplyTextView(reasoningMarkdown: CharSequence, replyMarkdown: CharSequence) {
                     val markwon = vmodel.markwon
                     withContext(Default) {
-                        replyMarkdown.toString()
+                        combineMarkdown(reasoningMarkdown, replyMarkdown)
                             .let { markwon.parse(it) }
                             .let { markwon.render(it) }
                     }.let { markwon.setParsedMarkdown(vmodel.replyTextView!!, it) }
@@ -1106,21 +1111,43 @@ class ChatFragment : Fragment(), MenuProvider {
 
                 val sentenceFlow: Flow<String> = channelFlow {
                     val selectedModel = appContext.mainPrefs.selectedModel
-                    val responseFlow = if (selectedModel.isAnthropicApi())
-                        anthropic.messages(vmodel.chatContent, selectedModel)
-                    else openAi.chatCompletions(vmodel.chatContent, selectedModel)
+                    val responseFlow =
+                        if (selectedModel.isAnthropicApi()) anthropic.messages(vmodel.chatContent, selectedModel)
+                        else openAi.chatCompletions(vmodel.chatContent, selectedModel)
 
-                    var replyTextUpdateTime = 0L
+                    var reasoningLen = 0;
+                    var textViewUpdateTime = 0L
                     responseFlow
                         .onStart { vmodel.withFragment { (it.activity as MainActivity).unlockOrientation() } }
-                        .onEach { token ->
-                            replyMarkdown.append(token)
-                            if (System.currentTimeMillis() - replyTextUpdateTime < REPLY_VIEW_UPDATE_PERIOD_MILLIS) {
+                        .onEach { rawToken ->
+                            val token = rawToken.removePrefix(REASONING_ANNOUNCER)
+                            if (token.length < rawToken.length) {
+                                // rawToken has the reasoning announcer
+                                reasoningMarkdown.append(token)
+                                if (System.currentTimeMillis() - textViewUpdateTime >= REPLY_VIEW_UPDATE_PERIOD_MILLIS) {
+                                    updateReplyTextView(reasoningMarkdown, replyMarkdown)
+                                    textViewUpdateTime = System.currentTimeMillis()
+                                }
+                                vmodel.reasoningTextHeight = -1
                                 return@onEach
                             }
-                            updateReplyTextView(replyMarkdown)
-                            replyTextUpdateTime = System.currentTimeMillis()
-                            val replyText = vmodel.replyTextView!!.text
+                            if (reasoningLen == 0 && reasoningMarkdown.isNotBlank()) {
+                                // this is the first reply token following reasoning tokens
+                                updateReplyTextView(reasoningMarkdown, token.substring(0, 1))
+                                vmodel.replyTextView!!.also {
+                                    reasoningLen = it.text.length - 1
+                                    it.doOnLayout {
+                                        vmodel.reasoningTextHeight = it.height
+                                    }
+                                }
+                            }
+                            replyMarkdown.append(token)
+                            if (System.currentTimeMillis() - textViewUpdateTime < REPLY_VIEW_UPDATE_PERIOD_MILLIS) {
+                                return@onEach
+                            }
+                            updateReplyTextView(reasoningMarkdown, replyMarkdown)
+                            textViewUpdateTime = System.currentTimeMillis()
+                            val replyText = vmodel.replyTextView!!.text.removeRange(0, reasoningLen)
                             exchange.replyText = replyText
                             val fullSentences = replyText
                                 .substring(lastSpokenPos, replyText.length)
@@ -1162,8 +1189,8 @@ class ChatFragment : Fragment(), MenuProvider {
                                 }
                             }
                             if (vmodel.replyTextView != null) {
-                                updateReplyTextView(replyMarkdown)
-                                val replyText = vmodel.replyTextView!!.text
+                                updateReplyTextView(reasoningMarkdown, replyMarkdown)
+                                val replyText = vmodel.replyTextView!!.text.removeRange(0, reasoningLen)
                                 exchange.replyText = replyText
                                 if (lastSpokenPos < replyText.length) {
                                     channel.send(replyText.substring(lastSpokenPos, replyText.length))
@@ -1887,7 +1914,9 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun addResponseToView(context: Context, exchange: Exchange): TextView {
         val responseContainer = addMessageContainerToView(context, RESPONSE)
-        val textView = addTextToView(responseContainer, exchange.replyMarkdown, RESPONSE)
+        val textView = addTextToView(responseContainer,
+            combineMarkdown(exchange.reasoningMarkdown ?: "", exchange.replyMarkdown),
+            RESPONSE)
         addImagesToView(responseContainer, exchange.replyImageUris)
         return textView
     }
@@ -1981,8 +2010,10 @@ class ChatFragment : Fragment(), MenuProvider {
             return
         }
         binding.scrollviewChat.apply {
-            val scrollTarget = if (stopAtTopOfResponse) lastMessageContainer().top
-            else lastMessageContainer().bottom
+            val reasoningTextHeight = vmodel.reasoningTextHeight
+            val scrollTarget = if (stopAtTopOfResponse && reasoningTextHeight != -1) {
+                lastMessageContainer().top + reasoningTextHeight - 16.dp
+            } else lastMessageContainer().bottom
             if (scrollY < scrollTarget) {
                 smoothScrollTo(0, scrollTarget)
             }
@@ -2096,6 +2127,20 @@ class ChatFragment : Fragment(), MenuProvider {
         it == AiModel.GPT_4O_REALTIME || it == AiModel.GPT_4O_MINI_REALTIME
     }
 
+    private fun combineMarkdown(reasoningMarkdown: CharSequence, replyMarkdown: CharSequence) =
+        if (reasoningMarkdown.isNotBlank()) {
+            StringBuilder().apply {
+                append("# Reasoning\n\n")
+                append(reasoningMarkdown)
+                if (replyMarkdown.isNotBlank()) {
+                    append("\n\n# Response\n\n")
+                    append(replyMarkdown)
+                }
+            }
+        } else {
+            replyMarkdown
+        }.toString()
+
     private fun wordCount(text: String) = text.trim().split(whitespaceRegex).size
 
     private fun String.dropLastIncompleteSentence(): String {
@@ -2158,7 +2203,12 @@ class Exchange(
     var replyMarkdown: CharSequence = "",
     var replyImageUris: List<Uri> = listOf(),
     var replyText: CharSequence = "",
+    private var reasoningMarkdown0: CharSequence? = null,
 ) : Parcelable {
+    var reasoningMarkdown: CharSequence
+        get() = reasoningMarkdown0 ?: ""
+        set(value) { reasoningMarkdown0 = value }
+
     fun textPrompt(): PromptPart.Text? = promptParts.find { it is PromptPart.Text } as PromptPart.Text?
     fun promptText(): CharSequence? = textPrompt()?.text
     fun audioPrompt() = promptParts.find { it is PromptPart.Audio } as PromptPart.Audio?

@@ -123,6 +123,8 @@ const val MODEL_ID_GPT_4O_MINI_REALTIME = "gpt-4o-mini-realtime-preview"
 const val MODEL_ID_DEEPSEEK_CHAT = "deepseek-chat"
 const val MODEL_ID_DEEPSEEK_REASONER = "deepseek-reasoner"
 
+const val REASONING_ANNOUNCER = "<REASONING>"
+
 private val AUDIORECORD_STOP_GRACE_PERIOD_NS = TimeUnit.MILLISECONDS.toNanos(80L)
 
 private lateinit var openAiLazy: Lazy<OpenAI>
@@ -215,31 +217,14 @@ class OpenAI {
     }
 
     private fun chatCompletions(client: HttpClient, request: ChatCompletionRequest): Flow<String> {
-        var reasoningStarted = false
-        var reasoningComplete = false
         return flow<ChatCompletionChunk> {
             HttpStatement(chatCompletionsHttpRequestBuilder(request), client).execute { emitStreamingResponse(it) }
         }
             .map { chunk -> chunk.choices[0].delta.let { delta ->
-                val output = StringBuilder()
                 val reasoningContent = delta.reasoning_content
                 val content = delta.content
-                if (reasoningContent != null) {
-                    if (!reasoningStarted) {
-                        reasoningStarted = true
-                        output.append("# Reasoning\n\n")
-                    }
-                    output.append(reasoningContent)
-                }
-                if (content != null) {
-                    if (reasoningStarted && !reasoningComplete) {
-                        reasoningComplete = true
-                        output.append("\n\n # Response\n\n")
-                    }
-                    output.append(content)
-                }
-                output.toString()
-            } }
+                if (reasoningContent != null) REASONING_ANNOUNCER + reasoningContent else content
+            } }.filterNotNull()
     }
 
     private fun chatCompletionsHttpRequestBuilder(request: ChatCompletionRequest) =
