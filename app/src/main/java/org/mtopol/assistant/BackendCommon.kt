@@ -201,7 +201,7 @@ fun HttpClientConfig<OkHttpConfig>.commonApiClientSetup() {
     }
     install(ContentEncoding)
     install(Logging) {
-        level = LogLevel.ALL
+        level = LogLevel.HEADERS
         logger = Logger.ANDROID
     }
     expectSuccess = true
