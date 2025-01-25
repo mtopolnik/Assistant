@@ -137,6 +137,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
 import kotlinx.parcelize.Parcelize
 import org.mtopol.assistant.MessageType.PROMPT
 import org.mtopol.assistant.MessageType.RESPONSE
@@ -600,7 +601,6 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun updateSelectedModel(model: AiModel) {
-        vibrate()
         appContext.mainPrefs.applyUpdate { setSelectedModel(model) }
         hideKeyboard()
         switchToVoice()
@@ -843,6 +843,13 @@ class ChatFragment : Fragment(), MenuProvider {
                     R.id.action_enter_api_key -> {
                         activity.navigateToApiKeyFragment()
                     }
+                    R.id.action_toggle_show_reasoning -> {
+                        appContext.mainPrefs.applyUpdate {
+                            setIsShowReasoning(!appContext.mainPrefs.isShowReasoning)
+                        }
+                        item.isChecked = appContext.mainPrefs.isShowReasoning
+                        syncChatView()
+                    }
                     R.id.action_toggle_send_audio_prompt -> {
                         appContext.mainPrefs.applyUpdate {
                             setIsSendAudioPrompt(!appContext.mainPrefs.isSendAudioPrompt)
@@ -888,6 +895,9 @@ class ChatFragment : Fragment(), MenuProvider {
             }
             menu.findItem(R.id.submenu_voice)?.also { voiceMenuItem = it }
             menu.findItem(R.id.submenu_chats)?.also { chatsMenuItem = it }
+            menu.findItem(R.id.action_toggle_show_reasoning)?.also {
+                it.isChecked = appContext.mainPrefs.isShowReasoning
+            }
             menu.findItem(R.id.action_toggle_send_audio_prompt)?.also {
                 it.isChecked = appContext.mainPrefs.isSendAudioPrompt
             }
@@ -929,6 +939,7 @@ class ChatFragment : Fragment(), MenuProvider {
             val chatId = handle.chatId
             val label = if (i == chatHandles.size - 1) appContext.getString(R.string.new_chat) else "${appContext.getString(R.string.chat)} #$chatId"
             chatsMenu.add(Menu.NONE, CHATS_MENUITEM_ID_BASE + chatId, Menu.NONE, label).also { menuItem ->
+                menuItem.setCheckable(true)
                 menuItem.setChecked(chatId == vmodel.chatId)
                 if (i != chatHandles.size - 1) {
                     handle.onTitleAvailable(lifecycleScope) { title ->
@@ -1116,6 +1127,7 @@ class ChatFragment : Fragment(), MenuProvider {
                         else openAi.chatCompletions(vmodel.chatContent, selectedModel)
 
                     var reasoningLen = 0;
+                    var replyInitDone = false;
                     var textViewUpdateTime = 0L
                     responseFlow
                         .onStart { vmodel.withFragment { (it.activity as MainActivity).unlockOrientation() } }
@@ -1131,14 +1143,15 @@ class ChatFragment : Fragment(), MenuProvider {
                                 vmodel.reasoningTextHeight = -1
                                 return@onEach
                             }
-                            if (reasoningLen == 0 && reasoningMarkdown.isNotBlank()) {
-                                // this is the first reply token following reasoning tokens
-                                updateReplyTextView(reasoningMarkdown, token.substring(0, 1))
-                                vmodel.replyTextView!!.also {
-                                    reasoningLen = it.text.length - 1
-                                    it.doOnLayout {
-                                        vmodel.reasoningTextHeight = it.height
-                                    }
+                            if (!replyInitDone && reasoningMarkdown.isNotBlank()) {
+                                replyInitDone = true
+                                updateReplyTextView(reasoningMarkdown, ".")
+                                vmodel.replyTextView!!.also { textView ->
+                                    reasoningLen =
+                                        if (appContext.mainPrefs.isShowReasoning) textView.text.length - 1
+                                        else 0
+                                    textView.doOnLayout { vmodel.reasoningTextHeight = it.height }
+                                    yield()
                                 }
                             }
                             replyMarkdown.append(token)
@@ -2128,18 +2141,23 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun combineMarkdown(reasoningMarkdown: CharSequence, replyMarkdown: CharSequence) =
-        if (reasoningMarkdown.isNotBlank()) {
+        (if (reasoningMarkdown.isBlank()) {
+            replyMarkdown
+        } else {
+            val showReasoning = appContext.mainPrefs.isShowReasoning
             StringBuilder().apply {
-                append("# Reasoning\n\n")
-                append(reasoningMarkdown)
+                if (showReasoning || replyMarkdown.isBlank()) {
+                    append("# Reasoning\n\n")
+                    append(reasoningMarkdown)
+                }
                 if (replyMarkdown.isNotBlank()) {
-                    append("\n\n# Response\n\n")
+                    if (showReasoning) {
+                        append("\n\n# Response\n\n")
+                    }
                     append(replyMarkdown)
                 }
             }
-        } else {
-            replyMarkdown
-        }.toString()
+        }).toString()
 
     private fun wordCount(text: String) = text.trim().split(whitespaceRegex).size
 

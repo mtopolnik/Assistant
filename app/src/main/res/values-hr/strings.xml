@@ -73,6 +73,7 @@
     <string name="action_delete_deepseek_key">Poništi DeepSeek ključ</string>
     <string name="action_enter_api_key">Unesi API ključ</string>
     <string name="action_toggle_send_audio_prompt">GPT-4o audio prompt (probno)</string>
+    <string name="action_toggle_show_reasoning">Prikazuj razmišljanje</string>
     <string name="api_key_hint">Vaš API ključ</string>
     <string name="error_while_llm_responding">Negdje je zapelo dok je Pete odgovarao</string>
     <string name="translation_error">Negdje je zapelo dok je OpenAI prevodio</string>

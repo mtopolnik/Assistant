@@ -93,6 +93,7 @@ private const val KEY_SPEECH_RECOG_LANGUAGE = "speech_recognition_language"
 private const val KEY_LANGUAGES = "languages"
 private const val KEY_IS_MUTED = "is_muted"
 private const val KEY_IS_SEND_AUDIO_PROMPT = "is_send_audio_prompt"
+private const val KEY_IS_SHOW_REASONING = "is_show_reasoning"
 private const val KEY_SELECTED_MODEL = "selected_model"
 private const val KEY_SELECTED_VOICE = "selected_voice"
 private const val KEY_SELECTED_RT_VOICE = "selected_rt_voice"
@@ -173,6 +174,8 @@ inline fun SharedPreferences.applyUpdate(block: SharedPreferences.Editor.() -> U
 
 fun SharedPreferences.apiKey(vendor: AiVendor) = getString(vendor.apiKeyPref, "")!!
 
+val SharedPreferences.openaiApiKey: OpenAiKey get() = OpenAiKey(apiKey(AiVendor.OPENAI))
+
 fun SharedPreferences.Editor.setAnthropicApiKey(apiKey: String): SharedPreferences.Editor =
     putString(KEY_ANTHROPIC_API_KEY, apiKey)
 
@@ -182,8 +185,6 @@ fun SharedPreferences.Editor.setXaiApiKey(apiKey: String): SharedPreferences.Edi
 fun SharedPreferences.Editor.setDeepSeekApiKey(apiKey: String): SharedPreferences.Editor =
     putString(KEY_DEEPSEEK_API_KEY, apiKey)
 
-val SharedPreferences.openaiApiKey: OpenAiKey get() = OpenAiKey(getString(KEY_OPENAI_API_KEY, "")!!)
-
 fun SharedPreferences.Editor.setOpenaiApiKey(apiKey: String): SharedPreferences.Editor =
     putString(KEY_OPENAI_API_KEY, apiKey)
 
@@ -191,6 +192,11 @@ val SharedPreferences.isSendAudioPrompt: Boolean get() = getBoolean(KEY_IS_SEND_
 
 fun SharedPreferences.Editor.setIsSendAudioPrompt(value: Boolean): SharedPreferences.Editor =
     putBoolean(KEY_IS_SEND_AUDIO_PROMPT, value)
+
+val SharedPreferences.isShowReasoning: Boolean get() = getBoolean(KEY_IS_SHOW_REASONING, false)
+
+fun SharedPreferences.Editor.setIsShowReasoning(value: Boolean): SharedPreferences.Editor =
+    putBoolean(KEY_IS_SHOW_REASONING, value)
 
 val SharedPreferences.isVoiceModeSelected: Boolean get() = getBoolean(KEY_IS_VOICE_MODE_SELECTED, true)
 

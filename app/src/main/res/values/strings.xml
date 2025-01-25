@@ -79,6 +79,7 @@
     <string name="action_delete_deepseek_key">Delete DeepSeek Key</string>
     <string name="action_enter_api_key">Enter an API key</string>
     <string name="action_toggle_send_audio_prompt">GPT-4o audio prompt (experimental)</string>
+    <string name="action_toggle_show_reasoning">Show reasoning</string>
     <string name="api_key_hint">Your API key</string>
     <string name="error_while_llm_responding">Something went wrong while Pete was replying</string>
     <string name="translation_error">Something went wrong while OpenAI was translating</string>
