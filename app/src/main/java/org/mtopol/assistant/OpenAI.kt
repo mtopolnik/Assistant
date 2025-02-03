@@ -117,6 +117,8 @@ val openAi get() = openAiLazy.value
 
 const val MODEL_ID_GPT_4O_MINI = "gpt-4o-mini"
 const val MODEL_ID_GPT_4O = "gpt-4o"
+const val MODEL_ID_O1 = "o1"
+const val MODEL_ID_O3_MINI = "o3-mini"
 const val MODEL_ID_GPT_4O_AUDIO = "gpt-4o-audio-preview"
 const val MODEL_ID_GPT_4O_REALTIME = "gpt-4o-realtime-preview"
 const val MODEL_ID_GPT_4O_MINI_REALTIME = "gpt-4o-mini-realtime-preview"
@@ -773,7 +775,6 @@ class OpenAI {
         ChatCompletionRequest(
             model,
             messages,
-            max_tokens = if (model == MODEL_ID_GPT_4O_MINI) 8192 else 4096,
             stream = true
         )
 

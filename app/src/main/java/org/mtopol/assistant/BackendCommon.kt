@@ -77,6 +77,8 @@ enum class AiModel(
     DEEPSEEK_REASONER(l(MODEL_ID_DEEPSEEK_REASONER), l("DS Reason"), l("DeepSeek Reasoner"), AiVendor.DEEPSEEK),
     GROK(l(MODEL_ID_GROK), l("Grok"), l("Grok 2"), AiVendor.XAI),
     GPT_4O(l(MODEL_ID_GPT_4O), l("GPT-4o"), l("GPT-4o"), AiVendor.OPENAI),
+    O1(l(MODEL_ID_O1), l("o1"), l("o1"), AiVendor.OPENAI),
+    O3_MINI(l(MODEL_ID_O3_MINI), l("o3-mini"), l("o3-mini"), AiVendor.OPENAI),
     GPT_4O_REALTIME(l(MODEL_ID_GPT_4O_REALTIME), l("4o RT"), l("GPT-4o Realtime"), AiVendor.OPENAI),
     GPT_4O_MINI_REALTIME(l(MODEL_ID_GPT_4O_MINI_REALTIME), l("min RT"), l("GPT-4o Mini Realtime"), AiVendor.OPENAI),
     ARTIST_3(lazy { "${ARTIST_LAZY.value.lowercase()}-3" }, ARTIST_LAZY, ARTIST_LAZY, AiVendor.OPENAI);
@@ -120,6 +122,8 @@ class ApiKeyWallet(prefs: SharedPreferences) {
             }
             if (openaiKey.allowsGpt4()) models.add(AiModel.GPT_4O)
             if (openaiKey.allowsRealtime()) {
+//                models.add(AiModel.O1) -- doesn't support streaming response
+                models.add(AiModel.O3_MINI)
                 models.add(AiModel.GPT_4O_REALTIME)
                 models.add(AiModel.GPT_4O_MINI_REALTIME)
             }
