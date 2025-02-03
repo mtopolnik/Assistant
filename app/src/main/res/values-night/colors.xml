@@ -29,10 +29,10 @@
     <color name="keyboard_button">#858585</color>
     <color name="on_keyboard_button">#F3F3F3</color>
     <color name="prompt_foreground">@color/foreground</color>
-    <color name="prompt_background">#311A4D</color>
-    <color name="prompt_border">#502E87</color>
+    <color name="prompt_background">#863E95</color>
+    <color name="prompt_border">#CE6FD9</color>
     <color name="response_foreground">@color/foreground</color>
-    <color name="response_background">#2A4A92</color>
-    <color name="response_border">#3F6FCA</color>
+    <color name="response_background">#3157A9</color>
+    <color name="response_border">#578DEF</color>
 
 </resources>
