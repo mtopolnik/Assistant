@@ -48,7 +48,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.encodeToJsonElement
 import java.io.ByteArrayOutputStream
 
-const val MODEL_ID_SONNET_3_5 = "claude-3-5-sonnet-latest"
+const val MODEL_ID_SONNET_3_7 = "claude-3-7-sonnet-latest"
 const val MODEL_ID_GROK = "grok-2-latest"
 const val MODEL_ID_GROK_VISION = "grok-2-vision-latest"
 
@@ -71,7 +71,7 @@ class Anthropic {
 
     suspend fun messages(history: List<Exchange>, model: AiModel): Flow<String> {
         Log.i("client", "Model: ${model.apiId}")
-        val client = if (model == AiModel.CLAUDE_3_5_SONNET) anthropicClient else xaiClient
+        val client = if (model == AiModel.CLAUDE_3_7_SONNET) anthropicClient else xaiClient
         val modelId =
             if (model == AiModel.GROK && history.find { it.hasImagePrompt() } != null) MODEL_ID_GROK_VISION
             else model.apiId
