@@ -73,6 +73,7 @@ enum class AiModel(
 ) {
     DEMO(l("demo"), l("Demo"), l("Demo"), AiVendor.DEMO),
     CLAUDE_3_7_SONNET(l(MODEL_ID_SONNET_3_7), l("Sonnet"), l("Claude Sonnet 3.7"), AiVendor.ANTHROPIC),
+    CLAUDE_3_7_SONNET_THINKING(l(MODEL_ID_SONNET_3_7), l("SonnetThink"), l("Claude Sonnet 3.7 Thinking"), AiVendor.ANTHROPIC),
     DEEPSEEK_CHAT(l(MODEL_ID_DEEPSEEK_CHAT), l("DS Chat"), l("DeepSeek Chat"), AiVendor.DEEPSEEK),
     DEEPSEEK_REASONER(l(MODEL_ID_DEEPSEEK_REASONER), l("DS Reason"), l("DeepSeek Reasoner"), AiVendor.DEEPSEEK),
     GROK(l(MODEL_ID_GROK), l("Grok"), l("Grok 2"), AiVendor.XAI),
@@ -88,7 +89,7 @@ enum class AiModel(
     val fullName: String get() = nameLazy.value
 
     fun isChatModel() = this != ARTIST_3
-    fun isAnthropicApi() = this == CLAUDE_3_7_SONNET || this == GROK
+    fun isAnthropicApi() = this == CLAUDE_3_7_SONNET || this == CLAUDE_3_7_SONNET_THINKING || this == GROK
 
 }
 
@@ -114,7 +115,10 @@ class ApiKeyWallet(prefs: SharedPreferences) {
     init {
         supportedModels = mutableListOf<AiModel>().also { models ->
             if (isDemo()) models.add(AiModel.DEMO)
-            if (hasAnthropicKey()) models.add(AiModel.CLAUDE_3_7_SONNET)
+            if (hasAnthropicKey()) {
+                models.add(AiModel.CLAUDE_3_7_SONNET)
+                models.add(AiModel.CLAUDE_3_7_SONNET_THINKING)
+            }
             if (hasXaiKey()) models.add(AiModel.GROK)
             if (hasDeepSeekKey()) {
                 models.add(AiModel.DEEPSEEK_CHAT)

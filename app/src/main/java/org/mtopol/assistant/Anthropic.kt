@@ -71,16 +71,28 @@ class Anthropic {
 
     suspend fun messages(history: List<Exchange>, model: AiModel): Flow<String> {
         Log.i("client", "Model: ${model.apiId}")
-        val client = if (model == AiModel.CLAUDE_3_7_SONNET) anthropicClient else xaiClient
+        val client = if (model == AiModel.GROK) xaiClient else anthropicClient
         val modelId =
             if (model == AiModel.GROK && history.find { it.hasImagePrompt() } != null) MODEL_ID_GROK_VISION
             else model.apiId
 
-        val request = MessageRequest(
-            model = modelId,
-            system = appContext.mainPrefs.systemPrompt,
-            messages = history.toDto().dropLast(1),
-        )
+        val request = if (model == AiModel.CLAUDE_3_7_SONNET_THINKING)
+            MessageRequest(
+                model = modelId,
+                system = appContext.mainPrefs.systemPrompt,
+                messages = history.toDto().dropLast(1),
+                max_tokens = 8192,
+                stream = true,
+                thinking = Thinking("enabled", 4096)
+            )
+        else
+            MessageRequest(
+                model = modelId,
+                system = appContext.mainPrefs.systemPrompt,
+                messages = history.toDto().dropLast(1),
+                max_tokens = 4096,
+                stream = true
+            )
         return flow<ResponseChunk> {
             val builder = HttpRequestBuilder().apply {
                 method = HttpMethod.Post
@@ -90,7 +102,9 @@ class Anthropic {
             }
             HttpStatement(builder, client).execute { emitStreamingResponse(it) }
         }
-            .map { chunk -> chunk.delta.text }
+            .map { chunk -> chunk.delta.let {
+                it.text ?: (REASONING_ANNOUNCER + it.thinking)
+            } }
             .filterNotNull()
     }
 
@@ -160,7 +174,8 @@ class Anthropic {
 
     @Serializable
     class Delta(
-        val text: String
+        val text: String? = null,
+        val thinking: String? = null
     )
 
     @Serializable
@@ -170,15 +185,15 @@ class Anthropic {
         val messages: List<Message>,
         val max_tokens: Int,
         val stream: Boolean,
+        val thinking: Thinking? = null
     )
 
-    private fun MessageRequest(model: String, system: String, messages: List<Message>) = MessageRequest(
-        model = model,
-        system = system,
-        messages = messages,
-        max_tokens = 4096,
-        stream = true
+    @Serializable
+    class Thinking(
+        val type: String,
+        val budget_tokens: Int
     )
+
 }
 
 private fun createAnthropicClient(vendor: AiVendor) = HttpClient(OkHttp) {
