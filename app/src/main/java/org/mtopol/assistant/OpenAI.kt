@@ -124,6 +124,7 @@ const val MODEL_ID_GPT_4O_REALTIME = "gpt-4o-realtime-preview"
 const val MODEL_ID_GPT_4O_MINI_REALTIME = "gpt-4o-mini-realtime-preview"
 const val MODEL_ID_DEEPSEEK_CHAT = "deepseek-chat"
 const val MODEL_ID_DEEPSEEK_REASONER = "deepseek-reasoner"
+const val MODEL_ID_DALLE = "dalle-3"
 
 const val REASONING_ANNOUNCER = "<REASONING>"
 
@@ -672,36 +673,28 @@ class OpenAI {
         }
     }
 
-    private var _a = 'a'
-    private var _e = 'e'
-    private var _g = 'g'
-    private var _r = 'r'
-    private var _s = 's'
-    private var _t = 't'
-
     suspend fun imageGeneration(prompt: CharSequence, model: AiModel, console: Editable): List<Uri> {
-        val artist = ARTIST_LAZY.value
-        if (!appContext.mainPrefs.openaiApiKey.allowsArtist()) {
-            Toast.makeText(appContext, "Your API key doesn't allow $artist", Toast.LENGTH_LONG).show()
+        if (!appContext.mainPrefs.openaiApiKey.allowsImageGen()) {
+            Toast.makeText(appContext, "Your API key doesn't allow DallE", Toast.LENGTH_LONG).show()
             return listOf()
         }
         val request = ImageGenerationRequest(prompt.toString(), model.apiId, "natural", "url")
         val builder = HttpRequestBuilder().apply {
             method = HttpMethod.Post
-            url(path = "im" + _a + _g + _e + _s + '/' + "gene" + _r + _a + _t + "ions")
+            url(path = "images/generations")
             contentType(ContentType.Application.Json)
             setBody(jsonCodec.encodeToJsonElement(request))
         }
-        console.append("$artist is handling your prompt...\n")
+        console.append("DallE is handling your prompt...\n")
         return try {
             val imageObjects = HttpStatement(builder, openAiClient).execute().body<ImageGenerationResponse>().data
             console.clear()
             imageObjects.firstOrNull()?.revised_prompt?.takeIf { it.isNotBlank() }?.also { revisedPrompt ->
-                console.append("$artist revised your prompt to:\n\n$revisedPrompt\n")
+                console.append("DallE revised your prompt to:\n\n$revisedPrompt\n")
             }
             downloadToCache(imageObjects.map { it.url })
         } catch (e: ResponseException) {
-            console.append("Something went wrong while $artist was handling your prompt:\n\n${e.message}")
+            console.append("Something went wrong while DallE was handling your prompt:\n\n${e.message}")
             listOf()
         }
     }

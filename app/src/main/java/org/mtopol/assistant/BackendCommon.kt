@@ -19,7 +19,6 @@ package org.mtopol.assistant
 
 import android.content.SharedPreferences
 import android.util.Base64
-import android.util.Log
 import io.ktor.client.HttpClientConfig
 import io.ktor.client.engine.okhttp.OkHttpConfig
 import io.ktor.client.plugins.HttpRequestRetry
@@ -37,20 +36,6 @@ import java.util.concurrent.ConcurrentHashMap
 
 private const val DEMO_API_KEY = "demo"
 
-val ARTIST_LAZY = lazy {
-    Log.e("lifecycle", "lazy.value", Exception("Lazy Artist"))
-    val deltas = listOf(0, 29, 11, 0, -63, 24)
-    val b = StringBuilder()
-    var prev = 'D'
-    for (delta in deltas) {
-        prev += delta
-        b.append(prev)
-    }
-    b.toString()
-}
-
-private fun l(value: String) = lazy { value }
-
 enum class AiVendor(
     val baseUrl: String,
     private val chatModelLazy: Lazy<AiModel>
@@ -66,30 +51,29 @@ enum class AiVendor(
 }
 
 enum class AiModel(
-    private val apiIdLazy: Lazy<String>,
-    private val acronymLazy: Lazy<String>,
-    private val nameLazy: Lazy<String>,
+    val apiId: String,
+    val acronym: String,
+    val fullName: String,
     val vendor: AiVendor
 ) {
-    DEMO(l("demo"), l("Demo"), l("Demo"), AiVendor.DEMO),
-    CLAUDE_3_7_SONNET(l(MODEL_ID_SONNET_3_7), l("Sonnet"), l("Claude Sonnet 3.7"), AiVendor.ANTHROPIC),
-    CLAUDE_3_7_SONNET_THINKING(l(MODEL_ID_SONNET_3_7), l("SonnetThink"), l("Claude Sonnet 3.7 Thinking"), AiVendor.ANTHROPIC),
-    DEEPSEEK_CHAT(l(MODEL_ID_DEEPSEEK_CHAT), l("DS Chat"), l("DeepSeek Chat"), AiVendor.DEEPSEEK),
-    DEEPSEEK_REASONER(l(MODEL_ID_DEEPSEEK_REASONER), l("DS Reason"), l("DeepSeek Reasoner"), AiVendor.DEEPSEEK),
-    GROK(l(MODEL_ID_GROK), l("Grok"), l("Grok 2"), AiVendor.XAI),
-    GPT_4O(l(MODEL_ID_GPT_4O), l("GPT-4o"), l("GPT-4o"), AiVendor.OPENAI),
-    O1(l(MODEL_ID_O1), l("o1"), l("o1"), AiVendor.OPENAI),
-    O3_MINI(l(MODEL_ID_O3_MINI), l("o3-mini"), l("o3-mini"), AiVendor.OPENAI),
-    GPT_4O_REALTIME(l(MODEL_ID_GPT_4O_REALTIME), l("4o RT"), l("GPT-4o Realtime"), AiVendor.OPENAI),
-    GPT_4O_MINI_REALTIME(l(MODEL_ID_GPT_4O_MINI_REALTIME), l("min RT"), l("GPT-4o Mini Realtime"), AiVendor.OPENAI),
-    ARTIST_3(lazy { "${ARTIST_LAZY.value.lowercase()}-3" }, ARTIST_LAZY, ARTIST_LAZY, AiVendor.OPENAI);
+    DEMO("demo", "Demo", "Demo", AiVendor.DEMO),
+    CLAUDE_3_7_SONNET(MODEL_ID_SONNET_3_7, "Sonnet", "Claude Sonnet 3.7", AiVendor.ANTHROPIC),
+    CLAUDE_3_7_SONNET_THINKING(MODEL_ID_SONNET_3_7, "SonnetThink", "Claude Sonnet 3.7 Thinking", AiVendor.ANTHROPIC),
+    DEEPSEEK_CHAT(MODEL_ID_DEEPSEEK_CHAT, "DS Chat", "DeepSeek Chat", AiVendor.DEEPSEEK),
+    DEEPSEEK_REASONER(MODEL_ID_DEEPSEEK_REASONER, "DS Reason", "DeepSeek Reasoner", AiVendor.DEEPSEEK),
+    GROK(MODEL_ID_GROK_3, "Grok 3", "Grok 3", AiVendor.XAI),
+    GROK_MINI(MODEL_ID_GROK_3_MINI, "Grok 3 Min", "Grok 3 Mini (Thinking)", AiVendor.XAI),
+    GPT_41(MODEL_ID_GPT_41, "GPT-4.1", "GPT-4.1", AiVendor.OPENAI),
+    GPT_41_MINI(MODEL_ID_GPT_41_MINI, "GPT-4.1min", "GPT-4.1-mini", AiVendor.OPENAI),
+    O1(MODEL_ID_O1, "o1", "o1", AiVendor.OPENAI),
+    O3_MINI(MODEL_ID_O3_MINI, "o3-mini", "o3-mini", AiVendor.OPENAI),
+    GPT_4O_REALTIME(MODEL_ID_GPT_4O_REALTIME, "4o RT", "GPT-4o Realtime", AiVendor.OPENAI),
+    GPT_4O_MINI_REALTIME(MODEL_ID_GPT_4O_MINI_REALTIME, "min RT", "GPT-4o Mini Realtime", AiVendor.OPENAI),
+    DALLE_3(MODEL_ID_DALLE, "DallE-3", "DallE-3", AiVendor.OPENAI);
 
-    val apiId: String get() = apiIdLazy.value
-    val acronym: String get() = acronymLazy.value
-    val fullName: String get() = nameLazy.value
-
-    fun isChatModel() = this != ARTIST_3
-    fun isAnthropicApi() = this == CLAUDE_3_7_SONNET || this == CLAUDE_3_7_SONNET_THINKING || this == GROK
+    fun isChatModel() = this != DALLE_3
+    fun isAnthropicApi() = this == CLAUDE_3_7_SONNET || this == CLAUDE_3_7_SONNET_THINKING
+            || this == GROK || this == GROK_MINI
 
 }
 
@@ -99,7 +83,7 @@ class OpenAiKey(val text: String) {
     fun isDemoKey() = text.isDemoKey()
     fun allowsGpt4() = isNotBlank() && !isDemoKey()
     fun allowsTts() = allowsGpt4() && !text.isGptOnlyKey()
-    fun allowsArtist() = text.isImageGenKey()
+    fun allowsImageGen() = text.isImageGenKey()
     fun allowsRealtime() = allowsGpt4() && !text.isRtDisabledKey()
 
     override fun toString() = text
@@ -131,7 +115,7 @@ class ApiKeyWallet(prefs: SharedPreferences) {
                 models.add(AiModel.GPT_4O_REALTIME)
                 models.add(AiModel.GPT_4O_MINI_REALTIME)
             }
-            if (openaiKey.allowsArtist()) models.add(AiModel.ARTIST_3)
+            if (openaiKey.allowsImageGen()) models.add(AiModel.DALLE_3)
         }
     }
 
