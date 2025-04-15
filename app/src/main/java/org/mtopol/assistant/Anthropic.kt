@@ -49,9 +49,6 @@ import kotlinx.serialization.json.encodeToJsonElement
 import java.io.ByteArrayOutputStream
 
 const val MODEL_ID_SONNET_3_7 = "claude-3-7-sonnet-latest"
-const val MODEL_ID_GROK_3 = "grok-3-latest"
-const val MODEL_ID_GROK_3_MINI = "grok-3-mini-latest"
-const val MODEL_ID_GROK_VISION = "grok-2-vision-latest"
 
 val anthropic get() = anthropicLazy.value
 
@@ -67,19 +64,22 @@ fun resetAnthropic(): Lazy<Anthropic> {
 }
 
 class Anthropic {
-    private val anthropicClient = createAnthropicClient(AiVendor.ANTHROPIC)
-    private val xaiClient = createAnthropicClient(AiVendor.XAI)
+    private val client = HttpClient(OkHttp) {
+        defaultRequest {
+            url(AiVendor.ANTHROPIC.baseUrl)
+            headers {
+                append("x-api-key", appContext.mainPrefs.apiKey(AiVendor.ANTHROPIC))
+                append("anthropic-version", ANTHROPIC_VERSION)
+            }
+        }
+        commonApiClientSetup()
+    }
 
     suspend fun messages(history: List<Exchange>, model: AiModel): Flow<String> {
         Log.i("client", "Model: ${model.apiId}")
-        val client = if (model.vendor == AiVendor.XAI) xaiClient else anthropicClient
-        val modelId =
-            if (model == AiModel.GROK && history.find { it.hasImagePrompt() } != null) MODEL_ID_GROK_VISION
-            else model.apiId
-
         val request = if (model == AiModel.CLAUDE_3_7_SONNET_THINKING)
             MessageRequest(
-                model = modelId,
+                model = model.apiId,
                 system = appContext.mainPrefs.systemPrompt,
                 messages = history.toDto().dropLast(1),
                 max_tokens = 8192,
@@ -88,7 +88,7 @@ class Anthropic {
             )
         else
             MessageRequest(
-                model = modelId,
+                model = model.apiId,
                 system = appContext.mainPrefs.systemPrompt,
                 messages = history.toDto().dropLast(1),
                 max_tokens = 4096,
@@ -103,14 +103,16 @@ class Anthropic {
             }
             HttpStatement(builder, client).execute { emitStreamingResponse(it) }
         }
-            .map { chunk -> chunk.delta.let { delta ->
-                delta.text ?: delta.thinking?.let { REASONING_ANNOUNCER + it }
-            } }
+            .map { chunk ->
+                chunk.delta.let { delta ->
+                    delta.text ?: delta.thinking?.let { REASONING_ANNOUNCER + it }
+                }
+            }
             .filterNotNull()
     }
 
     fun close() {
-        anthropicClient.close()
+        client.close()
     }
 
     private suspend fun List<Exchange>.toDto() = flatMap { exchange ->
@@ -156,7 +158,8 @@ class Anthropic {
                 ImageSource(
                     type = "base64",
                     media_type = format,
-                    data = data)
+                    data = data
+                )
             )
         }
     }
@@ -195,17 +198,6 @@ class Anthropic {
         val budget_tokens: Int
     )
 
-}
-
-private fun createAnthropicClient(vendor: AiVendor) = HttpClient(OkHttp) {
-    defaultRequest {
-        url(vendor.baseUrl)
-        headers {
-            append("x-api-key", appContext.mainPrefs.apiKey(vendor))
-            append("anthropic-version", ANTHROPIC_VERSION)
-        }
-    }
-    commonApiClientSetup()
 }
 
 private const val DATA_LINE_PREFIX = "data:"

@@ -122,9 +122,15 @@ const val MODEL_ID_O3_MINI = "o3-mini"
 const val MODEL_ID_GPT_4O_AUDIO = "gpt-4o-audio-preview"
 const val MODEL_ID_GPT_4O_REALTIME = "gpt-4o-realtime-preview"
 const val MODEL_ID_GPT_4O_MINI_REALTIME = "gpt-4o-mini-realtime-preview"
+const val MODEL_ID_DALLE = "dall-e-3"
+
 const val MODEL_ID_DEEPSEEK_CHAT = "deepseek-chat"
 const val MODEL_ID_DEEPSEEK_REASONER = "deepseek-reasoner"
-const val MODEL_ID_DALLE = "dalle-3"
+
+const val MODEL_ID_GROK_3 = "grok-3"
+const val MODEL_ID_GROK_3_MINI = "grok-3-mini"
+const val MODEL_ID_GROK_2_VISION = "grok-2-vision"
+const val MODEL_ID_GROK_2_IMAGE = "grok-2-image"
 
 const val REASONING_ANNOUNCER = "<REASONING>"
 
@@ -141,6 +147,7 @@ fun resetOpenAi(): Lazy<OpenAI> {
 
 class OpenAI {
     private val openAiClient = createOpenAiClient(AiVendor.OPENAI)
+    private val xaiClient = createOpenAiClient(AiVendor.XAI)
     private val deepSeekClient = createOpenAiClient(AiVendor.DEEPSEEK)
     private val blobClient = createBlobClient()
 
@@ -149,19 +156,23 @@ class OpenAI {
     private val mockRecognizedSpeech = appContext.getString(R.string.demo_recognized_speech)
     private val mockResponse = appContext.getString(R.string.demo_response)
 
+    private fun selectClient(model: AiModel) = when (model.vendor) {
+        AiVendor.OPENAI -> openAiClient
+        AiVendor.DEEPSEEK -> deepSeekClient
+        AiVendor.XAI -> xaiClient
+        else -> throw RuntimeException("OpenAI.chatCompletions called with unsupported vendor: ${model.vendor}")
+    }
+
     suspend fun chatCompletions(history: List<Exchange>, model: AiModel): Flow<String> {
         if (demoMode) {
             return mockResponse.toCharArray().asList().chunked(4).asFlow().map { delay(120); it.joinToString("") }
         }
-        val client = when (model.vendor) {
-            AiVendor.OPENAI -> openAiClient
-            AiVendor.DEEPSEEK -> deepSeekClient
-            else -> throw RuntimeException("OpenAI.chatCompletions called with unsupported vendor: ${model.vendor}")
+        val client = selectClient(model)
+        val modelId = when {
+            model == AiModel.GPT_41 && history.find { it.hasAudioPrompt() } != null -> MODEL_ID_GPT_4O_AUDIO
+            model == AiModel.GROK && history.find { it.hasImagePrompt() } != null -> MODEL_ID_GROK_2_VISION
+            else -> model.apiId
         }
-        val modelId =
-            if (model == AiModel.GPT_41 && history.find { it.hasAudioPrompt() } != null) MODEL_ID_GPT_4O_AUDIO
-            else model.apiId
-
         Log.i("client", "Model: $modelId")
         return chatCompletions(
             client, ChatCompletionRequest(
@@ -674,10 +685,11 @@ class OpenAI {
     }
 
     suspend fun imageGeneration(prompt: CharSequence, model: AiModel, console: Editable): List<Uri> {
-        if (!appContext.mainPrefs.openaiApiKey.allowsImageGen()) {
-            Toast.makeText(appContext, "Your API key doesn't allow DallE", Toast.LENGTH_LONG).show()
+        if (model.vendor == AiVendor.OPENAI && !appContext.mainPrefs.openaiApiKey.allowsImageGen()) {
+            Toast.makeText(appContext, "Your API key doesn't allow image generation", Toast.LENGTH_LONG).show()
             return listOf()
         }
+        val client = selectClient(model)
         val request = ImageGenerationRequest(prompt.toString(), model.apiId, "natural", "url")
         val builder = HttpRequestBuilder().apply {
             method = HttpMethod.Post
@@ -685,16 +697,16 @@ class OpenAI {
             contentType(ContentType.Application.Json)
             setBody(jsonCodec.encodeToJsonElement(request))
         }
-        console.append("DallE is handling your prompt...\n")
+        console.append("Working on your prompt...\n")
         return try {
-            val imageObjects = HttpStatement(builder, openAiClient).execute().body<ImageGenerationResponse>().data
+            val imageObjects = HttpStatement(builder, client).execute().body<ImageGenerationResponse>().data
             console.clear()
             imageObjects.firstOrNull()?.revised_prompt?.takeIf { it.isNotBlank() }?.also { revisedPrompt ->
-                console.append("DallE revised your prompt to:\n\n$revisedPrompt\n")
+                console.append("Your prompt was revised to:\n\n$revisedPrompt\n")
             }
             downloadToCache(imageObjects.map { it.url })
         } catch (e: ResponseException) {
-            console.append("Something went wrong while DallE was handling your prompt:\n\n${e.message}")
+            console.append("Something went wrong while handling your prompt:\n\n${e.message}")
             listOf()
         }
     }

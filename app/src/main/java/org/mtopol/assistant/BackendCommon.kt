@@ -63,18 +63,16 @@ enum class AiModel(
     DEEPSEEK_REASONER(MODEL_ID_DEEPSEEK_REASONER, "DS Reason", "DeepSeek Reasoner", AiVendor.DEEPSEEK),
     GROK(MODEL_ID_GROK_3, "Grok 3", "Grok 3", AiVendor.XAI),
     GROK_MINI(MODEL_ID_GROK_3_MINI, "Grok 3 Min", "Grok 3 Mini (Thinking)", AiVendor.XAI),
+    GROK_IMAGE(MODEL_ID_GROK_2_IMAGE, "Grok 2 Img", "Grok 2 Image", AiVendor.XAI),
     GPT_41(MODEL_ID_GPT_41, "GPT-4.1", "GPT-4.1", AiVendor.OPENAI),
     GPT_41_MINI(MODEL_ID_GPT_41_MINI, "GPT-4.1min", "GPT-4.1-mini", AiVendor.OPENAI),
     O1(MODEL_ID_O1, "o1", "o1", AiVendor.OPENAI),
     O3_MINI(MODEL_ID_O3_MINI, "o3-mini", "o3-mini", AiVendor.OPENAI),
     GPT_4O_REALTIME(MODEL_ID_GPT_4O_REALTIME, "4o RT", "GPT-4o Realtime", AiVendor.OPENAI),
     GPT_4O_MINI_REALTIME(MODEL_ID_GPT_4O_MINI_REALTIME, "min RT", "GPT-4o Mini Realtime", AiVendor.OPENAI),
-    DALLE_3(MODEL_ID_DALLE, "DallE-3", "DallE-3", AiVendor.OPENAI);
+    DALLE_3(MODEL_ID_DALLE, "Dall-E 3", "Dall-E 3", AiVendor.OPENAI);
 
-    fun isChatModel() = this != DALLE_3
-    fun isAnthropicApi() = this == CLAUDE_3_7_SONNET || this == CLAUDE_3_7_SONNET_THINKING
-            || this == GROK || this == GROK_MINI
-
+    fun isImageModel() = this == DALLE_3 || this == GROK_IMAGE
 }
 
 class OpenAiKey(val text: String) {
@@ -106,6 +104,7 @@ class ApiKeyWallet(prefs: SharedPreferences) {
             if (hasXaiKey()) {
                 models.add(AiModel.GROK)
                 models.add(AiModel.GROK_MINI)
+                models.add(AiModel.GROK_IMAGE)
             }
             if (hasDeepSeekKey()) {
                 models.add(AiModel.DEEPSEEK_CHAT)

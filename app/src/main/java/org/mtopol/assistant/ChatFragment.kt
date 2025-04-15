@@ -1122,10 +1122,10 @@ class ChatFragment : Fragment(), MenuProvider {
 
                 val sentenceFlow: Flow<String> = channelFlow {
                     val selectedModel = appContext.mainPrefs.selectedModel
-                    val responseFlow =
-                        if (selectedModel.isAnthropicApi()) anthropic.messages(vmodel.chatContent, selectedModel)
-                        else openAi.chatCompletions(vmodel.chatContent, selectedModel)
-
+                    val responseFlow = when (selectedModel.vendor) {
+                        AiVendor.ANTHROPIC -> anthropic.messages(vmodel.chatContent, selectedModel)
+                        else -> openAi.chatCompletions(vmodel.chatContent, selectedModel)
+                    }
                     var reasoningLen = 0;
                     var replyInitDone = false;
                     var textViewUpdateTime = 0L
@@ -1383,10 +1383,10 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun sendPromptAndReceiveResponse(prompt: String) {
         binding.appbarLayout.setExpanded(true, true)
-        if (appContext.mainPrefs.selectedModel.isChatModel()) {
-            sendPromptAndReceiveTextResponse(PromptPart.Text(prompt))
-        } else {
+        if (appContext.mainPrefs.selectedModel.isImageModel()) {
             sendPromptAndReceiveImageResponse(prompt)
+        } else {
+            sendPromptAndReceiveTextResponse(PromptPart.Text(prompt))
         }
     }
 
