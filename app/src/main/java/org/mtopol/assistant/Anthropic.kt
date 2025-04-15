@@ -102,8 +102,8 @@ class Anthropic {
             }
             HttpStatement(builder, client).execute { emitStreamingResponse(it) }
         }
-            .map { chunk -> chunk.delta.let {
-                it.text ?: (REASONING_ANNOUNCER + it.thinking)
+            .map { chunk -> chunk.delta.let { delta ->
+                delta.text ?: delta.thinking?.let { REASONING_ANNOUNCER + it }
             } }
             .filterNotNull()
     }
