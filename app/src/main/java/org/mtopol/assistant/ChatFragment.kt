@@ -1382,7 +1382,6 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun sendPromptAndReceiveResponse(prompt: String) {
-        binding.appbarLayout.setExpanded(true, true)
         if (appContext.mainPrefs.selectedModel.isImageModel()) {
             sendPromptAndReceiveImageResponse(prompt)
         } else {
@@ -1555,7 +1554,6 @@ class ChatFragment : Fragment(), MenuProvider {
                 start()
             }
             vibrate()
-            binding.appbarLayout.setExpanded(true, true)
             animatePromptGlow()
         } catch (e: Exception) {
             Log.e("speech", "Voice recording error", e)
