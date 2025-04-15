@@ -103,7 +103,10 @@ class ApiKeyWallet(prefs: SharedPreferences) {
                 models.add(AiModel.CLAUDE_3_7_SONNET)
                 models.add(AiModel.CLAUDE_3_7_SONNET_THINKING)
             }
-            if (hasXaiKey()) models.add(AiModel.GROK)
+            if (hasXaiKey()) {
+                models.add(AiModel.GROK)
+                models.add(AiModel.GROK_MINI)
+            }
             if (hasDeepSeekKey()) {
                 models.add(AiModel.DEEPSEEK_CHAT)
                 models.add(AiModel.DEEPSEEK_REASONER)
