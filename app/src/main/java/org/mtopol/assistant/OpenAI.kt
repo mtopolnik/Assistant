@@ -115,8 +115,8 @@ import io.ktor.websocket.send as wsend
 
 val openAi get() = openAiLazy.value
 
-const val MODEL_ID_GPT_4O_MINI = "gpt-4o-mini"
-const val MODEL_ID_GPT_4O = "gpt-4o"
+const val MODEL_ID_GPT_41_MINI = "gpt-4.1-mini"
+const val MODEL_ID_GPT_41 = "gpt-4.1"
 const val MODEL_ID_O1 = "o1"
 const val MODEL_ID_O3_MINI = "o3-mini"
 const val MODEL_ID_GPT_4O_AUDIO = "gpt-4o-audio-preview"
@@ -159,7 +159,7 @@ class OpenAI {
             else -> throw RuntimeException("OpenAI.chatCompletions called with unsupported vendor: ${model.vendor}")
         }
         val modelId =
-            if (model == AiModel.GPT_4O && history.find { it.hasAudioPrompt() } != null) MODEL_ID_GPT_4O_AUDIO
+            if (model == AiModel.GPT_41 && history.find { it.hasAudioPrompt() } != null) MODEL_ID_GPT_4O_AUDIO
             else model.apiId
 
         Log.i("client", "Model: $modelId")
@@ -197,7 +197,7 @@ class OpenAI {
         }
 
         val chatCompletionRequest = ChatCompletionRequest(
-            model = MODEL_ID_GPT_4O_MINI,
+            model = MODEL_ID_GPT_41_MINI,
             messages = listOf(
                 ChatMessage.Simple("system", systemPrompt),
                 ChatMessage.Simple("user", text)

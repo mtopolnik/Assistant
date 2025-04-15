@@ -44,7 +44,7 @@ enum class AiVendor(
     ANTHROPIC("https://api.anthropic.com/v1/", lazy { AiModel.CLAUDE_3_7_SONNET }),
     DEEPSEEK("https://api.deepseek.com/", lazy { AiModel.DEEPSEEK_CHAT }),
     XAI("https://api.x.ai/v1/", lazy { AiModel.GROK }),
-    OPENAI("https://api.openai.com/v1/", lazy { AiModel.GPT_4O });
+    OPENAI("https://api.openai.com/v1/", lazy { AiModel.GPT_41 });
 
     val chatModel get() = chatModelLazy.value
     val apiKeyPref = name.lowercase() + "_api_key"
@@ -111,9 +111,12 @@ class ApiKeyWallet(prefs: SharedPreferences) {
                 models.add(AiModel.DEEPSEEK_CHAT)
                 models.add(AiModel.DEEPSEEK_REASONER)
             }
-            if (openaiKey.allowsGpt4()) models.add(AiModel.GPT_4O)
+            if (openaiKey.allowsGpt4()) {
+                models.add(AiModel.GPT_41)
+                models.add(AiModel.GPT_41_MINI)
+            }
             if (openaiKey.allowsRealtime()) {
-//                models.add(AiModel.O1) -- doesn't support streaming response
+                models.add(AiModel.O1)
                 models.add(AiModel.O3_MINI)
                 models.add(AiModel.GPT_4O_REALTIME)
                 models.add(AiModel.GPT_4O_MINI_REALTIME)
