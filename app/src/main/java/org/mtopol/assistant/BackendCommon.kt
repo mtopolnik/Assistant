@@ -67,7 +67,7 @@ enum class AiModel(
     GPT_41(MODEL_ID_GPT_41, "GPT-4.1", "GPT-4.1", AiVendor.OPENAI),
     GPT_41_MINI(MODEL_ID_GPT_41_MINI, "GPT-4.1min", "GPT-4.1-mini", AiVendor.OPENAI),
     O1(MODEL_ID_O1, "o1", "o1", AiVendor.OPENAI),
-    O3_MINI(MODEL_ID_O3_MINI, "o3-mini", "o3-mini", AiVendor.OPENAI),
+    O4_MINI(MODEL_ID_O4_MINI, "o4-mini", "o4-mini", AiVendor.OPENAI),
     GPT_4O_REALTIME(MODEL_ID_GPT_4O_REALTIME, "4o RT", "GPT-4o Realtime", AiVendor.OPENAI),
     GPT_4O_MINI_REALTIME(MODEL_ID_GPT_4O_MINI_REALTIME, "min RT", "GPT-4o Mini Realtime", AiVendor.OPENAI),
     DALLE_3(MODEL_ID_DALLE, "Dall-E 3", "Dall-E 3", AiVendor.OPENAI);
@@ -116,7 +116,7 @@ class ApiKeyWallet(prefs: SharedPreferences) {
             }
             if (openaiKey.allowsRealtime()) {
                 models.add(AiModel.O1)
-                models.add(AiModel.O3_MINI)
+                models.add(AiModel.O4_MINI)
                 models.add(AiModel.GPT_4O_REALTIME)
                 models.add(AiModel.GPT_4O_MINI_REALTIME)
             }
