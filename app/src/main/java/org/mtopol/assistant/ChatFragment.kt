@@ -489,9 +489,13 @@ class ChatFragment : Fragment(), MenuProvider {
 
                 override fun afterTextChanged(editable: Editable) {
                     if (editable.isEmpty() && hadTextLastTime) {
-                        if (!appContext.mainPrefs.openaiApiKey.isBlank()) {
-                            hideKeyboard()
-                            lifecycleScope.launch {
+                        if (appContext.mainPrefs.openaiApiKey.isBlank()) {
+                            return
+                        }
+                        lifecycleScope.launch {
+                            delay(100)
+                            if (editable.isEmpty()) {
+                                hideKeyboard()
                                 delay(100)
                                 switchToVoice()
                             }
