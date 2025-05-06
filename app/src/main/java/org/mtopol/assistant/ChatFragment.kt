@@ -2011,7 +2011,7 @@ class ChatFragment : Fragment(), MenuProvider {
         binding.scrollviewChat.apply {
             val reasoningTextHeight = vmodel.reasoningTextHeight
             val scrollTarget = if (stopAtTopOfResponse && reasoningTextHeight != -1) {
-                lastMessageContainer().top + reasoningTextHeight - 16.dp
+                lastMessageContainer().top + reasoningTextHeight
             } else lastMessageContainer().bottom
             if (scrollY < scrollTarget) {
                 smoothScrollTo(0, scrollTarget)
