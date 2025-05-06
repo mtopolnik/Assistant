@@ -117,6 +117,7 @@ import kotlinx.coroutines.Dispatchers.Default
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
@@ -160,6 +161,7 @@ import androidx.annotation.OptIn as OptInAndroid
 const val REALTIME_RECORD_SAMPLE_RATE = 24_000
 
 private const val KEY_CHAT_ID = "chat-id"
+private const val MSG_NO_RESPONSE = """\<no response>"""
 private const val MAX_RECORDING_TIME_MILLIS = 300_000L
 private const val STOP_RECORDING_DELAY_MILLIS = 300L
 private const val MIN_HOLD_RECORD_BUTTON_MILLIS = 400L
@@ -966,7 +968,7 @@ class ChatFragment : Fragment(), MenuProvider {
             newestChatExchange = exchange
             addPromptToView(context, exchange)
             if (exchange.replyMarkdown.isBlank() && vmodel.replyTextView == null) {
-                exchange.replyMarkdown = "<no response>"
+                exchange.replyMarkdown = MSG_NO_RESPONSE
             }
             newestChatTextView = addResponseToView(context, exchange)
         }
@@ -1178,45 +1180,27 @@ class ChatFragment : Fragment(), MenuProvider {
                             }
                         }
                         .onCompletion { exception ->
-                            exception?.also { e ->
-                                when (e) {
-                                    is CancellationException -> {}
-                                    is ClientRequestException -> {
-                                        Log.e(
-                                            "lifecycle",
-                                            "API error in chatCompletions flow",
-                                            e
-                                        )
-                                        val message = e.message
-                                        when {
-                                            message.contains("` does not exist\"") ->
-                                                Toast.makeText(
-                                                    appContext,
-                                                    getString(R.string.gpt4_unavailable),
-                                                    Toast.LENGTH_SHORT
-                                                ).show()
-                                            else ->
-                                                showError(e, replyMarkdown, R.string.error_while_llm_responding)
-                                        }
+                            withContext(NonCancellable) {
+                                if (exception != null && exception !is CancellationException) {
+                                    Log.e("speech", "Error in chatCompletions flow", exception)
+                                    showError(exception, replyMarkdown, R.string.error_while_llm_responding)
+                                }
+                                if (vmodel.replyTextView != null) {
+                                    if (replyMarkdown.isBlank()) {
+                                        replyMarkdown.append(MSG_NO_RESPONSE)
                                     }
-                                    else -> {
-                                        Log.e("lifecycle", "Error in chatCompletions flow", e)
-                                        showError(e, replyMarkdown, R.string.error_while_llm_responding)
+                                    updateReplyTextView(reasoningMarkdown, replyMarkdown)
+                                    val replyText = vmodel.replyTextView!!.text.removeRange(0, reasoningLen)
+                                    exchange.replyText = replyText
+                                    if (lastSpokenPos < replyText.length) {
+                                        channel.send(replyText.substring(lastSpokenPos, replyText.length))
                                     }
                                 }
-                            }
-                            if (vmodel.replyTextView != null) {
-                                updateReplyTextView(reasoningMarkdown, replyMarkdown)
-                                val replyText = vmodel.replyTextView!!.text.removeRange(0, reasoningLen)
-                                exchange.replyText = replyText
-                                if (lastSpokenPos < replyText.length) {
-                                    channel.send(replyText.substring(lastSpokenPos, replyText.length))
+                                if (appContext.mainPrefs.isMuted) {
+                                    vmodel.handleResponseJob?.cancel()
                                 }
+                                saveOrDeleteCurrentChat()
                             }
-                            if (appContext.mainPrefs.isMuted) {
-                                vmodel.handleResponseJob?.cancel()
-                            }
-                            saveOrDeleteCurrentChat()
                         }
                         .launchIn(this)
                 }
@@ -1607,13 +1591,13 @@ class ChatFragment : Fragment(), MenuProvider {
     private fun animatePromptGlow() {
         val previousRecordingGlowJob = vmodel.recordingGlowJob?.apply { cancel() }
         vmodel.recordingGlowJob = vmodel.viewModelScope.launch {
-            previousRecordingGlowJob?.join()
-            vmodel.withFragment { it.binding.showRecordingGlow() }
-            launch {
-                delay(MAX_RECORDING_TIME_MILLIS)
-                sendRecordedPrompt()
-            }
             try {
+                previousRecordingGlowJob?.join()
+                vmodel.withFragment { it.binding.showRecordingGlow() }
+                launch {
+                    delay(MAX_RECORDING_TIME_MILLIS)
+                    sendRecordedPrompt()
+                }
                 var lastPeak = 0f
                 var lastPeakTime = 0L
                 var lastRecordingVolume = 0f
@@ -1761,7 +1745,7 @@ class ChatFragment : Fragment(), MenuProvider {
                     vmodel.chatContent.joinToString("\n\n") { it.promptText().toString() }
                 val transcription =
                     openAi.transcription(prefs.speechRecogLanguage, promptContext, audioPathname)
-                if (transcription.isEmpty()) {
+                if (transcription.isBlank()) {
                     return@launch
                 }
                 vmodel.withFragment {
