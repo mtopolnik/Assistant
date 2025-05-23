@@ -41,7 +41,7 @@ enum class AiVendor(
     private val chatModelLazy: Lazy<AiModel>
 ) {
     DEMO("demo", lazy { AiModel.DEMO }),
-    ANTHROPIC("https://api.anthropic.com/v1/", lazy { AiModel.CLAUDE_3_7_SONNET }),
+    ANTHROPIC("https://api.anthropic.com/v1/", lazy { AiModel.CLAUDE_4_SONNET }),
     DEEPSEEK("https://api.deepseek.com/", lazy { AiModel.DEEPSEEK_CHAT }),
     XAI("https://api.x.ai/v1/", lazy { AiModel.GROK }),
     OPENAI("https://api.openai.com/v1/", lazy { AiModel.GPT_41 });
@@ -57,8 +57,8 @@ enum class AiModel(
     val vendor: AiVendor
 ) {
     DEMO("demo", "Demo", "Demo", AiVendor.DEMO),
-    CLAUDE_3_7_SONNET(MODEL_ID_SONNET_3_7, "Sonnet", "Claude Sonnet 3.7", AiVendor.ANTHROPIC),
-    CLAUDE_3_7_SONNET_THINKING(MODEL_ID_SONNET_3_7, "SonnetThink", "Claude Sonnet 3.7 Thinking", AiVendor.ANTHROPIC),
+    CLAUDE_4_SONNET(MODEL_ID_SONNET_4, "Sonnet", "Claude Sonnet 4", AiVendor.ANTHROPIC),
+    CLAUDE_4_SONNET_THINKING(MODEL_ID_SONNET_4, "SonnetThink", "Claude Sonnet 4 Thinking", AiVendor.ANTHROPIC),
     DEEPSEEK_CHAT(MODEL_ID_DEEPSEEK_CHAT, "DS Chat", "DeepSeek Chat", AiVendor.DEEPSEEK),
     DEEPSEEK_REASONER(MODEL_ID_DEEPSEEK_REASONER, "DS Reason", "DeepSeek Reasoner", AiVendor.DEEPSEEK),
     GROK(MODEL_ID_GROK_3, "Grok 3", "Grok 3", AiVendor.XAI),
@@ -98,8 +98,8 @@ class ApiKeyWallet(prefs: SharedPreferences) {
         supportedModels = mutableListOf<AiModel>().also { models ->
             if (isDemo()) models.add(AiModel.DEMO)
             if (hasAnthropicKey()) {
-                models.add(AiModel.CLAUDE_3_7_SONNET)
-                models.add(AiModel.CLAUDE_3_7_SONNET_THINKING)
+                models.add(AiModel.CLAUDE_4_SONNET)
+                models.add(AiModel.CLAUDE_4_SONNET_THINKING)
             }
             if (hasXaiKey()) {
                 models.add(AiModel.GROK)

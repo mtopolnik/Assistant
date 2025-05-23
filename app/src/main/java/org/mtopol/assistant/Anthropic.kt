@@ -48,7 +48,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.encodeToJsonElement
 import java.io.ByteArrayOutputStream
 
-const val MODEL_ID_SONNET_3_7 = "claude-3-7-sonnet-latest"
+const val MODEL_ID_SONNET_4 = "claude-sonnet-4-20250514"
 
 val anthropic get() = anthropicLazy.value
 
@@ -77,7 +77,7 @@ class Anthropic {
 
     suspend fun messages(history: List<Exchange>, model: AiModel): Flow<String> {
         Log.i("client", "Model: ${model.apiId}")
-        val request = if (model == AiModel.CLAUDE_3_7_SONNET_THINKING)
+        val request = if (model == AiModel.CLAUDE_4_SONNET_THINKING)
             MessageRequest(
                 model = model.apiId,
                 system = appContext.mainPrefs.systemPrompt,
