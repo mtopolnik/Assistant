@@ -333,7 +333,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 if (isStartOfExchange) {
                     vmodel.chatContent.add(Exchange(typedUris))
                 } else {
-                    lastExchange!!.promptParts.addAll(typedUris)
+                    lastExchange.promptParts.addAll(typedUris)
                 }
             }
         }
@@ -869,7 +869,7 @@ class ChatFragment : Fragment(), MenuProvider {
                         val chatId = item.itemId - CHATS_MENUITEM_ID_BASE
                         Log.i("chats", "chatId $chatId vmodel.chatId ${vmodel.chatId}")
                         if (chatId != vmodel.chatId) {
-                            lifecycleScope.launch {
+                            lifecycleScope.launch(NonCancellable) {
                                 saveOrDeleteCurrentChat()
                                 vmodel.handleResponseJob?.cancel()
                                 vmodel.realtimeJob?.cancel()
@@ -1084,6 +1084,7 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     fun prepareNewExchange(context: Context, finalPart: PromptPart): Exchange {
+        Log.i("chats", "prepareNewExchange chatId = ${vmodel.chatId}\nchatHandles ${chatHandles()}")
         getChatHandle(vmodel.chatId)!!.isDirty = true
         vmodel.isConnectionLive = true
         vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
