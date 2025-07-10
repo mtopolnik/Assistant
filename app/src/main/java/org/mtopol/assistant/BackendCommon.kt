@@ -61,7 +61,7 @@ enum class AiModel(
     CLAUDE_4_SONNET_THINKING(MODEL_ID_SONNET_4, "SonnetThink", "Claude Sonnet 4 Thinking", AiVendor.ANTHROPIC),
     DEEPSEEK_CHAT(MODEL_ID_DEEPSEEK_CHAT, "DS Chat", "DeepSeek Chat", AiVendor.DEEPSEEK),
     DEEPSEEK_REASONER(MODEL_ID_DEEPSEEK_REASONER, "DS Reason", "DeepSeek Reasoner", AiVendor.DEEPSEEK),
-    GROK(MODEL_ID_GROK_3, "Grok 3", "Grok 3", AiVendor.XAI),
+    GROK(MODEL_ID_GROK_4, "Grok 4", "Grok 4", AiVendor.XAI),
     GROK_MINI(MODEL_ID_GROK_3_MINI, "Grok 3 Min", "Grok 3 Mini (Thinking)", AiVendor.XAI),
     GROK_IMAGE(MODEL_ID_GROK_2_IMAGE, "Grok 2 Img", "Grok 2 Image", AiVendor.XAI),
     GPT_41(MODEL_ID_GPT_41, "GPT-4.1", "GPT-4.1", AiVendor.OPENAI),
