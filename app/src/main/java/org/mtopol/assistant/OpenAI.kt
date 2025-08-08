@@ -115,6 +115,7 @@ import io.ktor.websocket.send as wsend
 
 val openAi get() = openAiLazy.value
 
+const val MODEL_ID_GPT_41_MINI = "gpt-4.1-mini"
 const val MODEL_ID_GPT_5_MINI = "gpt-5-mini"
 const val MODEL_ID_GPT_5 = "gpt-5"
 const val MODEL_ID_O1 = "o1"
@@ -206,7 +207,7 @@ class OpenAI {
         }
 
         val chatCompletionRequest = ChatCompletionRequest(
-            model = MODEL_ID_GPT_5_MINI,
+            model = MODEL_ID_GPT_41_MINI,
             messages = listOf(
                 ChatMessage.Simple("system", systemPrompt),
                 ChatMessage.Simple("user", text)
