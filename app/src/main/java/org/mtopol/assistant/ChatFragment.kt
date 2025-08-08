@@ -1724,7 +1724,7 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun sendRecordedPrompt() {
         val mainPrefs = appContext.mainPrefs
-        if (mainPrefs.isSendAudioPrompt && mainPrefs.selectedModel == AiModel.GPT_41) {
+        if (mainPrefs.isSendAudioPrompt && mainPrefs.selectedModel == AiModel.GPT_5) {
             sendAudioPrompt()
         } else {
             transcribeAndSendPrompt()

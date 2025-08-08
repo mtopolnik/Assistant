@@ -115,8 +115,8 @@ import io.ktor.websocket.send as wsend
 
 val openAi get() = openAiLazy.value
 
-const val MODEL_ID_GPT_41_MINI = "gpt-4.1-mini"
-const val MODEL_ID_GPT_41 = "gpt-4.1"
+const val MODEL_ID_GPT_5_MINI = "gpt-5-mini"
+const val MODEL_ID_GPT_5 = "gpt-5"
 const val MODEL_ID_O1 = "o1"
 const val MODEL_ID_O4_MINI = "o4-mini"
 const val MODEL_ID_GPT_4O_AUDIO = "gpt-4o-audio-preview"
@@ -168,7 +168,7 @@ class OpenAI {
         }
         val client = selectClient(model)
         val modelId = when {
-            model == AiModel.GPT_41 && history.find { it.hasAudioPrompt() } != null -> MODEL_ID_GPT_4O_AUDIO
+            model == AiModel.GPT_5 && history.find { it.hasAudioPrompt() } != null -> MODEL_ID_GPT_4O_AUDIO
             else -> model.apiId
         }
         Log.i("client", "Model: $modelId")
@@ -206,7 +206,7 @@ class OpenAI {
         }
 
         val chatCompletionRequest = ChatCompletionRequest(
-            model = MODEL_ID_GPT_41_MINI,
+            model = MODEL_ID_GPT_5_MINI,
             messages = listOf(
                 ChatMessage.Simple("system", systemPrompt),
                 ChatMessage.Simple("user", text)

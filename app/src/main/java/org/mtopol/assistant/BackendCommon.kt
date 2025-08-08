@@ -44,7 +44,7 @@ enum class AiVendor(
     ANTHROPIC("https://api.anthropic.com/v1/", lazy { AiModel.CLAUDE_4_SONNET }),
     DEEPSEEK("https://api.deepseek.com/", lazy { AiModel.DEEPSEEK_CHAT }),
     XAI("https://api.x.ai/v1/", lazy { AiModel.GROK }),
-    OPENAI("https://api.openai.com/v1/", lazy { AiModel.GPT_41 });
+    OPENAI("https://api.openai.com/v1/", lazy { AiModel.GPT_5 });
 
     val chatModel get() = chatModelLazy.value
     val apiKeyPref = name.lowercase() + "_api_key"
@@ -64,8 +64,8 @@ enum class AiModel(
     GROK(MODEL_ID_GROK_4, "Grok 4", "Grok 4", AiVendor.XAI),
     GROK_MINI(MODEL_ID_GROK_3_MINI, "Grok 3 Min", "Grok 3 Mini (Thinking)", AiVendor.XAI),
     GROK_IMAGE(MODEL_ID_GROK_2_IMAGE, "Grok 2 Img", "Grok 2 Image", AiVendor.XAI),
-    GPT_41(MODEL_ID_GPT_41, "GPT-4.1", "GPT-4.1", AiVendor.OPENAI),
-    GPT_41_MINI(MODEL_ID_GPT_41_MINI, "GPT-4.1min", "GPT-4.1-mini", AiVendor.OPENAI),
+    GPT_5(MODEL_ID_GPT_5, "GPT-5", "GPT-5", AiVendor.OPENAI),
+    GPT_5_MINI(MODEL_ID_GPT_5_MINI, "GPT-5-min", "GPT-5-mini", AiVendor.OPENAI),
     O1(MODEL_ID_O1, "o1", "o1", AiVendor.OPENAI),
     O4_MINI(MODEL_ID_O4_MINI, "o4-mini", "o4-mini", AiVendor.OPENAI),
     GPT_4O_REALTIME(MODEL_ID_GPT_4O_REALTIME, "4o RT", "GPT-4o Realtime", AiVendor.OPENAI),
@@ -111,8 +111,8 @@ class ApiKeyWallet(prefs: SharedPreferences) {
                 models.add(AiModel.DEEPSEEK_REASONER)
             }
             if (openaiKey.allowsGpt4()) {
-                models.add(AiModel.GPT_41)
-                models.add(AiModel.GPT_41_MINI)
+                models.add(AiModel.GPT_5)
+                models.add(AiModel.GPT_5_MINI)
             }
             if (openaiKey.allowsRealtime()) {
                 models.add(AiModel.O1)
