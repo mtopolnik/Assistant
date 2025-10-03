@@ -57,8 +57,8 @@ enum class AiModel(
     val vendor: AiVendor
 ) {
     DEMO("demo", "Demo", "Demo", AiVendor.DEMO),
-    CLAUDE_4_SONNET(MODEL_ID_SONNET_4, "Sonnet", "Claude Sonnet 4", AiVendor.ANTHROPIC),
-    CLAUDE_4_SONNET_THINKING(MODEL_ID_SONNET_4, "SonnetThink", "Claude Sonnet 4 Thinking", AiVendor.ANTHROPIC),
+    CLAUDE_4_SONNET(MODEL_ID_SONNET_4, "Sonnet", "Claude Sonnet 4.5", AiVendor.ANTHROPIC),
+    CLAUDE_4_SONNET_THINKING(MODEL_ID_SONNET_4, "SonnetThink", "Claude Sonnet 4.5 Thinking", AiVendor.ANTHROPIC),
     DEEPSEEK_CHAT(MODEL_ID_DEEPSEEK_CHAT, "DS Chat", "DeepSeek Chat", AiVendor.DEEPSEEK),
     DEEPSEEK_REASONER(MODEL_ID_DEEPSEEK_REASONER, "DS Reason", "DeepSeek Reasoner", AiVendor.DEEPSEEK),
     GROK(MODEL_ID_GROK_4, "Grok 4", "Grok 4", AiVendor.XAI),

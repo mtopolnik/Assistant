@@ -48,7 +48,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.encodeToJsonElement
 import java.io.ByteArrayOutputStream
 
-const val MODEL_ID_SONNET_4 = "claude-sonnet-4-20250514"
+const val MODEL_ID_SONNET_4 = "claude-sonnet-4-5"
 
 val anthropic get() = anthropicLazy.value
 
