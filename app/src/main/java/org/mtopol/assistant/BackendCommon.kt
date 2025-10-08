@@ -69,10 +69,10 @@ enum class AiModel(
     O1(MODEL_ID_O1, "o1", "o1", AiVendor.OPENAI),
     O4_MINI(MODEL_ID_O4_MINI, "o4-mini", "o4-mini", AiVendor.OPENAI),
     GPT_4O_REALTIME(MODEL_ID_GPT_4O_REALTIME, "4o RT", "GPT-4o Realtime", AiVendor.OPENAI),
-    GPT_4O_MINI_REALTIME(MODEL_ID_GPT_4O_MINI_REALTIME, "min RT", "GPT-4o Mini Realtime", AiVendor.OPENAI),
-    DALLE_3(MODEL_ID_DALLE, "Dall-E 3", "Dall-E 3", AiVendor.OPENAI);
+    GPT_4O_MINI_REALTIME(MODEL_ID_GPT_4O_MINI_REALTIME, "min RT", "GPT-4o Realtime Mini", AiVendor.OPENAI),
+    GPT_IMAGE_1(MODEL_ID_GPT_IMAGE_1, "GPT Image", "GPT Image 1", AiVendor.OPENAI);
 
-    fun isImageModel() = this == DALLE_3 || this == GROK_IMAGE
+    fun isImageModel() = this == GPT_IMAGE_1 || this == GROK_IMAGE
 }
 
 class OpenAiKey(val text: String) {
@@ -120,7 +120,7 @@ class ApiKeyWallet(prefs: SharedPreferences) {
                 models.add(AiModel.GPT_4O_REALTIME)
                 models.add(AiModel.GPT_4O_MINI_REALTIME)
             }
-            if (openaiKey.allowsImageGen()) models.add(AiModel.DALLE_3)
+            if (openaiKey.allowsImageGen()) models.add(AiModel.GPT_IMAGE_1)
         }
     }
 
@@ -185,7 +185,7 @@ private fun setContainsHashMemoized(key: String, set: Set<String>, cache: Mutabl
 fun HttpClientConfig<OkHttpConfig>.commonApiClientSetup() {
     install(HttpTimeout) {
         connectTimeoutMillis = 4000
-        socketTimeoutMillis = 30_000
+        socketTimeoutMillis = 90_000
         requestTimeoutMillis = 180_000
     }
     install(HttpRequestRetry) {

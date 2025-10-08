@@ -62,7 +62,6 @@ import io.ktor.client.request.forms.FormBuilder
 import io.ktor.client.request.forms.append
 import io.ktor.client.request.forms.formData
 import io.ktor.client.request.forms.submitFormWithBinaryData
-import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.setBody
 import io.ktor.client.request.url
@@ -107,7 +106,6 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
-import java.io.InputStream
 import java.nio.ByteBuffer
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -123,7 +121,7 @@ const val MODEL_ID_O4_MINI = "o4-mini"
 const val MODEL_ID_GPT_4O_AUDIO = "gpt-4o-audio-preview"
 const val MODEL_ID_GPT_4O_REALTIME = "gpt-4o-realtime-preview"
 const val MODEL_ID_GPT_4O_MINI_REALTIME = "gpt-4o-mini-realtime-preview"
-const val MODEL_ID_DALLE = "dall-e-3"
+const val MODEL_ID_GPT_IMAGE_1 = "gpt-image-1"
 
 const val MODEL_ID_DEEPSEEK_CHAT = "deepseek-chat"
 const val MODEL_ID_DEEPSEEK_REASONER = "deepseek-reasoner"
@@ -689,23 +687,26 @@ class OpenAI {
             return listOf()
         }
         val client = selectClient(model)
-        val request = ImageGenerationRequest(prompt.toString(), model.apiId, "natural", "url")
+        val request = ImageGenerationRequest(prompt.toString(), model.apiId, "webp")
         val builder = HttpRequestBuilder().apply {
             method = HttpMethod.Post
             url(path = "images/generations")
             contentType(ContentType.Application.Json)
             setBody(jsonCodec.encodeToJsonElement(request))
         }
-        console.append("Working on your prompt...\n")
+        console.append("Working on your request...\n")
         return try {
             val imageObjects = HttpStatement(builder, client).execute().body<ImageGenerationResponse>().data
             console.clear()
             imageObjects.firstOrNull()?.revised_prompt?.takeIf { it.isNotBlank() }?.also { revisedPrompt ->
-                console.append("Your prompt was revised to:\n\n$revisedPrompt\n")
+                console.append("Your request was revised to:\n\n$revisedPrompt\n")
             }
-            downloadToCache(imageObjects.map { it.url })
+            saveToCache(imageObjects.map { it.b64_json })
         } catch (e: ResponseException) {
-            console.append("Something went wrong while handling your prompt:\n\n${e.message}")
+            console.append("Something went wrong:\n\n${e.message}")
+            listOf()
+        } catch (e: IOException) {
+            console.append("Something went wrong:\n\n${e.message}")
             listOf()
         }
     }
@@ -757,11 +758,12 @@ class OpenAI {
         }
     }
 
-    private suspend fun downloadToCache(imageUrls: List<String>): List<Uri> = withContext(IO) {
-        imageUrls.map { imageUrl ->
-            val imageFile = File.createTempFile("dalle-", ".jpg", imageCache)
+    private suspend fun saveToCache(imgsBase64: List<String>): List<Uri> = withContext(IO) {
+        imgsBase64.map { base64 ->
+            val imageFile = File.createTempFile("gpt-image-", ".webp", imageCache)
             FileOutputStream(imageFile).use { fos ->
-                blobClient.get(imageUrl).body<InputStream>().copyTo(fos)
+                val webp = Base64.decode(base64, Base64.DEFAULT)
+                fos.write(webp)
             }
             Uri.fromFile(imageFile)
         }
@@ -866,13 +868,12 @@ class OpenAI {
     class ImageGenerationRequest(
         val prompt: String,
         val model: String,
-        val style: String,
-        val response_format: String
+        val output_format: String
     )
 
     @Serializable
     class ImageObject(
-        val url: String,
+        val b64_json: String,
         val revised_prompt: String = ""
     )
 
