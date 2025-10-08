@@ -99,7 +99,7 @@ class TouchImageView
 
     private var state = NONE
         set(value) {
-            Log.i("TouchImageView", "state: $value")
+            Log.d("TouchImageView", "state: $value")
             field = value
         }
 
