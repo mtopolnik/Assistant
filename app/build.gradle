@@ -12,9 +12,9 @@ android {
     defaultConfig {
         applicationId "org.mtopol.assistant"
         minSdk 26
-        targetSdk 35
         versionCode 164
         versionName "7.15"
+        targetSdk 36
         resourceConfigurations += ['en', 'hr']
     }
 
