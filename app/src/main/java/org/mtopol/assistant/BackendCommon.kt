@@ -64,15 +64,15 @@ enum class AiModel(
     GROK(MODEL_ID_GROK_4, "Grok 4", "Grok 4", AiVendor.XAI),
     GROK_MINI(MODEL_ID_GROK_3_MINI, "Grok 3 Min", "Grok 3 Mini (Thinking)", AiVendor.XAI),
     GROK_IMAGE(MODEL_ID_GROK_2_IMAGE, "Grok 2 Img", "Grok 2 Image", AiVendor.XAI),
-    GPT_5(MODEL_ID_GPT_5, "GPT-5", "GPT-5", AiVendor.OPENAI),
+    GPT_5(MODEL_ID_GPT_51, "GPT-5.1", "GPT-5.1", AiVendor.OPENAI),
     GPT_5_MINI(MODEL_ID_GPT_5_MINI, "GPT-5-min", "GPT-5-mini", AiVendor.OPENAI),
     O1(MODEL_ID_O1, "o1", "o1", AiVendor.OPENAI),
     O4_MINI(MODEL_ID_O4_MINI, "o4-mini", "o4-mini", AiVendor.OPENAI),
     GPT_4O_REALTIME(MODEL_ID_GPT_4O_REALTIME, "4o RT", "GPT-4o Realtime", AiVendor.OPENAI),
     GPT_4O_MINI_REALTIME(MODEL_ID_GPT_4O_MINI_REALTIME, "min RT", "GPT-4o Realtime Mini", AiVendor.OPENAI),
-    GPT_IMAGE_1(MODEL_ID_GPT_IMAGE_1, "GPT Image", "GPT Image 1", AiVendor.OPENAI);
+    GPT_IMAGE_15(MODEL_ID_GPT_IMAGE_15, "GPT Image", "GPT Image 1.5", AiVendor.OPENAI);
 
-    fun isImageModel() = this == GPT_IMAGE_1 || this == GROK_IMAGE
+    fun isImageModel() = this == GPT_IMAGE_15 || this == GROK_IMAGE
 }
 
 class OpenAiKey(val text: String) {
@@ -120,7 +120,7 @@ class ApiKeyWallet(prefs: SharedPreferences) {
                 models.add(AiModel.GPT_4O_REALTIME)
                 models.add(AiModel.GPT_4O_MINI_REALTIME)
             }
-            if (openaiKey.allowsImageGen()) models.add(AiModel.GPT_IMAGE_1)
+            if (openaiKey.allowsImageGen()) models.add(AiModel.GPT_IMAGE_15)
         }
     }
 
