@@ -258,7 +258,7 @@ class OpenAI {
         val response = openAiClient.submitFormWithBinaryData(
             url = "audio/transcriptions",
             formData = formData {
-                append("model", "whisper-1")
+                append("model", "gpt-4o-transcribe")
                 if (language != null) {
                     append("language", language)
                 } else {
