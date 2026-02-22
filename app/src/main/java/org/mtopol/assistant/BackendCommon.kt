@@ -61,16 +61,16 @@ enum class AiModel(
     CLAUDE_4_SONNET_THINKING(MODEL_ID_SONNET_4_6, "SonnetThink", "Claude Sonnet 4.6 Thinking", AiVendor.ANTHROPIC),
     DEEPSEEK_CHAT(MODEL_ID_DEEPSEEK_CHAT, "DS Chat", "DeepSeek Chat", AiVendor.DEEPSEEK),
     DEEPSEEK_REASONER(MODEL_ID_DEEPSEEK_REASONER, "DS Reason", "DeepSeek Reasoner", AiVendor.DEEPSEEK),
-    GROK(MODEL_ID_GROK_4, "Grok 4", "Grok 4", AiVendor.XAI),
-    GROK_MINI(MODEL_ID_GROK_3_MINI, "Grok 3 Min", "Grok 3 Mini (Thinking)", AiVendor.XAI),
-    GROK_IMAGE(MODEL_ID_GROK_2_IMAGE, "Grok 2 Img", "Grok 2 Image", AiVendor.XAI),
+    GROK(MODEL_ID_GROK_41_FAST_NON_REASONING, "Grok", "Grok 4.1", AiVendor.XAI),
+    GROK_REASONING(MODEL_ID_GROK_41_FAST, "Grok Think", "Grok 4.1 Reasoning", AiVendor.XAI),
+    GROK_IMAGINE(MODEL_ID_GROK_IMAGINE, "Grok Img", "Grok Imagine", AiVendor.XAI),
     GPT_5(MODEL_ID_GPT_52, "GPT-5.2", "GPT-5.2", AiVendor.OPENAI),
     GPT_5_MINI(MODEL_ID_GPT_5_MINI, "GPT-5-min", "GPT-5-mini", AiVendor.OPENAI),
     GPT_REALTIME(MODEL_ID_GPT_REALTIME, "GPT RT", "GPT Realtime", AiVendor.OPENAI),
     GPT_REALTIME_MINI(MODEL_ID_GPT_REALTIME_MINI, "RT min", "GPT Realtime Mini", AiVendor.OPENAI),
     GPT_IMAGE_15(MODEL_ID_GPT_IMAGE_15, "GPT Image", "GPT Image 1.5", AiVendor.OPENAI);
 
-    fun isImageModel() = this == GPT_IMAGE_15 || this == GROK_IMAGE
+    fun isImageModel() = this == GPT_IMAGE_15 || this == GROK_IMAGINE
 }
 
 class OpenAiKey(val text: String) {
@@ -101,8 +101,8 @@ class ApiKeyWallet(prefs: SharedPreferences) {
             }
             if (hasXaiKey()) {
                 models.add(AiModel.GROK)
-                models.add(AiModel.GROK_MINI)
-                models.add(AiModel.GROK_IMAGE)
+                models.add(AiModel.GROK_REASONING)
+                models.add(AiModel.GROK_IMAGINE)
             }
             if (hasDeepSeekKey()) {
                 models.add(AiModel.DEEPSEEK_CHAT)

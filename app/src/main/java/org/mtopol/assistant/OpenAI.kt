@@ -124,9 +124,9 @@ const val MODEL_ID_GPT_IMAGE_15 = "gpt-image-1.5"
 const val MODEL_ID_DEEPSEEK_CHAT = "deepseek-chat"
 const val MODEL_ID_DEEPSEEK_REASONER = "deepseek-reasoner"
 
-const val MODEL_ID_GROK_4 = "grok-4"
-const val MODEL_ID_GROK_3_MINI = "grok-3-mini"
-const val MODEL_ID_GROK_2_IMAGE = "grok-2-image"
+const val MODEL_ID_GROK_41_FAST_NON_REASONING = "grok-4-1-fast-non-reasoning"
+const val MODEL_ID_GROK_41_FAST = "grok-4-1-fast"
+const val MODEL_ID_GROK_IMAGINE = "grok-imagine-image"
 
 const val REASONING_ANNOUNCER = "<REASONING>"
 
