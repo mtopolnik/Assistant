@@ -115,12 +115,10 @@ val openAi get() = openAiLazy.value
 
 const val MODEL_ID_GPT_41_MINI = "gpt-4.1-mini"
 const val MODEL_ID_GPT_5_MINI = "gpt-5-mini"
-const val MODEL_ID_GPT_51 = "gpt-5.1"
-const val MODEL_ID_O1 = "o1"
-const val MODEL_ID_O4_MINI = "o4-mini"
-const val MODEL_ID_GPT_4O_AUDIO = "gpt-4o-audio-preview"
-const val MODEL_ID_GPT_4O_REALTIME = "gpt-4o-realtime-preview"
-const val MODEL_ID_GPT_4O_MINI_REALTIME = "gpt-4o-mini-realtime-preview"
+const val MODEL_ID_GPT_52 = "gpt-5.2"
+const val MODEL_ID_GPT_AUDIO = "gpt-audio"
+const val MODEL_ID_GPT_REALTIME = "gpt-realtime"
+const val MODEL_ID_GPT_REALTIME_MINI = "gpt-realtime-mini"
 const val MODEL_ID_GPT_IMAGE_15 = "gpt-image-1.5"
 
 const val MODEL_ID_DEEPSEEK_CHAT = "deepseek-chat"
@@ -167,7 +165,7 @@ class OpenAI {
         }
         val client = selectClient(model)
         val modelId = when {
-            model == AiModel.GPT_5 && history.find { it.hasAudioPrompt() } != null -> MODEL_ID_GPT_4O_AUDIO
+            model == AiModel.GPT_5 && history.find { it.hasAudioPrompt() } != null -> MODEL_ID_GPT_AUDIO
             else -> model.apiId
         }
         Log.i("client", "Model: $modelId")

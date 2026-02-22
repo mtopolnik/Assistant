@@ -2124,7 +2124,7 @@ class ChatFragment : Fragment(), MenuProvider {
     }
 
     private fun isRealtimeModelSelected() = appContext.mainPrefs.selectedModel.let {
-        it == AiModel.GPT_4O_REALTIME || it == AiModel.GPT_4O_MINI_REALTIME
+        it == AiModel.GPT_REALTIME || it == AiModel.GPT_REALTIME_MINI
     }
 
     private fun combineMarkdown(reasoningMarkdown: CharSequence, replyMarkdown: CharSequence) =

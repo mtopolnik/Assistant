@@ -57,19 +57,17 @@ enum class AiModel(
     val vendor: AiVendor
 ) {
     DEMO("demo", "Demo", "Demo", AiVendor.DEMO),
-    CLAUDE_4_SONNET(MODEL_ID_SONNET_4, "Sonnet", "Claude Sonnet 4.5", AiVendor.ANTHROPIC),
-    CLAUDE_4_SONNET_THINKING(MODEL_ID_SONNET_4, "SonnetThink", "Claude Sonnet 4.5 Thinking", AiVendor.ANTHROPIC),
+    CLAUDE_4_SONNET(MODEL_ID_SONNET_4_6, "Sonnet", "Claude Sonnet 4.6", AiVendor.ANTHROPIC),
+    CLAUDE_4_SONNET_THINKING(MODEL_ID_SONNET_4_6, "SonnetThink", "Claude Sonnet 4.6 Thinking", AiVendor.ANTHROPIC),
     DEEPSEEK_CHAT(MODEL_ID_DEEPSEEK_CHAT, "DS Chat", "DeepSeek Chat", AiVendor.DEEPSEEK),
     DEEPSEEK_REASONER(MODEL_ID_DEEPSEEK_REASONER, "DS Reason", "DeepSeek Reasoner", AiVendor.DEEPSEEK),
     GROK(MODEL_ID_GROK_4, "Grok 4", "Grok 4", AiVendor.XAI),
     GROK_MINI(MODEL_ID_GROK_3_MINI, "Grok 3 Min", "Grok 3 Mini (Thinking)", AiVendor.XAI),
     GROK_IMAGE(MODEL_ID_GROK_2_IMAGE, "Grok 2 Img", "Grok 2 Image", AiVendor.XAI),
-    GPT_5(MODEL_ID_GPT_51, "GPT-5.1", "GPT-5.1", AiVendor.OPENAI),
+    GPT_5(MODEL_ID_GPT_52, "GPT-5.2", "GPT-5.2", AiVendor.OPENAI),
     GPT_5_MINI(MODEL_ID_GPT_5_MINI, "GPT-5-min", "GPT-5-mini", AiVendor.OPENAI),
-    O1(MODEL_ID_O1, "o1", "o1", AiVendor.OPENAI),
-    O4_MINI(MODEL_ID_O4_MINI, "o4-mini", "o4-mini", AiVendor.OPENAI),
-    GPT_4O_REALTIME(MODEL_ID_GPT_4O_REALTIME, "4o RT", "GPT-4o Realtime", AiVendor.OPENAI),
-    GPT_4O_MINI_REALTIME(MODEL_ID_GPT_4O_MINI_REALTIME, "min RT", "GPT-4o Realtime Mini", AiVendor.OPENAI),
+    GPT_REALTIME(MODEL_ID_GPT_REALTIME, "GPT RT", "GPT Realtime", AiVendor.OPENAI),
+    GPT_REALTIME_MINI(MODEL_ID_GPT_REALTIME_MINI, "RT min", "GPT Realtime Mini", AiVendor.OPENAI),
     GPT_IMAGE_15(MODEL_ID_GPT_IMAGE_15, "GPT Image", "GPT Image 1.5", AiVendor.OPENAI);
 
     fun isImageModel() = this == GPT_IMAGE_15 || this == GROK_IMAGE
@@ -115,10 +113,8 @@ class ApiKeyWallet(prefs: SharedPreferences) {
                 models.add(AiModel.GPT_5_MINI)
             }
             if (openaiKey.allowsRealtime()) {
-                models.add(AiModel.O1)
-                models.add(AiModel.O4_MINI)
-                models.add(AiModel.GPT_4O_REALTIME)
-                models.add(AiModel.GPT_4O_MINI_REALTIME)
+                models.add(AiModel.GPT_REALTIME)
+                models.add(AiModel.GPT_REALTIME_MINI)
             }
             if (openaiKey.allowsImageGen()) models.add(AiModel.GPT_IMAGE_15)
         }
