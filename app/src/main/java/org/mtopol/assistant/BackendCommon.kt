@@ -66,7 +66,7 @@ enum class AiModel(
     GROK_IMAGINE(MODEL_ID_GROK_IMAGINE, "Grok Img", "Grok Imagine", AiVendor.XAI),
     GPT_5(MODEL_ID_GPT_52, "GPT-5.2", "GPT-5.2", AiVendor.OPENAI),
     GPT_5_MINI(MODEL_ID_GPT_5_MINI, "GPT-5-min", "GPT-5-mini", AiVendor.OPENAI),
-    GPT_REALTIME(MODEL_ID_GPT_REALTIME, "GPT RT", "GPT Realtime", AiVendor.OPENAI),
+    GPT_REALTIME(MODEL_ID_GPT_REALTIME, "GPT RT", "GPT Realtime 1.5", AiVendor.OPENAI),
     GPT_REALTIME_MINI(MODEL_ID_GPT_REALTIME_MINI, "RT min", "GPT Realtime Mini", AiVendor.OPENAI),
     GPT_IMAGE_15(MODEL_ID_GPT_IMAGE_15, "GPT Image", "GPT Image 1.5", AiVendor.OPENAI);
 
