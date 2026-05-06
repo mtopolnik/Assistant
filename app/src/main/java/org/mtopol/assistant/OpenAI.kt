@@ -33,7 +33,6 @@ import android.util.Base64.NO_WRAP
 import android.util.Log
 import android.widget.TextView
 import android.widget.Toast
-import androidx.annotation.OptIn
 import androidx.core.net.toFile
 import androidx.core.net.toUri
 import androidx.core.view.children
@@ -124,8 +123,8 @@ const val MODEL_ID_GPT_IMAGE_15 = "gpt-image-1.5"
 const val MODEL_ID_DEEPSEEK_CHAT = "deepseek-chat"
 const val MODEL_ID_DEEPSEEK_REASONER = "deepseek-reasoner"
 
-const val MODEL_ID_GROK_41_FAST_NON_REASONING = "grok-4-1-fast-non-reasoning"
-const val MODEL_ID_GROK_41_FAST = "grok-4-1-fast"
+const val MODEL_ID_GROK_420_NON_REASONING = "grok-4.20-non-reasoning"
+const val MODEL_ID_GROK_43 = "grok-4.3"
 const val MODEL_ID_GROK_IMAGINE = "grok-imagine-image"
 
 const val REASONING_ANNOUNCER = "<REASONING>"
