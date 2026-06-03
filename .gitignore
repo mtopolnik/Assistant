@@ -9,3 +9,6 @@ app/src/main/res/values/secrets.xml
 .externalNativeBuild
 .cxx
 local.properties
+keystore.properties
+*.jks
+*.keystore
