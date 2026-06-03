@@ -239,6 +239,7 @@ class ChatFragment : Fragment(), MenuProvider {
     private var _mediaRecorder: MediaRecorder? = null
     private var _audioRecord: AudioRecord? = null
     private var _sendBuf: ByteBuffer? = null
+    private var _streamingStopRequested = false
 
     private val permissionRequest =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -399,7 +400,12 @@ class ChatFragment : Fragment(), MenuProvider {
                     MotionEvent.ACTION_DOWN -> {
                         _recordButtonPressTime = System.currentTimeMillis()
                         if (!isRealtimeModelSelected()) {
-                            startRecordingPrompt()
+                            if (streamingTranscriptionEligible()) {
+                                _streamingStopRequested = false
+                                startStreamingTranscriptionSession()
+                            } else {
+                                startRecordingPrompt()
+                            }
                             return true
                         }
                         if (!vmodel.isConnectionLive) {
@@ -413,6 +419,14 @@ class ChatFragment : Fragment(), MenuProvider {
                     MotionEvent.ACTION_UP -> {
                         if (isRealtimeModelSelected()) {
                             stopRealtimeRecording()
+                            return true
+                        }
+                        if (streamingTranscriptionEligible()) {
+                            _streamingStopRequested = true
+                            stopRealtimeRecording()
+                            if (System.currentTimeMillis() - _recordButtonPressTime < MIN_HOLD_RECORD_BUTTON_MILLIS) {
+                                showRecordingHint()
+                            }
                             return true
                         }
                         if (System.currentTimeMillis() - _recordButtonPressTime < MIN_HOLD_RECORD_BUTTON_MILLIS) {
@@ -1417,6 +1431,89 @@ class ChatFragment : Fragment(), MenuProvider {
 
     private fun stopRealtimeSession() {
         vmodel.realtimeJob?.cancel()
+    }
+
+    private fun streamingTranscriptionEligible() =
+        appContext.mainPrefs.openaiApiKey.allowsRealtime()
+
+    // Low-latency push-to-talk for text LLMs: streams audio to gpt-realtime-whisper while
+    // the user speaks, so on release only the trailing audio remains to transcribe. The
+    // captured PCM is teed to a WAV file; if the stream fails we transcribe that file with
+    // gpt-4o-transcribe instead. Capture/glow are shared with the realtime voice path.
+    private fun startStreamingTranscriptionSession() {
+        val activity = requireActivity() as MainActivity
+        if (!checkAndRequestRecordPermission(activity)) {
+            return
+        }
+        val previousJob = vmodel.transcriptionJob?.apply { cancel() }
+        vmodel.handleResponseJob?.cancel()
+        vmodel.transcriptionJob = vmodel.viewModelScope.launch {
+            previousJob?.join()
+            val sampleRate = REALTIME_RECORD_SAMPLE_RATE
+            val recBufSizeBytes = sampleRate * 2
+            val sendBufSizeBytes = 5 * sampleRate * 2
+            val audioRecord = AudioRecord.Builder()
+                .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
+                .setAudioFormat(AudioFormat.Builder()
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(sampleRate)
+                    .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
+                    .build()
+                )
+                .setBufferSizeInBytes(recBufSizeBytes)
+                .build().also { _audioRecord = it }
+            val transcriber = StreamingTranscriber()
+            val wavFile = File(appContext.externalCacheDir, "prompt-stream.wav")
+            var transcript = ""
+            var streamFailed = false
+            try {
+                val sendBuf = ByteBuffer.allocate(sendBufSizeBytes).order(ByteOrder.LITTLE_ENDIAN).also {
+                    _sendBuf = it
+                }
+                val wavOut = wavFile.outputStream().buffered()
+                startRealtimeRecording()
+                if (_streamingStopRequested) {
+                    stopRealtimeRecording()
+                }
+                vmodel.isConnectionLive = true
+                try {
+                    writeWavHeader(wavOut, sampleRate)
+                    transcript = transcriber.transcribe(
+                        sampleRate, sendBuf, audioRecord, appContext.mainPrefs.speechRecogLanguage, wavOut
+                    ) { /* partial transcript available here for a live caption */ }
+                } finally {
+                    wavOut.flush()
+                    wavOut.close()
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e("speech", "Streaming transcription failed; trying file fallback", e)
+                streamFailed = true
+            } finally {
+                _audioRecord = null
+                _sendBuf = null
+                audioRecord.apply { stop(); release() }
+                transcriber.close()
+                vmodel.isConnectionLive = false
+            }
+            if (streamFailed) {
+                transcript = try {
+                    patchWavSizes(wavFile)
+                    val promptContext = vmodel.chatContent.joinToString("\n\n") { it.promptText().toString() }
+                    openAi.transcription(appContext.mainPrefs.speechRecogLanguage, promptContext, wavFile.path)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e("speech", "File-fallback transcription failed", e)
+                    ""
+                }
+            }
+            val finalText = transcript.trim()
+            if (finalText.isNotBlank()) {
+                vmodel.withFragment { it.sendPromptAndReceiveResponse(finalText) }
+            }
+        }
     }
 
     fun lastMessageContainer() =
