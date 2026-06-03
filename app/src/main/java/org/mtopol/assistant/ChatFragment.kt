@@ -422,10 +422,24 @@ class ChatFragment : Fragment(), MenuProvider {
                             return true
                         }
                         if (streamingTranscriptionEligible()) {
-                            _streamingStopRequested = true
-                            stopRealtimeRecording()
                             if (System.currentTimeMillis() - _recordButtonPressTime < MIN_HOLD_RECORD_BUTTON_MILLIS) {
+                                _streamingStopRequested = true
+                                stopRealtimeRecording()
                                 showRecordingHint()
+                                return true
+                            }
+                            // Keep recording (and the glow) through the grace period so the trailing
+                            // audio still makes it into the stream before we commit, then stop.
+                            hintWindow.dismiss()
+                            binding.buttonRecord.isEnabled = false
+                            lifecycleScope.launch {
+                                try {
+                                    delay(STOP_RECORDING_DELAY_MILLIS)
+                                } finally {
+                                    binding.buttonRecord.isEnabled = true
+                                }
+                                _streamingStopRequested = true
+                                stopRealtimeRecording()
                             }
                             return true
                         }
@@ -496,7 +510,7 @@ class ChatFragment : Fragment(), MenuProvider {
             val prompt = binding.edittextPrompt.text.toString()
             if (prompt.isNotEmpty()) {
                 binding.edittextPrompt.editableText.clear()
-                sendPromptAndReceiveResponse(prompt)
+                receiveResponse(prepareNewExchange(requireContext(), PromptPart.Text(prompt)))
             }
         }
         binding.edittextPrompt.apply {
@@ -1050,13 +1064,14 @@ class ChatFragment : Fragment(), MenuProvider {
         vmodel.chatContent.removeLastItem()
     }
 
-    private fun sendPromptAndReceiveImageResponse(prompt: CharSequence) {
+    private fun receiveImageResponse(exchange: Exchange) {
+        val prompt = exchange.promptText() ?: ""
         val previousResponseJob = vmodel.handleResponseJob?.apply { cancel() }
         vmodel.handleResponseJob = vmodel.viewModelScope.launch {
             try {
                 previousResponseJob?.join()
+                vmodel.isConnectionLive = true
                 val context = awaitContext()
-                val exchange = prepareNewExchange(context, PromptPart.Text(prompt))
                 val responseContainer = addMessageContainerToView(context, RESPONSE)
                 val responseText = addTextToView(responseContainer, "", RESPONSE)
                 val editable = responseText.editableText
@@ -1106,15 +1121,44 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun sendPromptAndReceiveTextResponse(finalPart: PromptPart) {
+    // Adds an empty prompt bubble right away and returns it with its (editable) text view, so a
+    // transcription can fill it in — gradually for streaming, or in one shot for the file method.
+    private fun startEmptyPrompt(context: Context): Pair<Exchange, EditText> {
+        val exchange = prepareNewExchange(context, PromptPart.Text(""))
+        val promptView = lastMessageContainer().run { getChildAt(childCount - 1) as EditText }
+        return exchange to promptView
+    }
+
+    // Removes a prompt bubble created by startEmptyPrompt that never got filled (a mis-tap or a
+    // failed/blank transcription), leaving any earlier exchange untouched.
+    private fun removeEmptyPrompt(exchange: Exchange) {
+        if (!exchange.promptText().isNullOrBlank()) {
+            return
+        }
+        if (vmodel.chatContent.lastOrNull() === exchange && exchange.promptParts.size == 1) {
+            vmodel.chatContent.removeLastItem()
+            binding.viewChat.apply { removeViewAt(childCount - 1) }
+        } else if (exchange.promptParts.lastOrNull() is PromptPart.Text) {
+            exchange.removeTextPrompt()
+            lastMessageContainer().apply { removeViewAt(childCount - 1) }
+        }
+    }
+
+    // Keeps the whole prompt bubble in view as transcription fills it in and it grows. Scrolls to
+    // the bubble's bottom (not the top-of-response target) once the new size has been laid out.
+    private fun scrollPromptIntoView() {
+        binding.scrollviewChat.doOnLayout { scrollToBottom(stopAtTopOfResponse = false) }
+    }
+
+    private fun receiveTextResponse(exchange: Exchange) {
         var lastSpokenPos = 0
         val previousResponseJob = vmodel.handleResponseJob?.apply { cancel() }
 
         vmodel.handleResponseJob = vmodel.viewModelScope.launch {
             try {
                 previousResponseJob?.join()
+                vmodel.isConnectionLive = true
                 val context = awaitContext()
-                val exchange = prepareNewExchange(context, finalPart)
                 val replyMarkdown = StringBuilder()
                 val reasoningMarkdown = StringBuilder()
                 exchange.replyMarkdown = replyMarkdown
@@ -1375,11 +1419,11 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun sendPromptAndReceiveResponse(prompt: String) {
+    private fun receiveResponse(exchange: Exchange) {
         if (appContext.mainPrefs.selectedModel.isImageModel()) {
-            sendPromptAndReceiveImageResponse(prompt)
+            receiveImageResponse(exchange)
         } else {
-            sendPromptAndReceiveTextResponse(PromptPart.Text(prompt))
+            receiveTextResponse(exchange)
         }
     }
 
@@ -1449,6 +1493,9 @@ class ChatFragment : Fragment(), MenuProvider {
         vmodel.handleResponseJob?.cancel()
         vmodel.transcriptionJob = vmodel.viewModelScope.launch {
             previousJob?.join()
+            val context = awaitContext()
+            val (exchange, promptView) = startEmptyPrompt(context)
+            scrollPromptIntoView()
             val sampleRate = REALTIME_RECORD_SAMPLE_RATE
             val recBufSizeBytes = sampleRate * 2
             val sendBufSizeBytes = 5 * sampleRate * 2
@@ -1466,52 +1513,63 @@ class ChatFragment : Fragment(), MenuProvider {
             val wavFile = File(appContext.externalCacheDir, "prompt-stream.wav")
             var transcript = ""
             var streamFailed = false
+            var handedOff = false
             try {
-                val sendBuf = ByteBuffer.allocate(sendBufSizeBytes).order(ByteOrder.LITTLE_ENDIAN).also {
-                    _sendBuf = it
-                }
-                val wavOut = wavFile.outputStream().buffered()
-                startRealtimeRecording()
-                if (_streamingStopRequested) {
-                    stopRealtimeRecording()
-                }
-                vmodel.isConnectionLive = true
                 try {
-                    writeWavHeader(wavOut, sampleRate)
-                    transcript = transcriber.transcribe(
-                        sampleRate, sendBuf, audioRecord, appContext.mainPrefs.speechRecogLanguage, wavOut
-                    ) { /* partial transcript available here for a live caption */ }
-                } finally {
-                    wavOut.flush()
-                    wavOut.close()
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e("speech", "Streaming transcription failed; trying file fallback", e)
-                streamFailed = true
-            } finally {
-                _audioRecord = null
-                _sendBuf = null
-                audioRecord.apply { stop(); release() }
-                transcriber.close()
-                vmodel.isConnectionLive = false
-            }
-            if (streamFailed) {
-                transcript = try {
-                    patchWavSizes(wavFile)
-                    val promptContext = vmodel.chatContent.joinToString("\n\n") { it.promptText().toString() }
-                    openAi.transcription(appContext.mainPrefs.speechRecogLanguage, promptContext, wavFile.path)
+                    val sendBuf = ByteBuffer.allocate(sendBufSizeBytes).order(ByteOrder.LITTLE_ENDIAN).also {
+                        _sendBuf = it
+                    }
+                    val wavOut = wavFile.outputStream().buffered()
+                    startRealtimeRecording()
+                    if (_streamingStopRequested) {
+                        stopRealtimeRecording()
+                    }
+                    vmodel.isConnectionLive = true
+                    try {
+                        writeWavHeader(wavOut, sampleRate)
+                        transcript = transcriber.transcribe(
+                            sampleRate, sendBuf, audioRecord, appContext.mainPrefs.speechRecogLanguage, wavOut
+                        ) { partial -> promptView.post { promptView.setText(partial); scrollPromptIntoView() } }
+                    } finally {
+                        wavOut.flush()
+                        wavOut.close()
+                    }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    Log.e("speech", "File-fallback transcription failed", e)
-                    ""
+                    Log.e("speech", "Streaming transcription failed; trying file fallback", e)
+                    streamFailed = true
+                } finally {
+                    _audioRecord = null
+                    _sendBuf = null
+                    audioRecord.apply { stop(); release() }
+                    transcriber.close()
+                    vmodel.isConnectionLive = false
                 }
-            }
-            val finalText = transcript.trim()
-            if (finalText.isNotBlank()) {
-                vmodel.withFragment { it.sendPromptAndReceiveResponse(finalText) }
+                if (streamFailed) {
+                    transcript = try {
+                        patchWavSizes(wavFile)
+                        val promptContext = vmodel.chatContent.joinToString("\n\n") { it.promptText().toString() }
+                        openAi.transcription(appContext.mainPrefs.speechRecogLanguage, promptContext, wavFile.path)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.e("speech", "File-fallback transcription failed", e)
+                        ""
+                    }
+                }
+                val finalText = transcript.trim()
+                if (finalText.isNotBlank()) {
+                    exchange.textPrompt()!!.text = finalText
+                    promptView.setText(finalText)
+                    scrollPromptIntoView()
+                    receiveResponse(exchange)
+                    handedOff = true
+                }
+            } finally {
+                if (!handedOff) {
+                    withContext(NonCancellable) { removeEmptyPrompt(exchange) }
+                }
             }
         }
     }
@@ -1814,8 +1872,12 @@ class ChatFragment : Fragment(), MenuProvider {
         val recordingGlowJob = vmodel.recordingGlowJob
         val previousTranscriptionJob = vmodel.transcriptionJob?.apply { cancel() }
         vmodel.transcriptionJob = vmodel.viewModelScope.launch {
+            previousTranscriptionJob?.join()
+            val context = awaitContext()
+            val (exchange, promptView) = startEmptyPrompt(context)
+            scrollPromptIntoView()
+            var handedOff = false
             try {
-                previousTranscriptionJob?.join()
                 val recordingSuccess = stopRecordingPrompt()
                 if (!recordingSuccess) {
                     return@launch
@@ -1828,26 +1890,32 @@ class ChatFragment : Fragment(), MenuProvider {
                 if (transcription.isBlank()) {
                     return@launch
                 }
-                vmodel.withFragment {
-                    sendPromptAndReceiveResponse(transcription)
-                }
+                exchange.textPrompt()!!.text = transcription
+                promptView.setText(transcription)
+                scrollPromptIntoView()
+                receiveResponse(exchange)
+                handedOff = true
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 Log.e("speech", "Text-to-speech error", e)
-                vmodel.withFragment { fragment ->
+                handedOff = true
+                vmodel.withFragment {
                     val replyMarkdown = StringBuilder()
                     showError(e, replyMarkdown, R.string.transcription_error)
                     if (replyMarkdown.isNotBlank()) {
-                        prepareNewExchange(fragment.requireContext(), PromptPart.Audio(Uri.EMPTY)).also { exchange ->
-                            exchange.replyMarkdown = replyMarkdown.toString()
-                            addTextResponseToView(fragment.requireContext(), exchange)
-                        }
-                        vmodel.isConnectionLive = false
+                        exchange.replyMarkdown = replyMarkdown.toString()
+                        addTextResponseToView(context, exchange)
                         onLayoutScrollToBottom()
+                    } else {
+                        removeEmptyPrompt(exchange)
                     }
+                    vmodel.isConnectionLive = false
                 }
             } finally {
+                if (!handedOff) {
+                    withContext(NonCancellable) { removeEmptyPrompt(exchange) }
+                }
                 recordingGlowJob?.cancel()
             }
         }
