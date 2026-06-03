@@ -47,10 +47,6 @@
             android:title="@string/action_toggle_show_reasoning"
             />
     <item
-            android:id="@+id/action_toggle_send_audio_prompt"
-            android:title="@string/action_toggle_send_audio_prompt"
-            />
-    <item
             android:id="@+id/action_play_store"
             android:title="@string/action_play_store" />
     <item

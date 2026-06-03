@@ -32,7 +32,6 @@ import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
 import android.media.AudioAttributes
 import android.media.MediaCodec
-import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
 import android.os.Build
@@ -65,6 +64,7 @@ import androidx.media3.extractor.SeekPoint
 import androidx.media3.extractor.TrackOutput
 import androidx.preference.PreferenceManager
 import io.ktor.utils.io.ByteReadChannel
+import io.ktor.utils.io.readAvailable
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.runBlocking
@@ -92,7 +92,6 @@ private const val KEY_SYSTEM_PROMPT = "system_prompt"
 private const val KEY_SPEECH_RECOG_LANGUAGE = "speech_recognition_language"
 private const val KEY_LANGUAGES = "languages"
 private const val KEY_IS_MUTED = "is_muted"
-private const val KEY_IS_SEND_AUDIO_PROMPT = "is_send_audio_prompt"
 private const val KEY_IS_SHOW_REASONING = "is_show_reasoning"
 private const val KEY_SELECTED_MODEL = "selected_model"
 private const val KEY_SELECTED_VOICE = "selected_voice"
@@ -187,11 +186,6 @@ fun SharedPreferences.Editor.setDeepSeekApiKey(apiKey: String): SharedPreference
 
 fun SharedPreferences.Editor.setOpenaiApiKey(apiKey: String): SharedPreferences.Editor =
     putString(KEY_OPENAI_API_KEY, apiKey)
-
-val SharedPreferences.isSendAudioPrompt: Boolean get() = getBoolean(KEY_IS_SEND_AUDIO_PROMPT, false)
-
-fun SharedPreferences.Editor.setIsSendAudioPrompt(value: Boolean): SharedPreferences.Editor =
-    putBoolean(KEY_IS_SEND_AUDIO_PROMPT, value)
 
 val SharedPreferences.isShowReasoning: Boolean get() = getBoolean(KEY_IS_SHOW_REASONING, false)
 
@@ -461,32 +455,6 @@ private fun downsample(input: ByteBuffer, output: ByteBuffer) : ByteBuffer {
     }
     downsampledBuf.limit(2 * downsampledShortBuf.position())
     return downsampledBuf
-}
-
-suspend fun convertToWav(inputPath: String, outputPath: String) = withContext(IO) {
-    val extractor = MediaExtractor()
-    val raf = RandomAccessFile(outputPath, "rw")
-    try {
-        raf.setLength(0)
-        raf.seek(WAV_HEADER_SIZE.toLong()) // size of WAV header, to be written in the end
-        extractor.setDataSource(inputPath)
-        val trackIndex = (0..< extractor.trackCount).first {
-            extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true
-        }
-        extractor.selectTrack(trackIndex)
-        val mediaFormat = extractor.getTrackFormat(trackIndex)
-        pushThroughDecoder(
-            mediaFormat,
-            { buf -> extractor.readSampleData(buf, 0).also { if (it >= 0) extractor.advance() } },
-            { buf -> raf.channel.write(buf) }
-        )
-        val headerBuf = buildWavHeader(raf.length(), mediaFormat)
-        raf.seek(0)
-        raf.channel.write(headerBuf)
-    } finally {
-        extractor.release()
-        raf.close()
-    }
 }
 
 private suspend fun pushThroughDecoder(

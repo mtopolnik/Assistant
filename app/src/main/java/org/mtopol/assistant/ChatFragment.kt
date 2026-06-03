@@ -431,7 +431,7 @@ class ChatFragment : Fragment(), MenuProvider {
                             } finally {
                                 binding.buttonRecord.isEnabled = true
                             }
-                            sendRecordedPrompt()
+                            transcribeAndSendPrompt()
                         }
                         return true
                     }
@@ -856,12 +856,6 @@ class ChatFragment : Fragment(), MenuProvider {
                         item.isChecked = appContext.mainPrefs.isShowReasoning
                         syncChatView()
                     }
-                    R.id.action_toggle_send_audio_prompt -> {
-                        appContext.mainPrefs.applyUpdate {
-                            setIsSendAudioPrompt(!appContext.mainPrefs.isSendAudioPrompt)
-                        }
-                        item.isChecked = appContext.mainPrefs.isSendAudioPrompt
-                    }
                     in voiceMenuItem.subMenu!!.children.map { it.itemId } -> {
                         selectVoice(item.itemId)
                     }
@@ -903,9 +897,6 @@ class ChatFragment : Fragment(), MenuProvider {
             menu.findItem(R.id.submenu_chats)?.also { chatsMenuItem = it }
             menu.findItem(R.id.action_toggle_show_reasoning)?.also {
                 it.isChecked = appContext.mainPrefs.isShowReasoning
-            }
-            menu.findItem(R.id.action_toggle_send_audio_prompt)?.also {
-                it.isChecked = appContext.mainPrefs.isSendAudioPrompt
             }
         }
     }
@@ -1597,7 +1588,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 vmodel.withFragment { it.binding.showRecordingGlow() }
                 launch {
                     delay(MAX_RECORDING_TIME_MILLIS)
-                    sendRecordedPrompt()
+                    transcribeAndSendPrompt()
                 }
                 var lastPeak = 0f
                 var lastPeakTime = 0L
@@ -1722,15 +1713,6 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
-    private fun sendRecordedPrompt() {
-        val mainPrefs = appContext.mainPrefs
-        if (mainPrefs.isSendAudioPrompt && mainPrefs.selectedModel == AiModel.GPT_5) {
-            sendAudioPrompt()
-        } else {
-            transcribeAndSendPrompt()
-        }
-    }
-
     private fun transcribeAndSendPrompt() {
         val recordingGlowJob = vmodel.recordingGlowJob
         val previousTranscriptionJob = vmodel.transcriptionJob?.apply { cancel() }
@@ -1770,29 +1752,6 @@ class ChatFragment : Fragment(), MenuProvider {
                 }
             } finally {
                 recordingGlowJob?.cancel()
-            }
-        }
-    }
-
-    private fun sendAudioPrompt() {
-        val recordingGlowJob = vmodel.recordingGlowJob
-        vmodel.viewModelScope.launch {
-            val recordingSuccess = stopRecordingPrompt()
-            recordingGlowJob?.cancel()
-            if (!recordingSuccess) {
-                return@launch
-            }
-            val wavPathname = audioPathname.replaceAfterLast('.', "wav")
-            Log.i("audio", "Decoding recorded prompt to WAV")
-            try {
-                convertToWav(audioPathname, wavPathname)
-                val wavFile = File(wavPathname)
-                Log.i("audio", "WAV saved: ${wavFile.length()} bytes in $wavPathname")
-                vmodel.withFragment {
-                    sendPromptAndReceiveTextResponse(PromptPart.Audio(Uri.fromFile(wavFile)))
-                }
-            } catch (e: Exception) {
-                Log.e("audio", "Conversion failed", e)
             }
         }
     }
@@ -2217,7 +2176,6 @@ class Exchange(
     fun textPrompt(): PromptPart.Text? = promptParts.find { it is PromptPart.Text } as PromptPart.Text?
     fun promptText(): CharSequence? = textPrompt()?.text
     fun audioPrompt() = promptParts.find { it is PromptPart.Audio } as PromptPart.Audio?
-    fun hasAudioPrompt() = audioPrompt() != null
     fun hasImagePrompt() = promptParts.find { it is PromptPart.Image } != null
 
     fun hasFinalPromptPart() = when (promptParts.lastOrNull()) {

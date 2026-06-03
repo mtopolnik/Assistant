@@ -33,6 +33,7 @@ import android.util.Base64.NO_WRAP
 import android.util.Log
 import android.widget.TextView
 import android.widget.Toast
+import androidx.annotation.OptIn
 import androidx.core.net.toFile
 import androidx.core.net.toUri
 import androidx.core.view.children
@@ -115,7 +116,6 @@ val openAi get() = openAiLazy.value
 const val MODEL_ID_GPT_41_MINI = "gpt-4.1-mini"
 const val MODEL_ID_GPT_5_MINI = "gpt-5-mini"
 const val MODEL_ID_GPT_52 = "gpt-5.2"
-const val MODEL_ID_GPT_AUDIO = "gpt-audio-1.5"
 const val MODEL_ID_GPT_REALTIME = "gpt-realtime-2"
 const val MODEL_ID_GPT_REALTIME_MINI = "gpt-realtime-mini"
 const val MODEL_ID_GPT_IMAGE_15 = "gpt-image-2"
@@ -163,10 +163,7 @@ class OpenAI {
             return mockResponse.toCharArray().asList().chunked(4).asFlow().map { delay(120); it.joinToString("") }
         }
         val client = selectClient(model)
-        val modelId = when {
-            model == AiModel.GPT_5 && history.find { it.hasAudioPrompt() } != null -> MODEL_ID_GPT_AUDIO
-            else -> model.apiId
-        }
+        val modelId = model.apiId
         Log.i("client", "Model: $modelId")
         return chatCompletions(
             client, ChatCompletionRequest(
@@ -722,12 +719,12 @@ class OpenAI {
 
     private suspend fun List<Exchange>.toDto() = flatMap { exchange ->
         listOf(
-            ChatMessage.Full("user", exchange.promptParts.map { it.toContentPart() }),
+            ChatMessage.Full("user", exchange.promptParts.mapNotNull { it.toContentPart() }),
             ChatMessage.Simple("assistant", exchange.replyMarkdown.toString()),
         )
     }
 
-    private suspend fun PromptPart.toContentPart() = withContext(IO) {
+    private suspend fun PromptPart.toContentPart(): ContentPart? = withContext(IO) {
 
         fun readBase64(uri: Uri): String {
             val bytes = uri.inputStream()!!.use { input ->
@@ -745,13 +742,7 @@ class OpenAI {
                     "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=="
                 }
             )
-            is PromptPart.Audio -> ContentPart.Audio(
-                try {
-                    InputAudio(readBase64(uri), uri.toFile().extension)
-                } catch (e: Exception) {
-                    InputAudio("UklGRvj///9XQVZFZm10IBAAAAABAAEAwF0AAIC7AAACABAAZGF0YdT///8=", "wav")
-                }
-            )
+            is PromptPart.Audio -> null
         }
     }
 
@@ -808,22 +799,10 @@ class OpenAI {
         @SerialName("image_url")
         class Image(val image_url: DataUrl) : ContentPart()
 
-        @Serializable
-        @SerialName("input_audio")
-        class Audio(
-            val input_audio: InputAudio
-        ) : ContentPart()
-
         companion object {
             fun Image(imgUrl: String) = Image(DataUrl(imgUrl))
         }
     }
-
-    @Serializable
-    class InputAudio(
-        val data: String,
-        val format: String
-    )
 
     @Serializable
     class DataUrl(
