@@ -39,8 +39,8 @@ android {
 dependencies {
     implementation 'androidx.core:core-ktx:1.18.0'
     implementation 'androidx.appcompat:appcompat:1.7.1'
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2'
-    implementation 'com.google.android.material:material:1.13.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.11.0'
+    implementation 'com.google.android.material:material:1.14.0'
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.10.0'
     implementation 'androidx.fragment:fragment-ktx:1.8.9'
     implementation 'androidx.preference:preference-ktx:1.2.1'
@@ -48,7 +48,7 @@ dependencies {
     implementation 'androidx.navigation:navigation-ui-ktx:2.9.8'
 
     implementation 'com.google.mlkit:language-id:17.0.6'
-    implementation platform('io.ktor:ktor-bom:3.4.3')
+    implementation platform('io.ktor:ktor-bom:3.5.0')
     implementation 'io.ktor:ktor-client-okhttp'
     implementation 'io.ktor:ktor-client-logging'
     implementation 'io.ktor:ktor-client-websockets'
@@ -62,7 +62,7 @@ dependencies {
 
     implementation 'io.noties.markwon:core:4.6.2'
 
-    implementation 'androidx.media3:media3-common:1.10.0'
-    implementation 'androidx.media3:media3-datasource:1.10.0'
-    implementation 'androidx.media3:media3-exoplayer:1.10.0'
+    implementation 'androidx.media3:media3-common:1.10.1'
+    implementation 'androidx.media3:media3-datasource:1.10.1'
+    implementation 'androidx.media3:media3-exoplayer:1.10.1'
 }
