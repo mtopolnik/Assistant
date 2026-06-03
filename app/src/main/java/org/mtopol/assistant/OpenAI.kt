@@ -114,8 +114,8 @@ import io.ktor.websocket.send as wsend
 val openAi get() = openAiLazy.value
 
 const val MODEL_ID_GPT_41_MINI = "gpt-4.1-mini"
-const val MODEL_ID_GPT_5_MINI = "gpt-5-mini"
-const val MODEL_ID_GPT_52 = "gpt-5.2"
+const val MODEL_ID_GPT_54_MINI = "gpt-5.4-mini"
+const val MODEL_ID_GPT_54 = "gpt-5.4"
 const val MODEL_ID_GPT_REALTIME = "gpt-realtime-2"
 const val MODEL_ID_GPT_REALTIME_MINI = "gpt-realtime-mini"
 const val MODEL_ID_GPT_IMAGE_15 = "gpt-image-2"

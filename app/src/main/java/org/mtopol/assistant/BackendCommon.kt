@@ -64,11 +64,11 @@ enum class AiModel(
     GROK(MODEL_ID_GROK_420_NON_REASONING, "Grok", "Grok 4.20 Non-reasoning", AiVendor.XAI),
     GROK_REASONING(MODEL_ID_GROK_43, "Grok Think", "Grok 4.3", AiVendor.XAI),
     GROK_IMAGINE(MODEL_ID_GROK_IMAGINE, "Grok Img", "Grok Imagine", AiVendor.XAI),
-    GPT_5(MODEL_ID_GPT_52, "GPT-5.2", "GPT-5.2", AiVendor.OPENAI),
-    GPT_5_MINI(MODEL_ID_GPT_5_MINI, "GPT-5-min", "GPT-5-mini", AiVendor.OPENAI),
-    GPT_REALTIME(MODEL_ID_GPT_REALTIME, "GPT RT", "GPT Realtime 1.5", AiVendor.OPENAI),
+    GPT_5(MODEL_ID_GPT_54, "GPT-5.4", "GPT-5.4", AiVendor.OPENAI),
+    GPT_5_MINI(MODEL_ID_GPT_54_MINI, "GPT-54min", "GPT-5.4-mini", AiVendor.OPENAI),
+    GPT_REALTIME(MODEL_ID_GPT_REALTIME, "GPT RT", "GPT Realtime 2", AiVendor.OPENAI),
     GPT_REALTIME_MINI(MODEL_ID_GPT_REALTIME_MINI, "RT min", "GPT Realtime Mini", AiVendor.OPENAI),
-    GPT_IMAGE_15(MODEL_ID_GPT_IMAGE_15, "GPT Image", "GPT Image 1.5", AiVendor.OPENAI);
+    GPT_IMAGE_15(MODEL_ID_GPT_IMAGE_15, "GPT Image", "GPT Image 2", AiVendor.OPENAI);
 
     fun isImageModel() = this == GPT_IMAGE_15 || this == GROK_IMAGINE
 }
