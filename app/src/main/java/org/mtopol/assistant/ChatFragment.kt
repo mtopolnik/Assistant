@@ -233,7 +233,6 @@ class ChatFragment : Fragment(), MenuProvider {
     private var _mediaRecorder: MediaRecorder? = null
     private var _audioRecord: AudioRecord? = null
     private var _sendBuf: ByteBuffer? = null
-    private var _streamingStopRequested = false
     private var _pcmTee: java.io.OutputStream? = null
 
     private val permissionRequest =
@@ -395,12 +394,7 @@ class ChatFragment : Fragment(), MenuProvider {
                     MotionEvent.ACTION_DOWN -> {
                         _recordButtonPressTime = System.currentTimeMillis()
                         if (!isRealtimeModelSelected()) {
-                            if (streamingTranscriptionEligible()) {
-                                _streamingStopRequested = false
-                                startStreamingTranscriptionSession()
-                            } else {
-                                startRecordingPrompt()
-                            }
+                            startStreamingTranscriptionSession()
                             return true
                         }
                         if (!vmodel.isConnectionLive) {
@@ -416,45 +410,22 @@ class ChatFragment : Fragment(), MenuProvider {
                             stopRealtimeRecording()
                             return true
                         }
-                        if (streamingTranscriptionEligible()) {
-                            if (System.currentTimeMillis() - _recordButtonPressTime < MIN_HOLD_RECORD_BUTTON_MILLIS) {
-                                _streamingStopRequested = true
-                                stopRealtimeRecording()
-                                showRecordingHint()
-                                return true
-                            }
-                            // Keep recording (and the glow) through the grace period so the trailing
-                            // audio still makes it into the stream before we commit, then stop.
-                            hintWindow.dismiss()
-                            binding.buttonRecord.isEnabled = false
-                            lifecycleScope.launch {
-                                try {
-                                    delay(STOP_RECORDING_DELAY_MILLIS)
-                                } finally {
-                                    binding.buttonRecord.isEnabled = true
-                                }
-                                _streamingStopRequested = true
-                                stopRealtimeRecording()
-                            }
-                            return true
-                        }
                         if (System.currentTimeMillis() - _recordButtonPressTime < MIN_HOLD_RECORD_BUTTON_MILLIS) {
-                            showRecordingHint()
+                            vmodel.transcriptionJob?.cancel()
+                            showRecordingHintPopup()
                             return true
                         }
+                        // Keep recording (and the glow) through the grace period so the trailing
+                        // audio still makes it into the stream before we commit, then stop.
                         hintWindow.dismiss()
-                        if (_mediaRecorder == null) {
-                            return true
-                        }
                         binding.buttonRecord.isEnabled = false
                         lifecycleScope.launch {
                             try {
                                 delay(STOP_RECORDING_DELAY_MILLIS)
-                                vibrate()
                             } finally {
                                 binding.buttonRecord.isEnabled = true
                             }
-                            transcribeAndSendPrompt()
+                            stopRealtimeRecording()
                         }
                         return true
                     }
@@ -462,13 +433,7 @@ class ChatFragment : Fragment(), MenuProvider {
                 return false
             }
 
-            private fun showRecordingHint() {
-                vmodel.recordingGlowJob?.cancel()
-                vmodel.viewModelScope.launch {
-                    binding.buttonRecord.isEnabled = false
-                    stopRecordingPrompt()
-                    binding.buttonRecord.isEnabled = true
-                }
+            private fun showRecordingHintPopup() {
                 if (hintWindow.isShowing) {
                     return
                 }
@@ -1472,9 +1437,6 @@ class ChatFragment : Fragment(), MenuProvider {
         vmodel.realtimeJob?.cancel()
     }
 
-    private fun streamingTranscriptionEligible() =
-        appContext.mainPrefs.openaiApiKey.allowsRealtime()
-
     // Low-latency push-to-talk for text LLMs: streams audio to gpt-realtime-whisper while
     // the user speaks, so on release only the trailing audio remains to transcribe. The
     // captured PCM is teed to a WAV file; if the stream fails we transcribe that file with
@@ -1528,9 +1490,6 @@ class ChatFragment : Fragment(), MenuProvider {
                     // recording drives the normal commit/transcribe flow.
                     capJob = launch {
                         delay(MAX_RECORDING_TIME_MILLIS)
-                        stopRealtimeRecording()
-                    }
-                    if (_streamingStopRequested) {
                         stopRealtimeRecording()
                     }
                     vmodel.isConnectionLive = true
@@ -1777,59 +1736,6 @@ class ChatFragment : Fragment(), MenuProvider {
                 vibrate()
             }
             stop()
-        }
-    }
-
-    private fun transcribeAndSendPrompt() {
-        val recordingGlowJob = vmodel.recordingGlowJob
-        val previousTranscriptionJob = vmodel.transcriptionJob?.apply { cancel() }
-        vmodel.transcriptionJob = vmodel.viewModelScope.launch {
-            previousTranscriptionJob?.join()
-            val context = awaitContext()
-            val (exchange, promptView) = startEmptyPrompt(context)
-            scrollPromptIntoView()
-            var handedOff = false
-            try {
-                val recordingSuccess = stopRecordingPrompt()
-                if (!recordingSuccess) {
-                    return@launch
-                }
-                val prefs = appContext.mainPrefs
-                val promptContext =
-                    vmodel.chatContent.joinToString("\n\n") { it.promptText().toString() }
-                val transcription =
-                    openAi.transcription(prefs.speechRecogLanguage, promptContext, audioPathname)
-                if (transcription.isBlank()) {
-                    return@launch
-                }
-                exchange.textPrompt()!!.text = transcription
-                promptView.setText(transcription)
-                scrollPromptIntoView()
-                receiveResponse(exchange)
-                handedOff = true
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e("speech", "Text-to-speech error", e)
-                handedOff = true
-                vmodel.withFragment {
-                    val replyMarkdown = StringBuilder()
-                    showError(e, replyMarkdown, R.string.transcription_error)
-                    if (replyMarkdown.isNotBlank()) {
-                        exchange.replyMarkdown = replyMarkdown.toString()
-                        addTextResponseToView(context, exchange)
-                        onLayoutScrollToBottom()
-                    } else {
-                        removeEmptyPrompt(exchange)
-                    }
-                    vmodel.isConnectionLive = false
-                }
-            } finally {
-                if (!handedOff) {
-                    withContext(NonCancellable) { removeEmptyPrompt(exchange) }
-                }
-                recordingGlowJob?.cancel()
-            }
         }
     }
 
