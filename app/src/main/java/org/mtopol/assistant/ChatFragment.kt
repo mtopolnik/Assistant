@@ -1870,7 +1870,7 @@ class ChatFragment : Fragment(), MenuProvider {
                         val pcmBytes = ByteArray(readSize * 2)
                         ByteBuffer.wrap(pcmBytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
                             .put(readBuf, 0, readSize)
-                        withContext(IO) { tee.write(pcmBytes) }
+                        tee.write(pcmBytes)
                     }
                 }
             } finally {
