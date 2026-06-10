@@ -18,6 +18,9 @@
 package org.mtopol.assistant
 
 import android.Manifest.permission
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
@@ -54,6 +57,7 @@ import android.view.View.MeasureSpec
 import android.view.View.OnTouchListener
 import android.view.View.VISIBLE
 import android.view.ViewGroup
+import android.view.animation.LinearInterpolator
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
@@ -111,6 +115,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers.Default
 import kotlinx.coroutines.Dispatchers.IO
+import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.android.awaitFrame
@@ -146,6 +151,7 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlin.Result.Companion.failure
 import kotlin.Result.Companion.success
 import kotlin.coroutines.Continuation
+import kotlin.coroutines.resume
 import kotlin.math.abs
 import kotlin.math.log2
 import kotlin.math.max
@@ -365,7 +371,7 @@ class ChatFragment : Fragment(), MenuProvider {
         }
         var userIsTouching = false
         binding.scrollviewChat.apply {
-            setOnTouchListener { _, event ->
+            setOnTouchListener { view, event ->
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> userIsTouching = true
                     MotionEvent.ACTION_UP -> userIsTouching = false
@@ -542,7 +548,7 @@ class ChatFragment : Fragment(), MenuProvider {
         return binding.root
     }
 
-    private inner class ExitFullScreenListener : GestureDetector.SimpleOnGestureListener() {
+    private inner class ExitFullScreenListener() : GestureDetector.SimpleOnGestureListener() {
         override fun onSingleTapUp(e: MotionEvent): Boolean {
             exitFullScreen()
             return true
@@ -1177,8 +1183,8 @@ class ChatFragment : Fragment(), MenuProvider {
                         AiVendor.ANTHROPIC -> anthropic.messages(vmodel.chatContent, selectedModel)
                         else -> openAi.chatCompletions(vmodel.chatContent, selectedModel)
                     }
-                    var reasoningLen = 0
-                    var replyInitDone = false
+                    var reasoningLen = 0;
+                    var replyInitDone = false;
                     var textViewUpdateTime = 0L
                     responseFlow
                         .onStart { vmodel.withFragment { (it.activity as MainActivity).unlockOrientation() } }
@@ -1405,7 +1411,7 @@ class ChatFragment : Fragment(), MenuProvider {
                         if (!cancelled) {
                             mediaPlayer.play(it)
                         }
-                    } catch (_: CancellationException) {
+                    } catch (e: CancellationException) {
                         cancelled = true
                     } finally {
                         it.delete()
@@ -1672,6 +1678,56 @@ class ChatFragment : Fragment(), MenuProvider {
         }
     }
 
+    private fun startRecordingPrompt() {
+        val activity = requireActivity() as MainActivity
+
+        if (!checkAndRequestRecordPermission(activity)) {
+            return
+        }
+        vmodel.transcriptionJob?.cancel()
+        vmodel.handleResponseJob?.cancel()
+        activity.lockOrientation()
+        try {
+            val mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                MediaRecorder(appContext)
+            } else {
+                @Suppress("DEPRECATION")
+                MediaRecorder()
+            }.also {
+                _mediaRecorder = it
+            }
+            mediaRecorder.apply {
+                setAudioSource(MediaRecorder.AudioSource.MIC)
+                setAudioChannels(1)
+                setAudioSamplingRate(16000)
+                if (mediaRecorderCanUseOpus) {
+                    setOutputFormat(MediaRecorder.OutputFormat.OGG)
+                    setAudioEncoder(MediaRecorder.AudioEncoder.OPUS)
+                } else {
+                    setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                    setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                }
+                setOutputFile(audioPathname)
+                prepare()
+                start()
+            }
+            vibrate()
+            animatePromptGlow()
+        } catch (e: Exception) {
+            Log.e("speech", "Voice recording error", e)
+            Toast.makeText(
+                requireContext(),
+                getString(R.string.recording_error),
+                Toast.LENGTH_SHORT
+            ).show()
+            vmodel.recordingGlowJob?.cancel()
+            lifecycleScope.launch {
+                stopRecordingPrompt()
+                vmodel.withFragment { it.binding.buttonRecord.isEnabled = true }
+            }
+        }
+    }
+
     private suspend fun stopRecordingPrompt(): Boolean {
         Log.i("recording", "stopRecording()")
         val mediaRecorder = _mediaRecorder ?: return false
@@ -1679,7 +1735,7 @@ class ChatFragment : Fragment(), MenuProvider {
         return withContext(IO) {
             try {
                 mediaRecorder.stop(); true
-            } catch (_: Exception) {
+            } catch (e: Exception) {
                 File(audioPathname).delete(); false
             } finally {
                 mediaRecorder.release()
@@ -1699,6 +1755,69 @@ class ChatFragment : Fragment(), MenuProvider {
         if (vmodel.recordingGlowJob == coroutineContext[Job]!!) {
             vmodel.withFragment { it.binding.recordingGlow.visibility = INVISIBLE }
             vmodel.recordingGlowJob = null
+        }
+    }
+
+    private fun animatePromptGlow() {
+        val previousRecordingGlowJob = vmodel.recordingGlowJob?.apply { cancel() }
+        vmodel.recordingGlowJob = vmodel.viewModelScope.launch {
+            try {
+                previousRecordingGlowJob?.join()
+                vmodel.withFragment { it.binding.showRecordingGlow() }
+                launch {
+                    delay(MAX_RECORDING_TIME_MILLIS)
+                    transcribeAndSendPrompt()
+                }
+                var lastPeak = 0f
+                var lastPeakTime = 0L
+                var lastRecordingVolume = 0f
+                while (true) {
+                    val frameTime = awaitFrame()
+                    val mediaRecorder = _mediaRecorder ?: break
+                    val soundVolume = (log2(mediaRecorder.maxAmplitude.toDouble()) / 15).toFloat().coerceAtLeast(0f)
+                    val decayingPeak =
+                        lastPeak * (1f - 2 * nanosToSeconds(frameTime - lastPeakTime))
+                    lastRecordingVolume = if (decayingPeak > soundVolume) {
+                        decayingPeak
+                    } else {
+                        lastPeak = soundVolume
+                        lastPeakTime = frameTime
+                        soundVolume
+                    }
+                    vmodel.withFragment { it.binding.recordingGlow.setVolume(lastRecordingVolume) }
+                }
+
+                fun ValueAnimator.connectWithGlow() {
+                    addUpdateListener { anim ->
+                        vmodel.withFragment { it.binding.recordingGlow.setVolume(anim.animatedValue as Float) }
+                    }
+                }
+
+                val low = 0.125f
+                val high = 0.25f
+                ValueAnimator.ofFloat(lastRecordingVolume, high).apply {
+                    duration = 300
+                    interpolator = LinearInterpolator()
+                    connectWithGlow()
+                    run()
+                }
+                while (true) {
+                    ValueAnimator.ofFloat(high, low).apply {
+                        duration = 600
+                        interpolator = LinearInterpolator()
+                        connectWithGlow()
+                        run()
+                    }
+                    ValueAnimator.ofFloat(low, high).apply {
+                        duration = 300
+                        interpolator = android.view.animation.DecelerateInterpolator()
+                        connectWithGlow()
+                        run()
+                    }
+                }
+            } finally {
+                cleanupRecordingGlowJob()
+            }
         }
     }
 
@@ -1882,6 +2001,22 @@ class ChatFragment : Fragment(), MenuProvider {
             .hideSoftInputFromWindow(binding.root.windowToken, 0)
     }
 
+    private suspend fun ValueAnimator.run() {
+        withContext(Main) {
+            suspendCancellableCoroutine { cont ->
+                addListener(object : AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(a: Animator) {
+                        cont.resume(Unit)
+                    }
+                })
+                cont.invokeOnCancellation {
+                    cancel()
+                }
+                start()
+            }
+        }
+    }
+
     private fun addMessageContainerToView(context: Context, messageType: MessageType): LinearLayout {
         val chatView = binding.viewChat
         val container = LayoutInflater.from(context)
@@ -1935,7 +2070,7 @@ class ChatFragment : Fragment(), MenuProvider {
     private fun addResponseToView(context: Context, exchange: Exchange): TextView {
         val responseContainer = addMessageContainerToView(context, RESPONSE)
         val textView = addTextToView(responseContainer,
-            combineMarkdown(exchange.reasoningMarkdown, exchange.replyMarkdown),
+            combineMarkdown(exchange.reasoningMarkdown ?: "", exchange.replyMarkdown),
             RESPONSE)
         addImagesToView(responseContainer, exchange.replyImageUris)
         return textView
@@ -2204,7 +2339,7 @@ class UtteranceContinuationListener<T>(
         continuation.resumeWith(failure(Exception("TextToSpeech error code $errorCode")))
     }
 
-    @Deprecated("deprecated abstract method")
+    @Deprecated("", ReplaceWith("Can't replace, it's an abstract method!"))
     override fun onError(utteranceId: String) {
         onError(utteranceId, TextToSpeech.ERROR)
     }
@@ -2236,6 +2371,8 @@ class Exchange(
 
     fun textPrompt(): PromptPart.Text? = promptParts.find { it is PromptPart.Text } as PromptPart.Text?
     fun promptText(): CharSequence? = textPrompt()?.text
+    fun audioPrompt() = promptParts.find { it is PromptPart.Audio } as PromptPart.Audio?
+    fun hasImagePrompt() = promptParts.find { it is PromptPart.Image } != null
 
     fun hasFinalPromptPart() = when (promptParts.lastOrNull()) {
         null, is PromptPart.Image -> false
