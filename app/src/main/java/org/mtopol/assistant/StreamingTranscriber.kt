@@ -41,7 +41,6 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
-import java.io.IOException
 import java.io.OutputStream
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
@@ -52,7 +51,7 @@ private const val WHISPER_MODEL = "gpt-realtime-whisper"
 
 // How much to lower latency at the cost of transcript quality.
 // One of: minimal, low, medium, high, xhigh.
-private const val WHISPER_DELAY = "minimal"
+private const val WHISPER_DELAY = "xhigh"
 
 // After AudioRecord stops, wait this long for the capture loop to drain the last
 // samples into the send buffer before committing.
@@ -83,17 +82,19 @@ class StreamingTranscriber {
      * Opens a transcription session, streams PCM16 from [sendBuf] while
      * [audioRecord] keeps recording, commits the buffer once recording stops,
      * and returns the final transcript. Partial transcripts are delivered to
-     * [onPartial] as they arrive.
+     * [onPartial] as they arrive. Every PCM byte sent is also mirrored to
+     * [teeOut] when non-null, so the caller can fall back to file-based
+     * transcription if the stream fails.
      *
      * @return the final transcript, or "" if too little audio was recorded.
-     * @throws Exception if the session can't connect or reports an error, so
-     *   the caller can fall back to file-based transcription.
+     * @throws Exception if the session reports an error.
      */
     suspend fun transcribe(
         sampleRate: Int,
         sendBuf: ByteBuffer,
         audioRecord: AudioRecord,
         language: String?,
+        teeOut: OutputStream?,
         onPartial: (String) -> Unit,
     ): String {
         val bytesFor50ms = sampleRate / 10            // 50 ms of 16-bit mono == sampleRate/10 bytes
@@ -117,11 +118,8 @@ class StreamingTranscriber {
                         if (result.isCompleted) break
                     }
                 } finally {
-                    // Socket closed before a `completed` event (e.g. the connection broke): fail so
-                    // the caller falls back to file transcription of the full recording.
-                    if (!result.isCompleted) {
-                        result.completeExceptionally(IOException("Transcription stream closed before completing"))
-                    }
+                    // Stream closed without a `completed` event: fall back to whatever partials we got.
+                    if (!result.isCompleted) result.complete(partial.toString().trim())
                 }
             }
 
@@ -147,6 +145,7 @@ class StreamingTranscriber {
                             } else null
                         }
                         if (chunk != null) {
+                            teeOut?.write(chunk)
                             send(Frame.Text(appendJson(Base64.encodeToString(chunk, NO_WRAP))))
                             continue
                         }

@@ -240,7 +240,6 @@ class ChatFragment : Fragment(), MenuProvider {
     private var _audioRecord: AudioRecord? = null
     private var _sendBuf: ByteBuffer? = null
     private var _streamingStopRequested = false
-    private var _pcmTee: java.io.OutputStream? = null
 
     private val permissionRequest =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -1515,50 +1514,37 @@ class ChatFragment : Fragment(), MenuProvider {
             var transcript = ""
             var streamFailed = false
             var handedOff = false
-            var captureJob: Job? = null
             try {
-                val wavOut = wavFile.outputStream().buffered()
                 try {
                     val sendBuf = ByteBuffer.allocate(sendBufSizeBytes).order(ByteOrder.LITTLE_ENDIAN).also {
                         _sendBuf = it
                     }
-                    // Capture to the fallback WAV from the mic itself, before the websocket is even
-                    // involved, so the recording survives a connect failure or a mid-session break.
-                    writeWavHeader(wavOut, sampleRate)
-                    _pcmTee = wavOut
+                    val wavOut = wavFile.outputStream().buffered()
                     startRealtimeRecording()
-                    captureJob = vmodel.recordingGlowJob
                     if (_streamingStopRequested) {
                         stopRealtimeRecording()
                     }
                     vmodel.isConnectionLive = true
                     try {
+                        writeWavHeader(wavOut, sampleRate)
                         transcript = transcriber.transcribe(
-                            sampleRate, sendBuf, audioRecord, appContext.mainPrefs.speechRecogLanguage
+                            sampleRate, sendBuf, audioRecord, appContext.mainPrefs.speechRecogLanguage, wavOut
                         ) { partial -> promptView.post { promptView.setText(partial); scrollPromptIntoView() } }
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        Log.e("speech", "Streaming transcription failed; trying file fallback", e)
-                        streamFailed = true
+                    } finally {
+                        wavOut.flush()
+                        wavOut.close()
                     }
-                    // Wait for recording to finish so the WAV holds the whole utterance, even if the
-                    // stream died early while the user was still speaking.
-                    captureJob?.join()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e("speech", "Streaming transcription failed; trying file fallback", e)
+                    streamFailed = true
                 } finally {
-                    // Make sure the capture loop has stopped writing before we close the WAV.
-                    withContext(NonCancellable) {
-                        stopRealtimeRecording()
-                        captureJob?.join()
-                    }
-                    _pcmTee = null
                     _audioRecord = null
                     _sendBuf = null
                     audioRecord.apply { stop(); release() }
                     transcriber.close()
                     vmodel.isConnectionLive = false
-                    wavOut.flush()
-                    wavOut.close()
                 }
                 if (streamFailed) {
                     transcript = try {
@@ -1863,14 +1849,6 @@ class ChatFragment : Fragment(), MenuProvider {
                             sendShortBuf.put(readBuf, 0, putSizeInShorts)
                             sendBuf.position(sendBuf.position() + 2 * putSizeInShorts)
                         }
-                    }
-                    // Mirror captured PCM to the fallback WAV (set up by the streaming session),
-                    // independent of the websocket, so the recording survives any stream failure.
-                    _pcmTee?.also { tee ->
-                        val pcmBytes = ByteArray(readSize * 2)
-                        ByteBuffer.wrap(pcmBytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
-                            .put(readBuf, 0, readSize)
-                        tee.write(pcmBytes)
                     }
                 }
             } finally {
