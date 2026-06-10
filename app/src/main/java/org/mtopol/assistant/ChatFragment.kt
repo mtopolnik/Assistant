@@ -1516,7 +1516,6 @@ class ChatFragment : Fragment(), MenuProvider {
             var streamFailed = false
             var handedOff = false
             var captureJob: Job? = null
-            var capJob: Job? = null
             try {
                 val wavOut = wavFile.outputStream().buffered()
                 try {
@@ -1529,13 +1528,6 @@ class ChatFragment : Fragment(), MenuProvider {
                     _pcmTee = wavOut
                     startRealtimeRecording()
                     captureJob = vmodel.recordingGlowJob
-                    // Cap the recording length (as the file-based path does), so a stuck or
-                    // forgotten hold can't stream — and buffer to WAV — without bound. Stopping
-                    // recording drives the normal commit/transcribe flow.
-                    capJob = launch {
-                        delay(MAX_RECORDING_TIME_MILLIS)
-                        stopRealtimeRecording()
-                    }
                     if (_streamingStopRequested) {
                         stopRealtimeRecording()
                     }
@@ -1554,7 +1546,6 @@ class ChatFragment : Fragment(), MenuProvider {
                     // stream died early while the user was still speaking.
                     captureJob?.join()
                 } finally {
-                    capJob?.cancel()
                     // Make sure the capture loop has stopped writing before we close the WAV.
                     withContext(NonCancellable) {
                         stopRealtimeRecording()
