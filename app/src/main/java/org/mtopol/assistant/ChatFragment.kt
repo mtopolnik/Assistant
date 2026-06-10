@@ -843,25 +843,23 @@ class ChatFragment : Fragment(), MenuProvider {
                         val chatId = item.itemId - CHATS_MENUITEM_ID_BASE
                         Log.i("chats", "chatId $chatId vmodel.chatId ${vmodel.chatId}")
                         if (chatId != vmodel.chatId) {
-                            lifecycleScope.launch {
-                                withContext(NonCancellable) {
-                                    saveOrDeleteCurrentChat()
-                                    vmodel.handleResponseJob?.cancel()
-                                    vmodel.realtimeJob?.cancel()
-                                    vmodel.handleResponseJob?.join()
-                                    vmodel.realtimeJob?.join()
-                                    binding.edittextPrompt.editableText.clear()
-                                    activity.invalidateOptionsMenu()
-                                    val chat = loadChatContent(chatId)
-                                    vmodel.chatContent.apply {
-                                        clear()
-                                        addAll(chat)
-                                    }
-                                    vmodel.chatId = chatId
-                                    syncChatView()
-                                    vmodel.autoscrollEnabled = true
-                                    binding.scrollviewChat.post { scrollToBottom(false) }
+                            lifecycleScope.launch(NonCancellable) {
+                                saveOrDeleteCurrentChat()
+                                vmodel.handleResponseJob?.cancel()
+                                vmodel.realtimeJob?.cancel()
+                                vmodel.handleResponseJob?.join()
+                                vmodel.realtimeJob?.join()
+                                binding.edittextPrompt.editableText.clear()
+                                activity.invalidateOptionsMenu()
+                                val chat = loadChatContent(chatId)
+                                vmodel.chatContent.apply {
+                                    clear()
+                                    addAll(chat)
                                 }
+                                vmodel.chatId = chatId
+                                syncChatView()
+                                vmodel.autoscrollEnabled = true
+                                binding.scrollviewChat.post { scrollToBottom(false) }
                             }
                         } else {
                             Log.i("chats", "Selected current chat $chatId")
