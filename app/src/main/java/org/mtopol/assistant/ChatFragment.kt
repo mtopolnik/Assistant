@@ -32,6 +32,7 @@ import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.media.audiofx.LoudnessEnhancer
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Parcelable
 import android.speech.tts.TextToSpeech
@@ -128,6 +129,7 @@ import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
@@ -166,6 +168,7 @@ private const val CHATS_MENUITEM_ID_BASE = 1000
 private val sentenceDelimiterRegex = """(?<=\D[.!]['"]?)\s+|(?<=\d[.!]'?)\s+(?=\p{Lu})|(?<=.[;?]'?)\s+|\n+""".toRegex()
 private val speechImprovementRegex = """ ?[()] ?""".toRegex()
 private val whitespaceRegex = """\s+""".toRegex()
+private val mediaRecorderCanUseOpus = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
 
 
 class ChatFragmentModel(
@@ -215,6 +218,7 @@ class ChatFragment : Fragment(), MenuProvider {
     private val sharedImageViewModel: SharedImageViewModel by activityViewModels()
     private lateinit var userLanguages: List<String>
     private lateinit var binding: FragmentChatBinding
+    private lateinit var audioPathname: String
     private lateinit var languageIdentifier: LanguageIdentifier
     private lateinit var drawerToggle: ActionBarDrawerToggle
     private lateinit var voiceMenuItem: MenuItem
@@ -226,6 +230,7 @@ class ChatFragment : Fragment(), MenuProvider {
     private lateinit var promptSectionLayoutParams_voice: LinearLayout.LayoutParams
 
     private var _recordButtonPressTime = 0L
+    private var _mediaRecorder: MediaRecorder? = null
     private var _audioRecord: AudioRecord? = null
     private var _sendBuf: ByteBuffer? = null
     private var _pcmTee: java.io.OutputStream? = null
@@ -343,6 +348,9 @@ class ChatFragment : Fragment(), MenuProvider {
         languageIdentifier = LanguageIdentification.getClient(
             LanguageIdentificationOptions.Builder().setConfidenceThreshold(0.2f).build()
         )
+        audioPathname = File(context.externalCacheDir,
+            if (mediaRecorderCanUseOpus) "prompt.ogg" else "prompt.m4a"
+        ).absolutePath
         binding.root.doOnLayout {
             if (vmodel.recordingGlowJob != null) {
                 binding.showRecordingGlow()
@@ -891,6 +899,7 @@ class ChatFragment : Fragment(), MenuProvider {
         super.onPause()
         Log.i("lifecycle", "onPause ChatFragment")
         vmodel.recordingGlowJob?.cancel()
+        runBlocking { stopRecordingPrompt() }
         stopRealtimeRecording()
         if (vmodel.realtimeJob?.isActive == true) {
             vmodel.timedCancelRealtimeJob = vmodel.viewModelScope.launch {
@@ -1619,6 +1628,21 @@ class ChatFragment : Fragment(), MenuProvider {
         } finally {
             vmodel.isConnectionLive = false
             vmodel.withFragment { it.activity?.invalidateOptionsMenu() }
+        }
+    }
+
+    private suspend fun stopRecordingPrompt(): Boolean {
+        Log.i("recording", "stopRecording()")
+        val mediaRecorder = _mediaRecorder ?: return false
+        _mediaRecorder = null
+        return withContext(IO) {
+            try {
+                mediaRecorder.stop(); true
+            } catch (_: Exception) {
+                File(audioPathname).delete(); false
+            } finally {
+                mediaRecorder.release()
+            }
         }
     }
 
