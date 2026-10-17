@@ -41,10 +41,10 @@ enum class AiVendor(
     private val chatModelLazy: Lazy<AiModel>
 ) {
     DEMO("demo", lazy { AiModel.DEMO }),
-    ANTHROPIC("https://api.anthropic.com/v1/", lazy { AiModel.CLAUDE_4_SONNET }),
+    ANTHROPIC("https://api.anthropic.com/v1/", lazy { AiModel.CLAUDE_SONNET }),
     DEEPSEEK("https://api.deepseek.com/", lazy { AiModel.DEEPSEEK_CHAT }),
     XAI("https://api.x.ai/v1/", lazy { AiModel.GROK }),
-    OPENAI("https://api.openai.com/v1/", lazy { AiModel.GPT_5 });
+    OPENAI("https://api.openai.com/v1/", lazy { AiModel.GPT_6_SOL });
 
     val chatModel get() = chatModelLazy.value
     val apiKeyPref = name.lowercase() + "_api_key"
@@ -57,20 +57,18 @@ enum class AiModel(
     val vendor: AiVendor
 ) {
     DEMO("demo", "Demo", "Demo", AiVendor.DEMO),
-    CLAUDE_4_SONNET(MODEL_ID_SONNET_4_6, "Sonnet", "Claude Sonnet 4.6", AiVendor.ANTHROPIC),
-    CLAUDE_4_SONNET_THINKING(MODEL_ID_SONNET_4_6, "SonnetThink", "Claude Sonnet 4.6 Thinking", AiVendor.ANTHROPIC),
+    CLAUDE_SONNET(MODEL_ID_SONNET_5_5, "Sonnet", "Claude Sonnet 5.5", AiVendor.ANTHROPIC),
     DEEPSEEK_CHAT(MODEL_ID_DEEPSEEK_CHAT, "DS Chat", "DeepSeek Chat", AiVendor.DEEPSEEK),
     DEEPSEEK_REASONER(MODEL_ID_DEEPSEEK_REASONER, "DS Reason", "DeepSeek Reasoner", AiVendor.DEEPSEEK),
-    GROK(MODEL_ID_GROK_420_NON_REASONING, "Grok", "Grok 4.20 Non-reasoning", AiVendor.XAI),
-    GROK_REASONING(MODEL_ID_GROK_43, "Grok Think", "Grok 4.3", AiVendor.XAI),
+    GROK(MODEL_ID_GROK_47, "Grok", "Grok 4.7", AiVendor.XAI),
     GROK_IMAGINE(MODEL_ID_GROK_IMAGINE, "Grok Img", "Grok Imagine", AiVendor.XAI),
-    GPT_5(MODEL_ID_GPT_54, "GPT-5.4", "GPT-5.4", AiVendor.OPENAI),
-    GPT_5_MINI(MODEL_ID_GPT_54_MINI, "GPT-54min", "GPT-5.4-mini", AiVendor.OPENAI),
+    GPT_6_SOL(MODEL_ID_GPT_6_SOL, "Sol", "GPT-6 Sol", AiVendor.OPENAI),
+    GPT_6_LUNA(MODEL_ID_GPT_6_LUNA, "Luna", "GPT-6 Luna", AiVendor.OPENAI),
     GPT_REALTIME(MODEL_ID_GPT_REALTIME, "GPT RT", "GPT Realtime 2", AiVendor.OPENAI),
     GPT_REALTIME_MINI(MODEL_ID_GPT_REALTIME_MINI, "RT min", "GPT Realtime Mini", AiVendor.OPENAI),
-    GPT_IMAGE_15(MODEL_ID_GPT_IMAGE_15, "GPT Image", "GPT Image 2", AiVendor.OPENAI);
+    GPT_IMAGE(MODEL_ID_GPT_IMAGE_25_FLARE, "GPT Flare", "GPT Image 2.5 Flare", AiVendor.OPENAI);
 
-    fun isImageModel() = this == GPT_IMAGE_15 || this == GROK_IMAGINE
+    fun isImageModel() = this == GPT_IMAGE || this == GROK_IMAGINE
 }
 
 class OpenAiKey(val text: String) {
@@ -78,7 +76,7 @@ class OpenAiKey(val text: String) {
     fun isNotBlank() = text.isNotBlank()
     fun isDemoKey() = text.isDemoKey()
     fun allowsGpt4() = isNotBlank() && !isDemoKey()
-    fun allowsTts() = allowsGpt4() && !text.isGptOnlyKey()
+    fun allowsTts() = allowsGpt4()
     fun allowsImageGen() = text.isImageGenKey()
     fun allowsRealtime() = allowsGpt4() && !text.isRtDisabledKey()
 
@@ -96,12 +94,10 @@ class ApiKeyWallet(prefs: SharedPreferences) {
         supportedModels = mutableListOf<AiModel>().also { models ->
             if (isDemo()) models.add(AiModel.DEMO)
             if (hasAnthropicKey()) {
-                models.add(AiModel.CLAUDE_4_SONNET)
-                models.add(AiModel.CLAUDE_4_SONNET_THINKING)
+                models.add(AiModel.CLAUDE_SONNET)
             }
             if (hasXaiKey()) {
                 models.add(AiModel.GROK)
-                models.add(AiModel.GROK_REASONING)
                 models.add(AiModel.GROK_IMAGINE)
             }
             if (hasDeepSeekKey()) {
@@ -109,14 +105,14 @@ class ApiKeyWallet(prefs: SharedPreferences) {
                 models.add(AiModel.DEEPSEEK_REASONER)
             }
             if (openaiKey.allowsGpt4()) {
-                models.add(AiModel.GPT_5)
-                models.add(AiModel.GPT_5_MINI)
+                models.add(AiModel.GPT_6_SOL)
+                models.add(AiModel.GPT_6_LUNA)
             }
             if (openaiKey.allowsRealtime()) {
                 models.add(AiModel.GPT_REALTIME)
                 models.add(AiModel.GPT_REALTIME_MINI)
             }
-            if (openaiKey.allowsImageGen()) models.add(AiModel.GPT_IMAGE_15)
+            if (openaiKey.allowsImageGen()) models.add(AiModel.GPT_IMAGE)
         }
     }
 
@@ -138,25 +134,19 @@ fun String.looksLikeXaiKey() = length == 84 && startsWith("xai-")
 fun String.looksLikeDeepSeekKey() = length == 35 && startsWith("sk-")
 fun String.looksLikeOpenAiKey() = length >= 51 && startsWith("sk-")
 
-private fun String.isGptOnlyKey() = setContainsHashMemoized(this, GPT_ONLY_KEY_HASHES, keyToIsGptOnly)
-private val keyToIsGptOnly = ConcurrentHashMap<String, Boolean>()
-private val GPT_ONLY_KEY_HASHES = hashSetOf(
-    "DIkQ9HIwN3Ky+t53aMHyojOYAsXBFBnZQvnhbU2oyPs="
-)
-
 private fun String.isImageGenKey() = setContainsHashMemoized(this, IMAGE_KEY_HASHES, keyToIsImageGen)
 private val keyToIsImageGen = ConcurrentHashMap<String, Boolean>()
 private val IMAGE_KEY_HASHES = hashSetOf(
-    "WlYejPDJf0ba5LefiDKy2gqb4PeXKIO36iejO7y5NuE=",
-    "YPrJZ6ypdiqNcLciJBqpZ6FTAFdcLwbsb9yi7g0u0/s="
+    "8sQSMqd9RZvgphYTcA+ML2KKkSjuiQ3ZJgOQnZa0v0g=",
+    "Ghtujke/157DkuC7xKpFHTcf6TnVCqSP86XZfOSOyck="
+
 )
 
 private fun String.isRtDisabledKey() = setContainsHashMemoized(this, RT_DISABLED_KEY_HASHES, keyToIsDisabledRt)
 private val keyToIsDisabledRt = ConcurrentHashMap<String, Boolean>()
 private val RT_DISABLED_KEY_HASHES = hashSetOf(
-    "DIkQ9HIwN3Ky+t53aMHyojOYAsXBFBnZQvnhbU2oyPs=",
-    "WlYejPDJf0ba5LefiDKy2gqb4PeXKIO36iejO7y5NuE=",
-    "Ej1/kPkeX2/5AVBalQHV+Fg/5QSo9UjK+XgDWFhOQ10="
+    "UGUKc4BXitAhwhnJHsQXJjeqlAwVHVoU6ma+KCI5GFE=",
+    "8sQSMqd9RZvgphYTcA+ML2KKkSjuiQ3ZJgOQnZa0v0g="
 )
 
 
@@ -170,7 +160,7 @@ private fun setContainsHashMemoized(key: String, set: Set<String>, cache: Mutabl
     }
 }
 
- fun apiKeyHash(apiKey: String): String =
+fun apiKeyHash(apiKey: String): String =
     apiKey.toByteArray(Charsets.UTF_8).let {
         MessageDigest.getInstance("SHA-256").digest(it)
     }.let {

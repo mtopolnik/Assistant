@@ -109,23 +109,22 @@ import java.io.IOException
 import java.nio.ByteBuffer
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.time.Duration.Companion.milliseconds
 import io.ktor.websocket.send as wsend
 
 val openAi get() = openAiLazy.value
 
-const val MODEL_ID_GPT_41_MINI = "gpt-4.1-mini"
-const val MODEL_ID_GPT_54_MINI = "gpt-5.4-mini"
-const val MODEL_ID_GPT_54 = "gpt-5.4"
-const val MODEL_ID_GPT_REALTIME = "gpt-realtime-2"
-const val MODEL_ID_GPT_REALTIME_MINI = "gpt-realtime-mini"
-const val MODEL_ID_GPT_IMAGE_15 = "gpt-image-2"
+const val MODEL_ID_GPT_6_LUNA = "gpt-6-luna"
+const val MODEL_ID_GPT_6_SOL = "gpt-6-sol"
+const val MODEL_ID_GPT_REALTIME = "gpt-realtime-2.1"
+const val MODEL_ID_GPT_REALTIME_MINI = "gpt-realtime-2.1-mini"
+const val MODEL_ID_GPT_IMAGE_25_FLARE = "gpt-image-2.5-flare"
 
 const val MODEL_ID_DEEPSEEK_CHAT = "deepseek-chat"
 const val MODEL_ID_DEEPSEEK_REASONER = "deepseek-reasoner"
 
-const val MODEL_ID_GROK_420_NON_REASONING = "grok-4.20-non-reasoning"
-const val MODEL_ID_GROK_43 = "grok-4.3"
-const val MODEL_ID_GROK_IMAGINE = "grok-imagine-image"
+const val MODEL_ID_GROK_47 = "grok-4.7"
+const val MODEL_ID_GROK_IMAGINE = "grok-imagine-image-2.0"
 
 const val REASONING_ANNOUNCER = "<REASONING>"
 
@@ -160,7 +159,10 @@ class OpenAI {
 
     suspend fun chatCompletions(history: List<Exchange>, model: AiModel): Flow<String> {
         if (demoMode) {
-            return mockResponse.toCharArray().asList().chunked(4).asFlow().map { delay(120); it.joinToString("") }
+            return mockResponse.toCharArray().asList().chunked(4).asFlow().map {
+                delay(120.milliseconds)
+                it.joinToString("")
+            }
         }
         val client = selectClient(model)
         val modelId = model.apiId
@@ -199,7 +201,7 @@ class OpenAI {
         }
 
         val chatCompletionRequest = ChatCompletionRequest(
-            model = MODEL_ID_GPT_41_MINI,
+            model = MODEL_ID_GPT_6_LUNA,
             messages = listOf(
                 ChatMessage.Simple("system", systemPrompt),
                 ChatMessage.Simple("user", text)
@@ -216,7 +218,7 @@ class OpenAI {
                             Log.i("chats", "chat summary: $it")
                         }.trim().removeSurrounding("\"")
                 }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             ""
         }
     }
@@ -244,7 +246,7 @@ class OpenAI {
     suspend fun transcription(language: String?, prompt: String, audioPathname: String): String {
         Log.i("client", "Transcription language: $language, prompt context:\n$prompt")
         if (demoMode) {
-            delay(2000)
+            delay(2000.milliseconds)
             return mockRecognizedSpeech
         }
         if (appContext.mainPrefs.openaiApiKey.isBlank()) {
@@ -296,7 +298,7 @@ class OpenAI {
                     .createMediaSource(MediaItem.fromUri(Uri.EMPTY))
             )
             while (!channel.isClosedForRead) {
-                delay(100)
+                delay(100.milliseconds)
             }
         }
     }
@@ -437,7 +439,7 @@ class OpenAI {
                         val bufIndex = encoder.dequeueOutputBuffer(bufInfo, 0)
                         if (bufIndex < 0) {
                             if (drainFully) {
-                                delay(1)
+                                delay(1.milliseconds)
                                 continue
                             } else {
                                 return
@@ -506,9 +508,9 @@ class OpenAI {
                                 bytesSent = 0
                                 restartEncoder()
                             } else if (promptInProgress) {
-                                delay(20)
+                                delay(20.milliseconds)
                             } else {
-                                delay(100)
+                                delay(100.milliseconds)
                             }
                             continue
                         }

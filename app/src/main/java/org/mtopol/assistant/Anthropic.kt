@@ -25,7 +25,6 @@ import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.request.HttpRequestBuilder
-import io.ktor.client.request.headers
 import io.ktor.client.request.setBody
 import io.ktor.client.request.url
 import io.ktor.client.statement.HttpResponse
@@ -48,7 +47,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.encodeToJsonElement
 import java.io.ByteArrayOutputStream
 
-const val MODEL_ID_SONNET_4_6 = "claude-sonnet-4-6"
+const val MODEL_ID_SONNET_5_5 = "claude-sonnet-5-5"
 
 val anthropic get() = anthropicLazy.value
 
@@ -77,23 +76,13 @@ class Anthropic {
 
     suspend fun messages(history: List<Exchange>, model: AiModel): Flow<String> {
         Log.i("client", "Model: ${model.apiId}")
-        val request = if (model == AiModel.CLAUDE_4_SONNET_THINKING)
-            MessageRequest(
-                model = model.apiId,
-                system = appContext.mainPrefs.systemPrompt,
-                messages = history.toDto().dropLast(1),
-                max_tokens = 8192,
-                stream = true,
-                thinking = Thinking("enabled", 4096)
-            )
-        else
-            MessageRequest(
-                model = model.apiId,
-                system = appContext.mainPrefs.systemPrompt,
-                messages = history.toDto().dropLast(1),
-                max_tokens = 4096,
-                stream = true
-            )
+        val request = MessageRequest(
+            model = model.apiId,
+            system = appContext.mainPrefs.systemPrompt,
+            messages = history.toDto().dropLast(1),
+            max_tokens = 4096,
+            stream = true
+        )
         return flow<ResponseChunk> {
             val builder = HttpRequestBuilder().apply {
                 method = HttpMethod.Post
