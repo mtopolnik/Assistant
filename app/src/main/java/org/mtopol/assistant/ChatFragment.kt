@@ -121,6 +121,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -1410,6 +1411,9 @@ class ChatFragment : Fragment(), MenuProvider {
             } finally {
                 _audioRecord = null
                 _sendBuf = null
+                withContext(NonCancellable) {
+                    vmodel.recordingGlowJob?.cancelAndJoin()
+                }
                 audioRecord.apply { stop(); release() }
                 exoPlayer.apply { stop(); release() }
                 activity.unlockOrientation()
@@ -1652,7 +1656,9 @@ class ChatFragment : Fragment(), MenuProvider {
         val sendBuf = _sendBuf ?: return
         audioRecord.startRecording()
         vibrate()
+        val previousRecordingGlowJob = vmodel.recordingGlowJob?.apply { cancel() }
         vmodel.recordingGlowJob = vmodel.viewModelScope.launch {
+            previousRecordingGlowJob?.join()
             vmodel.withFragment {
                 (it.activity as MainActivity?)?.lockOrientation()
                 it.binding.showRecordingGlow()
