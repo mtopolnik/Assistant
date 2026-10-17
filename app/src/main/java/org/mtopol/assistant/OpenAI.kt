@@ -403,14 +403,10 @@ class OpenAI {
                         RealtimeEvent.ClientConversationItem(
                             type = "message",
                             role = "user",
+                            // An input_audio part requires the audio itself, so the
+                            // prompt goes in as its transcript.
                             content = listOf(
-                                RealtimeEvent.ContentPart.InputAudio(
-                                    transcript = exchange.promptText()?.toString() ?: "",
-//                                    audio =
-//                                    exchange.audioPrompt()
-//                                        ?.let { it.uri.inputStream()?.use { it.readBytes() } }
-//                                        ?.let { opusBytes -> Base64.encodeToString(convertAopusToPcm(opusBytes), NO_WRAP) }
-                                )
+                                RealtimeEvent.ContentPart.InputText(exchange.promptText()?.toString() ?: "")
                             )
                         )
                     )
