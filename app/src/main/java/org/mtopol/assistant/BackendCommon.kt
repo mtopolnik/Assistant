@@ -29,6 +29,7 @@ import io.ktor.client.plugins.logging.ANDROID
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
+import io.ktor.http.HttpHeaders
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 import java.security.MessageDigest
@@ -186,6 +187,10 @@ fun HttpClientConfig<OkHttpConfig>.commonApiClientSetup() {
     install(Logging) {
         level = LogLevel.HEADERS
         logger = Logger.ANDROID
+        sanitizeHeader { header ->
+            header.equals(HttpHeaders.Authorization, ignoreCase = true)
+                    || header.equals("x-api-key", ignoreCase = true)
+        }
     }
     expectSuccess = true
 }
