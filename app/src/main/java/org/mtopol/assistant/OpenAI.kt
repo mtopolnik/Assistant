@@ -105,6 +105,7 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
 import java.nio.ByteBuffer
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
@@ -258,6 +259,7 @@ class OpenAI {
                 append("model", "gpt-4o-transcribe")
                 if (language != null) {
                     append("language", language)
+                    append("prompt", transcriptionInstruction(language))
                 } else {
                     append("prompt", prompt)
                 }
@@ -265,6 +267,12 @@ class OpenAI {
                 appendFile("file", audioPathname)
             })
         return response.body<String>().replace("\n", "")
+            .also { Log.i("client", "Transcription: $it") }
+    }
+
+    private fun transcriptionInstruction(language: String): String {
+        val languageName = Locale.forLanguageTag(language).getDisplayLanguage(Locale.ENGLISH)
+        return "Transcribe the speech in $languageName (ISO 639-1 language code \"$language\")."
     }
 
     @OptIn(UnstableApi::class)
