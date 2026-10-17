@@ -428,6 +428,7 @@ class OpenAI {
             val bytesFor50ms = REALTIME_RECORD_SAMPLE_RATE / 10
             val bytesFor100ms = 2 * bytesFor50ms
             val responseId = AtomicReference<String>(null)
+            val responseInProgress = AtomicBoolean(false)
             val promptAudioChannel = Channel<ByteArray>(UNLIMITED)
             launch {
                 val bufInfo = MediaCodec.BufferInfo()
@@ -568,7 +569,9 @@ class OpenAI {
                                             audio_end_ms = responseDuration
                                         )
                                     )
-                                    sendWs("""{ "type": "response.cancel" }""")
+                                    if (responseInProgress.get()) {
+                                        sendWs("""{ "type": "response.cancel" }""")
+                                    }
                                 }
                                 responseId.set(null)
                             }
@@ -662,11 +665,15 @@ class OpenAI {
                         }
                     }
                     is RealtimeEvent.ResponseCreated -> {
+                        responseInProgress.set(true)
                         withFragmentSync { fragment ->
                             vmodel.replyTextView =
                                 fragment.addTextResponseToView(fragment.requireContext(), currentExchange!!)
                             fragment.onLayoutScrollToBottom()
                         }
+                    }
+                    is RealtimeEvent.ResponseDone -> {
+                        responseInProgress.set(false)
                     }
                     is RealtimeEvent.ResponseTextDone -> {
                         setResponseText(event.text)
@@ -995,6 +1002,10 @@ class OpenAI {
         data class ConversationItemAdded(val item: ServerConversationItem) : RealtimeEvent()
 
         @Serializable
+        @SerialName("conversation.item.done")
+        data class ConversationItemDone(val item: JsonObject) : RealtimeEvent()
+
+        @Serializable
         data class ServerConversationItem(
             val id: String,
             val role: String,
@@ -1008,6 +1019,10 @@ class OpenAI {
         @Serializable
         @SerialName("conversation.item.input_audio_transcription.completed")
         data class InputTranscriptionCompleted(val transcript: String) : RealtimeEvent()
+
+        @Serializable
+        @SerialName("conversation.item.input_audio_transcription.delta")
+        data class InputTranscriptionDelta(val delta: String) : RealtimeEvent()
 
         @Serializable
         @SerialName("conversation.item.input_audio_transcription.failed")
@@ -1029,13 +1044,15 @@ class OpenAI {
         @SerialName("response.output_item.done")
         data class ResponseOutputItemDone(val item: JsonObject) : RealtimeEvent()
 
+        // These events report an audio part as "audio", while conversation items
+        // report it as "output_audio", so ContentPart can't decode them.
         @Serializable
         @SerialName("response.content_part.added")
-        data class ResponseContentPartAdded(val part: ContentPart) : RealtimeEvent()
+        data class ResponseContentPartAdded(val part: JsonObject) : RealtimeEvent()
 
         @Serializable
         @SerialName("response.content_part.done")
-        data class ResponseContentPartDone(val part: ContentPart) : RealtimeEvent()
+        data class ResponseContentPartDone(val part: JsonObject) : RealtimeEvent()
 
         @Serializable
         @SerialName("response.output_audio_transcript.delta")
