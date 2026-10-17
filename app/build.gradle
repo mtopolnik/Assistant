@@ -19,8 +19,8 @@ android {
         applicationId "org.mtopol.assistant"
         minSdk 26
         targetSdk 37
-        versionCode 177
-        versionName "7.28"
+        versionCode 178
+        versionName "7.29"
         resourceConfigurations += ['en', 'hr']
     }
 
