@@ -1410,10 +1410,12 @@ class ChatFragment : Fragment(), MenuProvider {
                 vmodel.isConnectionLive = true
                 openAi.realtime(model, sendBuf, audioRecord, exoPlayer, vmodel)
             } catch (e: Throwable) {
-                // Ktor throws CancellationException on comms error. To distinguish
-                // from outside cancellation, we log isActive: if this is true, the
-                // exception came from within (Ktor threw it)
-                Log.e("speech", "Realtime session ended with exception, isActive=$isActive", e)
+                // Ktor throws CancellationException on comms error. To distinguish it
+                // from outside cancellation (i.e., the user canceled it), we consult
+                // isActive. We log the exception only if it comes from within.
+                if (isActive) {
+                    Log.e("speech", "Realtime session ended with exception", e)
+                }
                 throw e
             } finally {
                 _audioRecord = null
