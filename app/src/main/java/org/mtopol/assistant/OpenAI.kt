@@ -108,6 +108,7 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration.Companion.milliseconds
 import io.ktor.websocket.send as wsend
@@ -317,8 +318,31 @@ class OpenAI {
             header("OpenAI-Beta", "realtime=v1")
         }) {
 
+            val serverCloseLogged = AtomicBoolean(false)
+
+            // Ktor reports a server close as a CancellationException with only the HTTP error code.
+            // This logs the close code with the reason text, and also any events it sent that
+            // were left unread.
+            suspend fun logServerClose() {
+                if (!closeReason.isCompleted || !serverCloseLogged.compareAndSet(false, true)) {
+                    return
+                }
+                Log.e("speech", "Server closed WebSocket: ${closeReason.await()}")
+                while (true) {
+                    val frame = incoming.tryReceive().getOrNull() ?: break
+                    if (frame is Frame.Text) {
+                        Log.e("speech", "Unread WebSocket event ${frame.readText()}")
+                    }
+                }
+            }
+
             suspend fun sendWs(msg: String) {
-                wsend(msg)
+                try {
+                    wsend(msg)
+                } catch (e: CancellationException) {
+                    logServerClose()
+                    throw e
+                }
                 val logEvent =
                     if (msg.contains("input_audio_buffer.append")) msg.substring(0, 50.coerceAtMost(msg.length))
                     else msg
@@ -672,6 +696,7 @@ class OpenAI {
                 }
             } finally {
                 vmodel.replyTextView = null
+                logServerClose()
                 Log.i("speech", "Websocket done")
             }
         }

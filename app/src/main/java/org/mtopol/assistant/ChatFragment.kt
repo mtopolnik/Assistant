@@ -135,6 +135,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -1408,6 +1409,12 @@ class ChatFragment : Fragment(), MenuProvider {
                 startRealtimeRecording()
                 vmodel.isConnectionLive = true
                 openAi.realtime(model, sendBuf, audioRecord, exoPlayer, vmodel)
+            } catch (e: Throwable) {
+                // Ktor throws CancellationException on comms error. To distinguish
+                // from outside cancellation, we log isActive: if this is true, the
+                // exception came from within (Ktor threw it)
+                Log.e("speech", "Realtime session ended with exception, isActive=$isActive", e)
+                throw e
             } finally {
                 _audioRecord = null
                 _sendBuf = null
