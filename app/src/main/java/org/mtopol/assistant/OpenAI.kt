@@ -93,8 +93,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
-import kotlinx.serialization.EncodeDefault
-import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -315,7 +313,6 @@ class OpenAI {
         openAiClient.webSocket({
             method = HttpMethod.Get
             url(scheme = "wss", host = "api.openai.com", path = "v1/realtime?model=${model.apiId}")
-            header("OpenAI-Beta", "realtime=v1")
         }) {
 
             val serverCloseLogged = AtomicBoolean(false)
@@ -378,14 +375,20 @@ class OpenAI {
                 {
                     "type": "session.update",
                     "session": {
-                        "modalities":["audio","text"],
-                        "voice": "${appContext.mainPrefs.selectedRtVoice.name.lowercase()}",
-                        "input_audio_format": "pcm16",
-                        "output_audio_format": "pcm16",
-                        "input_audio_transcription": { "model": "whisper-1" },
-                        "turn_detection": null,
-                        "temperature": 0.8,
-                        "max_response_output_tokens": 4096,
+                        "type": "realtime",
+                        "output_modalities": ["audio"],
+                        "audio": {
+                            "input": {
+                                "format": { "type": "audio/pcm", "rate": $REALTIME_RECORD_SAMPLE_RATE },
+                                "transcription": { "model": "whisper-1" },
+                                "turn_detection": null
+                            },
+                            "output": {
+                                "format": { "type": "audio/pcm", "rate": 24000 },
+                                "voice": "${appContext.mainPrefs.selectedRtVoice.name.lowercase()}"
+                            }
+                        },
+                        "max_output_tokens": 4096,
                         "instructions": "${appContext.getString(R.string.realtime_instructions)}"
                     }
                 }
@@ -611,7 +614,7 @@ class OpenAI {
                             exoPlayer.play()
                         }
                     }
-                    is RealtimeEvent.ConversationItemCreated -> {
+                    is RealtimeEvent.ConversationItemAdded -> {
                         val contentPart = event.item.content.firstOrNull()
                         if (contentPart is RealtimeEvent.ContentPart.InputText
                             || contentPart is RealtimeEvent.ContentPart.Text
@@ -926,7 +929,7 @@ class OpenAI {
             ) : ContentPart()
 
             @Serializable
-            @SerialName("audio")
+            @SerialName("output_audio")
             data class Audio(
                 val transcript: String?
             ) : ContentPart()
@@ -938,7 +941,7 @@ class OpenAI {
             ) : ContentPart()
 
             @Serializable
-            @SerialName("text")
+            @SerialName("output_text")
             data class Text(
                 val text: String
             ) : ContentPart()
@@ -961,40 +964,11 @@ class OpenAI {
 
         @Serializable
         @SerialName("session.created")
-        data class SessionCreated(val session: Session) : RealtimeEvent()
+        data class SessionCreated(val session: JsonObject) : RealtimeEvent()
 
         @Serializable
         @SerialName("session.updated")
-        data class SessionUpdated(val session: Session) : RealtimeEvent()
-
-        @Serializable
-        data class Session 
-        @kotlin.OptIn(ExperimentalSerializationApi::class)
-        constructor(
-            val modalities: Array<String>,
-            val voice: String,
-            val input_audio_format: String,
-            val output_audio_format: String,
-            @EncodeDefault(EncodeDefault.Mode.NEVER)
-            val turn_detection: TurnDetection? = null,
-            @EncodeDefault(EncodeDefault.Mode.NEVER)
-            val input_audio_transcription: Transcription? = null,
-            val temperature: Float,
-            val instructions: String,
-        )
-
-        @Serializable
-        data class Transcription(
-            val model: String
-        )
-
-        @Serializable
-        data class TurnDetection(
-            val type: String,
-            val threshold: Float,
-            val prefix_padding_ms: Int,
-            val silence_duration_ms: Int
-        )
+        data class SessionUpdated(val session: JsonObject) : RealtimeEvent()
 
         @Serializable
         @SerialName("conversation.updated")
@@ -1017,8 +991,8 @@ class OpenAI {
         data class AudioBufferCleared(val event_id: String?) : RealtimeEvent()
 
         @Serializable
-        @SerialName("conversation.item.created")
-        data class ConversationItemCreated(val item: ServerConversationItem) : RealtimeEvent()
+        @SerialName("conversation.item.added")
+        data class ConversationItemAdded(val item: ServerConversationItem) : RealtimeEvent()
 
         @Serializable
         data class ServerConversationItem(
@@ -1064,27 +1038,27 @@ class OpenAI {
         data class ResponseContentPartDone(val part: ContentPart) : RealtimeEvent()
 
         @Serializable
-        @SerialName("response.audio_transcript.delta")
+        @SerialName("response.output_audio_transcript.delta")
         data class ResponseAudioTranscriptDelta(val delta: String) : RealtimeEvent()
 
         @Serializable
-        @SerialName("response.audio_transcript.done")
+        @SerialName("response.output_audio_transcript.done")
         data class ResponseAudioTranscriptDone(val transcript: String) : RealtimeEvent()
 
         @Serializable
-        @SerialName("response.audio.delta")
+        @SerialName("response.output_audio.delta")
         data class ResponseAudioDelta(val delta: String) : RealtimeEvent()
 
         @Serializable
-        @SerialName("response.audio.done")
+        @SerialName("response.output_audio.done")
         data class ResponseAudioDone(val output_index: Int) : RealtimeEvent()
 
         @Serializable
-        @SerialName("response.text.delta")
+        @SerialName("response.output_text.delta")
         data class ResponseTextDelta(val delta: String) : RealtimeEvent()
 
         @Serializable
-        @SerialName("response.text.done")
+        @SerialName("response.output_text.done")
         data class ResponseTextDone(val text: String) : RealtimeEvent()
 
         @Serializable
