@@ -41,6 +41,7 @@ import android.os.Parcelable
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.text.Editable
+import android.text.TextUtils
 import android.text.TextWatcher
 import android.util.Log
 import android.view.GestureDetector
@@ -1053,6 +1054,9 @@ class ChatFragment : Fragment(), MenuProvider {
                             binding.scrollviewChat.post { scrollToBottom() }
                             return this
                         }
+
+                        override fun getChars(start: Int, end: Int, dest: CharArray, destoff: Int) =
+                            TextUtils.getChars(editable, start, end, dest, destoff)
                     })
                 if (editable.isBlank()) {
                     responseContainer.removeView(responseText)
@@ -2143,7 +2147,7 @@ class UtteranceContinuationListener<T>(
         continuation.resumeWith(failure(Exception("TextToSpeech error code $errorCode")))
     }
 
-    @Deprecated("", ReplaceWith("Can't replace, it's an abstract method!"))
+    @Deprecated("Deprecated in Java")
     override fun onError(utteranceId: String) {
         onError(utteranceId, TextToSpeech.ERROR)
     }

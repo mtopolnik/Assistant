@@ -12,13 +12,13 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace 'org.mtopol.assistant'
-    compileSdk 36
+    namespace = 'org.mtopol.assistant'
+    compileSdk = 37
 
     defaultConfig {
         applicationId "org.mtopol.assistant"
         minSdk 26
-        targetSdk 36
+        targetSdk 37
         versionCode 176
         versionName "7.27"
         resourceConfigurations += ['en', 'hr']
@@ -56,22 +56,22 @@ android {
 }
 
 dependencies {
-    implementation 'androidx.core:core-ktx:1.18.0'
-    implementation 'androidx.appcompat:appcompat:1.7.1'
+    implementation 'androidx.core:core-ktx:1.19.1'
+    implementation 'androidx.appcompat:appcompat:1.8.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.11.0'
     implementation 'com.google.android.material:material:1.14.0'
-    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.10.0'
-    implementation 'androidx.fragment:fragment-ktx:1.8.9'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.11.0'
+    implementation 'androidx.fragment:fragment-ktx:1.9.1'
     implementation 'androidx.preference:preference-ktx:1.2.1'
-    implementation 'androidx.navigation:navigation-fragment-ktx:2.9.8'
-    implementation 'androidx.navigation:navigation-ui-ktx:2.9.8'
+    implementation 'androidx.navigation:navigation-fragment-ktx:2.10.2'
+    implementation 'androidx.navigation:navigation-ui-ktx:2.10.2'
 
     implementation 'com.google.mlkit:language-id:17.0.6'
-    implementation platform('io.ktor:ktor-bom:3.5.0')
+    implementation platform('io.ktor:ktor-bom:3.6.0')
     implementation 'io.ktor:ktor-client-okhttp'
     implementation 'io.ktor:ktor-client-logging'
     implementation 'io.ktor:ktor-client-websockets'
-    implementation 'androidx.core:core-ktx:1.18.0'
+    implementation 'androidx.core:core-ktx:1.19.1'
     runtimeOnly 'org.slf4j:slf4j-android:1.7.36'
     implementation 'io.ktor:ktor-client-auth'
     implementation 'io.ktor:ktor-client-content-negotiation'
@@ -81,7 +81,7 @@ dependencies {
 
     implementation 'io.noties.markwon:core:4.6.2'
 
-    implementation 'androidx.media3:media3-common:1.10.1'
-    implementation 'androidx.media3:media3-datasource:1.10.1'
-    implementation 'androidx.media3:media3-exoplayer:1.10.1'
+    implementation 'androidx.media3:media3-common:1.11.1'
+    implementation 'androidx.media3:media3-datasource:1.11.1'
+    implementation 'androidx.media3:media3-exoplayer:1.11.1'
 }
